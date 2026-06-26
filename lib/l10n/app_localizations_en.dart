@@ -630,4 +630,215 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get copyInformation => 'Copy information';
+
+  @override
+  String get latestChanges => 'Latest changes';
+
+  @override
+  String get newPeopleAdded => 'New people added';
+
+  @override
+  String get newModifications => 'New modifications';
+
+  @override
+  String get modifiedBy => 'Modified by';
+
+  @override
+  String get addedBy => 'Added by';
+
+  @override
+  String get updatedBy => 'Updated by';
+
+  @override
+  String get deletedBy => 'Deleted by';
+
+  @override
+  String get viewHistory => 'View history';
+
+  @override
+  String get markAsSeen => 'I’ve seen it';
+
+  @override
+  String get doNotShowAgain => 'Do not show again';
+
+  @override
+  String get modificationHistory => 'Modification history';
+
+  @override
+  String get personAdded => 'Person added';
+
+  @override
+  String get personUpdated => 'Person updated';
+
+  @override
+  String get personDeleted => 'Person deleted';
+
+  @override
+  String get relationshipAdded => 'Relationship added';
+
+  @override
+  String get historyRetention => 'History retention';
+
+  @override
+  String get historyDeletedAfterThreeMonths =>
+      'History deleted after three months';
+
+  @override
+  String get adminAccessCode => 'Admin code';
+
+  @override
+  String get enterAdminCode => 'Enter admin code';
+
+  @override
+  String get invalidAdminCode => 'Invalid admin code';
+
+  @override
+  String get adminKpiAccess => 'Admin / KPI access';
+
+  @override
+  String get adminSecurity => 'Admin security';
+
+  @override
+  String get changeAdminCode => 'Change admin code';
+
+  @override
+  String get currentAdminCode => 'Current admin code';
+
+  @override
+  String get oldAdminCode => 'Old admin code';
+
+  @override
+  String get newAdminCode => 'New admin code';
+
+  @override
+  String get confirmNewAdminCode => 'Confirm new code';
+
+  @override
+  String get adminCodeChanged => 'Admin code changed';
+
+  @override
+  String get adminCodeRotationDue => 'The admin code must be changed';
+
+  @override
+  String get adminCodeRotationLate => 'Admin code change is overdue';
+
+  @override
+  String get nextAdminCodeChange => 'Next recommended change';
+
+  @override
+  String get lastAdminCodeChange => 'Last change';
+
+  @override
+  String get adminCodeHistory => 'Admin code history';
+
+  @override
+  String get codeManagement => 'Code management';
+
+  @override
+  String get accessCodes => 'Access codes';
+
+  @override
+  String get createAccessCode => 'Create code';
+
+  @override
+  String get editAccessCode => 'Edit code';
+
+  @override
+  String get deleteAccessCode => 'Delete code';
+
+  @override
+  String get disableAccessCode => 'Disable code';
+
+  @override
+  String get enableAccessCode => 'Enable code';
+
+  @override
+  String get copyCode => 'Copy code';
+
+  @override
+  String get showCode => 'Show code';
+
+  @override
+  String get hideCode => 'Hide code';
+
+  @override
+  String get codeType => 'Code type';
+
+  @override
+  String get codeRole => 'Code role';
+
+  @override
+  String get codeStatus => 'Code status';
+
+  @override
+  String get codeExpiration => 'Expiration';
+
+  @override
+  String get codeUsage => 'Usage';
+
+  @override
+  String get createdBy => 'Created by';
+
+  @override
+  String get lastUsedAt => 'Last used';
+
+  @override
+  String get maxUses => 'Maximum uses';
+
+  @override
+  String get generateCode => 'Generate code';
+
+  @override
+  String get manualCode => 'Manual code';
+
+  @override
+  String get familyAccessCode => 'Family access code';
+
+  @override
+  String get adminKpiCode => 'Admin KPI code';
+
+  @override
+  String get linkedFamilyCode => 'Linked family code';
+
+  @override
+  String get temporaryCode => 'Temporary code';
+
+  @override
+  String get codeUpdated => 'Code updated';
+
+  @override
+  String get codeDeleted => 'Code deleted';
+
+  @override
+  String get codeEnabled => 'Code enabled';
+
+  @override
+  String get codeAlreadyExists => 'This code already exists';
+
+  @override
+  String get familyHonor => 'Family honor';
+
+  @override
+  String get patriarch => 'Patriarch';
+
+  @override
+  String get patriarchBadge => 'Patriarch badge';
+
+  @override
+  String get selectPatriarch => 'Select patriarch';
+
+  @override
+  String get showPatriarchBadge => 'Show patriarch badge';
+
+  @override
+  String get badgePosition => 'Badge position';
+
+  @override
+  String get badgeStyle => 'Badge style';
+
+  @override
+  String get viewPatriarchProfile => 'View patriarch profile';
+
+  @override
+  String get familyDistinctions => 'Family distinctions';
 }

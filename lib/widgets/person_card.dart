@@ -23,6 +23,8 @@ class PersonCard extends ConsumerStatefulWidget {
     required this.onOpen,
     required this.authMode,
     this.compact = false,
+    this.width,
+    this.height,
   });
 
   final Person person;
@@ -30,6 +32,8 @@ class PersonCard extends ConsumerStatefulWidget {
   final VoidCallback onOpen;
   final AuthMode authMode;
   final bool compact;
+  final double? width;
+  final double? height;
 
   @override
   ConsumerState<PersonCard> createState() => _PersonCardState();
@@ -51,67 +55,137 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       onExit: (_) => _remove(),
       child: GestureDetector(
         onTap: widget.onOpen,
-        onSecondaryTapDown: (details) => _showContextMenu(details.globalPosition),
+        onSecondaryTapDown: (details) =>
+            _showContextMenu(details.globalPosition),
         onLongPressStart: (details) => _showContextMenu(details.globalPosition),
-        child: Card(
-          child: SizedBox(
-            width: widget.compact ? 190 : 250,
-            height: widget.compact ? 104 : 138,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  CircleAvatar(child: Text(_initials(widget.person))),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(_genderSymbol),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                widget.person.fullName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (widget.authMode == AuthMode.authenticated) ...[
-                          const SizedBox(height: 4),
-                          _relationLine(context, _fatherLine),
-                          _relationLine(context, _motherLine),
-                          _relationLine(context, _spouseLine),
-                        ] else if (_publicMapLocation.isNotEmpty) ...[
-                          const SizedBox(height: 4),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFEFA),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE0E6D8)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: SizedBox(
+              width: widget.width ?? (widget.compact ? 190 : 250),
+              height: widget.height ?? (widget.compact ? 96 : 104),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 25,
+                      backgroundColor: const Color(0xFFD8F0B5),
+                      foregroundColor: const Color(0xFF365D1C),
+                      child: Text(
+                        _initials(widget.person),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Row(
                             children: [
-                              Icon(
-                                Icons.location_on_outlined,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
+                              Text(
+                                _genderSymbol,
+                                style: TextStyle(
+                                  color: _genderColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  _publicMapLocation,
-                                  maxLines: 1,
+                                  widget.person.fullName,
+                                  maxLines: widget.compact ? 2 : 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0,
+                                      ),
                                 ),
                               ),
                             ],
                           ),
+                          if (widget.authMode == AuthMode.authenticated) ...[
+                            const SizedBox(height: 4),
+                            _relationLine(context, _fatherLine),
+                            _relationLine(context, _motherLine),
+                            _relationLine(context, _spouseLine),
+                          ] else if (_publicMapLocation.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on_outlined,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    _publicMapLocation,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_mapAddress.isNotEmpty)
+                          IconButton(
+                            tooltip: 'Google Maps',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(
+                              Icons.location_on_outlined,
+                              size: 20,
+                            ),
+                            color: Theme.of(context).colorScheme.primary,
+                            onPressed: () => ref
+                                .read(mapServiceProvider)
+                                .openInGoogleMaps(address: _mapAddress),
+                          ),
+                        Builder(
+                          builder: (buttonContext) => IconButton(
+                            tooltip: 'Menu',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.more_vert, size: 20),
+                            onPressed: () {
+                              final box =
+                                  buttonContext.findRenderObject() as RenderBox;
+                              final center = box.localToGlobal(
+                                box.size.center(Offset.zero),
+                              );
+                              _showContextMenu(center);
+                            },
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -151,11 +225,18 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     final canRequestModify =
         auth.isAuthenticated && auth.session?.role != 'viewer';
     final hasMap = _mapAddress.isNotEmpty;
-    final hasContact = widget.person.allowContact &&
-        (widget.person.whatsappNumber.isNotEmpty || widget.person.email.isNotEmpty);
+    final hasContact =
+        widget.person.allowContact &&
+        (widget.person.whatsappNumber.isNotEmpty ||
+            widget.person.email.isNotEmpty);
     final selected = await showMenu<PersonContextAction>(
       context: context,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
       items: personContextMenuItems(
         l10n,
         canModify: canRequestModify,
@@ -179,20 +260,24 @@ class _PersonCardState extends ConsumerState<PersonCard> {
         if (await _ensureModificationAccess()) await _deletePerson();
       case PersonContextAction.addFather:
         await _applyRelationship(
-          (service, data) => service.addFather(data, widget.person, actorRole: _actorRole),
+          (service, data) =>
+              service.addFather(data, widget.person, actorRole: _actorRole),
         );
       case PersonContextAction.addMother:
         await _applyRelationship(
-          (service, data) => service.addMother(data, widget.person, actorRole: _actorRole),
+          (service, data) =>
+              service.addMother(data, widget.person, actorRole: _actorRole),
         );
       case PersonContextAction.addParents:
         await _applyRelationship(
-          (service, data) => service.addParents(data, widget.person, actorRole: _actorRole),
+          (service, data) =>
+              service.addParents(data, widget.person, actorRole: _actorRole),
         );
       case PersonContextAction.addChild:
       case PersonContextAction.addChildren:
         await _applyRelationship(
-          (service, data) => service.addChild(data, widget.person, actorRole: _actorRole),
+          (service, data) =>
+              service.addChild(data, widget.person, actorRole: _actorRole),
         );
       case PersonContextAction.addBrother:
         await _applyRelationship(
@@ -214,7 +299,8 @@ class _PersonCardState extends ConsumerState<PersonCard> {
         );
       case PersonContextAction.addSpouse:
         await _applyRelationship(
-          (service, data) => service.addSpouse(data, widget.person, actorRole: _actorRole),
+          (service, data) =>
+              service.addSpouse(data, widget.person, actorRole: _actorRole),
         );
       case PersonContextAction.linkFather:
         await _linkExisting('father');
@@ -225,7 +311,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       case PersonContextAction.linkSpouse:
         await _linkExisting('spouse');
       case PersonContextAction.viewOnMap:
-        await ref.read(mapServiceProvider).openInGoogleMaps(address: _mapAddress);
+        await ref
+            .read(mapServiceProvider)
+            .openInGoogleMaps(address: _mapAddress);
       case PersonContextAction.sendMessage:
         await _sendMessage();
       case PersonContextAction.notifyPerson:
@@ -243,7 +331,8 @@ class _PersonCardState extends ConsumerState<PersonCard> {
   }
 
   Future<void> _applyRelationship(
-    FamilyTreeData Function(FamilyRelationService service, FamilyTreeData data) buildNext,
+    FamilyTreeData Function(FamilyRelationService service, FamilyTreeData data)
+    buildNext,
   ) async {
     if (!await _ensureModificationAccess()) return;
     try {
@@ -252,9 +341,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       await ref.read(familyTreeProvider.notifier).save(next);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -262,7 +351,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     if (!await _ensureModificationAccess()) return;
     if (!mounted) return;
     final data = ref.read(familyTreeProvider).value!;
-    final candidates = data.people.where((person) => person.id != widget.person.id).toList();
+    final candidates = data.people
+        .where((person) => person.id != widget.person.id)
+        .toList();
     if (candidates.isEmpty) return;
     var selected = candidates.first;
     final confirmed = await showDialog<bool>(
@@ -273,7 +364,12 @@ class _PersonCardState extends ConsumerState<PersonCard> {
           content: DropdownButtonFormField<Person>(
             initialValue: selected,
             items: candidates
-                .map((person) => DropdownMenuItem(value: person, child: Text(person.fullName)))
+                .map(
+                  (person) => DropdownMenuItem(
+                    value: person,
+                    child: Text(person.fullName),
+                  ),
+                )
                 .toList(),
             onChanged: (person) {
               if (person != null) setDialogState(() => selected = person);
@@ -314,9 +410,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
   }
 
   void _openEditor(Person person) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PersonEditScreen(person: person)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PersonEditScreen(person: person)));
   }
 
   Future<void> _deletePerson() async {
@@ -339,7 +435,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       ),
     );
     if (confirmed == true) {
-      await ref.read(familyTreeProvider.notifier).deletePerson(widget.person.id);
+      await ref
+          .read(familyTreeProvider.notifier)
+          .deletePerson(widget.person.id);
     }
   }
 
@@ -370,19 +468,20 @@ class _PersonCardState extends ConsumerState<PersonCard> {
 
   String get _mapAddress => widget.authMode == AuthMode.authenticated
       ? (widget.person.currentAddress.isNotEmpty
-          ? widget.person.currentAddress
-          : widget.person.birthPlace)
+            ? widget.person.currentAddress
+            : widget.person.birthPlace)
       : _publicMapLocation;
 
-  String get _actorRole => ref.read(authSessionProvider).session?.role ?? 'viewer';
+  String get _actorRole =>
+      ref.read(authSessionProvider).session?.role ?? 'viewer';
 
   String get _copyText => [
-        widget.person.fullName,
-        _fatherLine,
-        _motherLine,
-        _spouseLine,
-        if (_mapAddress.isNotEmpty) _mapAddress,
-      ].where((line) => line.isNotEmpty).join('\n');
+    widget.person.fullName,
+    _fatherLine,
+    _motherLine,
+    _spouseLine,
+    if (_mapAddress.isNotEmpty) _mapAddress,
+  ].where((line) => line.isNotEmpty).join('\n');
 
   FamilyRelationService get _relations => FamilyRelationService();
 
@@ -391,6 +490,17 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     if (gender == 'male' || gender == 'm' || gender == 'homme') return '♂';
     if (gender == 'female' || gender == 'f' || gender == 'femme') return '♀';
     return '⚪';
+  }
+
+  Color get _genderColor {
+    final gender = widget.person.gender.toLowerCase();
+    if (gender == 'male' || gender == 'm' || gender == 'homme') {
+      return const Color(0xFF2D7DD2);
+    }
+    if (gender == 'female' || gender == 'f' || gender == 'femme') {
+      return const Color(0xFFE53964);
+    }
+    return const Color(0xFF80856E);
   }
 
   String get _fatherLine {

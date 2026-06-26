@@ -632,4 +632,215 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get copyInformation => 'Copiar informações';
+
+  @override
+  String get latestChanges => 'Últimas alterações';
+
+  @override
+  String get newPeopleAdded => 'Novas pessoas adicionadas';
+
+  @override
+  String get newModifications => 'Novas modificações';
+
+  @override
+  String get modifiedBy => 'Modificado por';
+
+  @override
+  String get addedBy => 'Adicionado por';
+
+  @override
+  String get updatedBy => 'Atualizado por';
+
+  @override
+  String get deletedBy => 'Excluído por';
+
+  @override
+  String get viewHistory => 'Ver histórico';
+
+  @override
+  String get markAsSeen => 'Já vi';
+
+  @override
+  String get doNotShowAgain => 'Não mostrar novamente';
+
+  @override
+  String get modificationHistory => 'Histórico de modificações';
+
+  @override
+  String get personAdded => 'Pessoa adicionada';
+
+  @override
+  String get personUpdated => 'Pessoa modificada';
+
+  @override
+  String get personDeleted => 'Pessoa excluída';
+
+  @override
+  String get relationshipAdded => 'Relação familiar adicionada';
+
+  @override
+  String get historyRetention => 'Retenção do histórico';
+
+  @override
+  String get historyDeletedAfterThreeMonths =>
+      'Histórico excluído após três meses';
+
+  @override
+  String get adminAccessCode => 'Código admin';
+
+  @override
+  String get enterAdminCode => 'Inserir código admin';
+
+  @override
+  String get invalidAdminCode => 'Código admin inválido';
+
+  @override
+  String get adminKpiAccess => 'Acesso Admin / KPI';
+
+  @override
+  String get adminSecurity => 'Segurança admin';
+
+  @override
+  String get changeAdminCode => 'Alterar código admin';
+
+  @override
+  String get currentAdminCode => 'Código admin atual';
+
+  @override
+  String get oldAdminCode => 'Código admin antigo';
+
+  @override
+  String get newAdminCode => 'Novo código admin';
+
+  @override
+  String get confirmNewAdminCode => 'Confirmar novo código';
+
+  @override
+  String get adminCodeChanged => 'Código admin alterado';
+
+  @override
+  String get adminCodeRotationDue => 'O código admin deve ser alterado';
+
+  @override
+  String get adminCodeRotationLate => 'Alteração do código admin atrasada';
+
+  @override
+  String get nextAdminCodeChange => 'Próxima alteração recomendada';
+
+  @override
+  String get lastAdminCodeChange => 'Última alteração';
+
+  @override
+  String get adminCodeHistory => 'Histórico de códigos admin';
+
+  @override
+  String get codeManagement => 'Gestão de códigos';
+
+  @override
+  String get accessCodes => 'Códigos de acesso';
+
+  @override
+  String get createAccessCode => 'Criar código';
+
+  @override
+  String get editAccessCode => 'Editar código';
+
+  @override
+  String get deleteAccessCode => 'Excluir código';
+
+  @override
+  String get disableAccessCode => 'Desativar código';
+
+  @override
+  String get enableAccessCode => 'Reativar código';
+
+  @override
+  String get copyCode => 'Copiar código';
+
+  @override
+  String get showCode => 'Mostrar código';
+
+  @override
+  String get hideCode => 'Ocultar código';
+
+  @override
+  String get codeType => 'Tipo de código';
+
+  @override
+  String get codeRole => 'Função do código';
+
+  @override
+  String get codeStatus => 'Estado do código';
+
+  @override
+  String get codeExpiration => 'Expiração';
+
+  @override
+  String get codeUsage => 'Usos';
+
+  @override
+  String get createdBy => 'Criado por';
+
+  @override
+  String get lastUsedAt => 'Último uso';
+
+  @override
+  String get maxUses => 'Usos máximos';
+
+  @override
+  String get generateCode => 'Gerar código';
+
+  @override
+  String get manualCode => 'Código manual';
+
+  @override
+  String get familyAccessCode => 'Código de acesso familiar';
+
+  @override
+  String get adminKpiCode => 'Código Admin KPI';
+
+  @override
+  String get linkedFamilyCode => 'Código família ligada';
+
+  @override
+  String get temporaryCode => 'Código temporário';
+
+  @override
+  String get codeUpdated => 'Código atualizado';
+
+  @override
+  String get codeDeleted => 'Código excluído';
+
+  @override
+  String get codeEnabled => 'Código reativado';
+
+  @override
+  String get codeAlreadyExists => 'Este código já existe';
+
+  @override
+  String get familyHonor => 'Honra familiar';
+
+  @override
+  String get patriarch => 'Patriarca';
+
+  @override
+  String get patriarchBadge => 'Distintivo do patriarca';
+
+  @override
+  String get selectPatriarch => 'Selecionar patriarca';
+
+  @override
+  String get showPatriarchBadge => 'Mostrar distintivo do patriarca';
+
+  @override
+  String get badgePosition => 'Posição do distintivo';
+
+  @override
+  String get badgeStyle => 'Estilo do distintivo';
+
+  @override
+  String get viewPatriarchProfile => 'Ver ficha do patriarca';
+
+  @override
+  String get familyDistinctions => 'Distinções familiares';
 }

@@ -1333,6 +1333,426 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Copier les informations'**
   String get copyInformation;
+
+  /// No description provided for @latestChanges.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernières modifications'**
+  String get latestChanges;
+
+  /// No description provided for @newPeopleAdded.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nouvelles personnes ajoutées'**
+  String get newPeopleAdded;
+
+  /// No description provided for @newModifications.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nouvelles modifications'**
+  String get newModifications;
+
+  /// No description provided for @modifiedBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifié par'**
+  String get modifiedBy;
+
+  /// No description provided for @addedBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ajouté par'**
+  String get addedBy;
+
+  /// No description provided for @updatedBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mis à jour par'**
+  String get updatedBy;
+
+  /// No description provided for @deletedBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimé par'**
+  String get deletedBy;
+
+  /// No description provided for @viewHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir l’historique'**
+  String get viewHistory;
+
+  /// No description provided for @markAsSeen.
+  ///
+  /// In fr, this message translates to:
+  /// **'J’ai vu'**
+  String get markAsSeen;
+
+  /// No description provided for @doNotShowAgain.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ne plus afficher'**
+  String get doNotShowAgain;
+
+  /// No description provided for @modificationHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique des modifications'**
+  String get modificationHistory;
+
+  /// No description provided for @personAdded.
+  ///
+  /// In fr, this message translates to:
+  /// **'Personne ajoutée'**
+  String get personAdded;
+
+  /// No description provided for @personUpdated.
+  ///
+  /// In fr, this message translates to:
+  /// **'Personne modifiée'**
+  String get personUpdated;
+
+  /// No description provided for @personDeleted.
+  ///
+  /// In fr, this message translates to:
+  /// **'Personne supprimée'**
+  String get personDeleted;
+
+  /// No description provided for @relationshipAdded.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lien familial ajouté'**
+  String get relationshipAdded;
+
+  /// No description provided for @historyRetention.
+  ///
+  /// In fr, this message translates to:
+  /// **'Conservation de l’historique'**
+  String get historyRetention;
+
+  /// No description provided for @historyDeletedAfterThreeMonths.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique supprimé après trois mois'**
+  String get historyDeletedAfterThreeMonths;
+
+  /// No description provided for @adminAccessCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code admin'**
+  String get adminAccessCode;
+
+  /// No description provided for @enterAdminCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Entrer le code admin'**
+  String get enterAdminCode;
+
+  /// No description provided for @invalidAdminCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code admin incorrect'**
+  String get invalidAdminCode;
+
+  /// No description provided for @adminKpiAccess.
+  ///
+  /// In fr, this message translates to:
+  /// **'Accès Admin / KPI'**
+  String get adminKpiAccess;
+
+  /// No description provided for @adminSecurity.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sécurité admin'**
+  String get adminSecurity;
+
+  /// No description provided for @changeAdminCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier le code admin'**
+  String get changeAdminCode;
+
+  /// No description provided for @currentAdminCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code admin actuel'**
+  String get currentAdminCode;
+
+  /// No description provided for @oldAdminCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ancien code admin'**
+  String get oldAdminCode;
+
+  /// No description provided for @newAdminCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nouveau code admin'**
+  String get newAdminCode;
+
+  /// No description provided for @confirmNewAdminCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Confirmer le nouveau code'**
+  String get confirmNewAdminCode;
+
+  /// No description provided for @adminCodeChanged.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code admin modifié'**
+  String get adminCodeChanged;
+
+  /// No description provided for @adminCodeRotationDue.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le code admin doit être changé'**
+  String get adminCodeRotationDue;
+
+  /// No description provided for @adminCodeRotationLate.
+  ///
+  /// In fr, this message translates to:
+  /// **'Changement du code admin en retard'**
+  String get adminCodeRotationLate;
+
+  /// No description provided for @nextAdminCodeChange.
+  ///
+  /// In fr, this message translates to:
+  /// **'Prochaine modification recommandée'**
+  String get nextAdminCodeChange;
+
+  /// No description provided for @lastAdminCodeChange.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernière modification'**
+  String get lastAdminCodeChange;
+
+  /// No description provided for @adminCodeHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique des codes admin'**
+  String get adminCodeHistory;
+
+  /// No description provided for @codeManagement.
+  ///
+  /// In fr, this message translates to:
+  /// **'Gestion des codes'**
+  String get codeManagement;
+
+  /// No description provided for @accessCodes.
+  ///
+  /// In fr, this message translates to:
+  /// **'Codes d’accès'**
+  String get accessCodes;
+
+  /// No description provided for @createAccessCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Créer un code'**
+  String get createAccessCode;
+
+  /// No description provided for @editAccessCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier le code'**
+  String get editAccessCode;
+
+  /// No description provided for @deleteAccessCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer le code'**
+  String get deleteAccessCode;
+
+  /// No description provided for @disableAccessCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Désactiver le code'**
+  String get disableAccessCode;
+
+  /// No description provided for @enableAccessCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réactiver le code'**
+  String get enableAccessCode;
+
+  /// No description provided for @copyCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Copier le code'**
+  String get copyCode;
+
+  /// No description provided for @showCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le code'**
+  String get showCode;
+
+  /// No description provided for @hideCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Masquer le code'**
+  String get hideCode;
+
+  /// No description provided for @codeType.
+  ///
+  /// In fr, this message translates to:
+  /// **'Type de code'**
+  String get codeType;
+
+  /// No description provided for @codeRole.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rôle du code'**
+  String get codeRole;
+
+  /// No description provided for @codeStatus.
+  ///
+  /// In fr, this message translates to:
+  /// **'Statut du code'**
+  String get codeStatus;
+
+  /// No description provided for @codeExpiration.
+  ///
+  /// In fr, this message translates to:
+  /// **'Expiration'**
+  String get codeExpiration;
+
+  /// No description provided for @codeUsage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Utilisations'**
+  String get codeUsage;
+
+  /// No description provided for @createdBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Créé par'**
+  String get createdBy;
+
+  /// No description provided for @lastUsedAt.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernière utilisation'**
+  String get lastUsedAt;
+
+  /// No description provided for @maxUses.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nombre maximum d’utilisations'**
+  String get maxUses;
+
+  /// No description provided for @generateCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Générer un code'**
+  String get generateCode;
+
+  /// No description provided for @manualCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code manuel'**
+  String get manualCode;
+
+  /// No description provided for @familyAccessCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code d’accès familial'**
+  String get familyAccessCode;
+
+  /// No description provided for @adminKpiCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code Admin KPI'**
+  String get adminKpiCode;
+
+  /// No description provided for @linkedFamilyCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code famille liée'**
+  String get linkedFamilyCode;
+
+  /// No description provided for @temporaryCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code temporaire'**
+  String get temporaryCode;
+
+  /// No description provided for @codeUpdated.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code modifié'**
+  String get codeUpdated;
+
+  /// No description provided for @codeDeleted.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code supprimé'**
+  String get codeDeleted;
+
+  /// No description provided for @codeEnabled.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code réactivé'**
+  String get codeEnabled;
+
+  /// No description provided for @codeAlreadyExists.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ce code existe déjà'**
+  String get codeAlreadyExists;
+
+  /// No description provided for @familyHonor.
+  ///
+  /// In fr, this message translates to:
+  /// **'Honneur familial'**
+  String get familyHonor;
+
+  /// No description provided for @patriarch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Patriarche'**
+  String get patriarch;
+
+  /// No description provided for @patriarchBadge.
+  ///
+  /// In fr, this message translates to:
+  /// **'Badge patriarche'**
+  String get patriarchBadge;
+
+  /// No description provided for @selectPatriarch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisir le patriarche'**
+  String get selectPatriarch;
+
+  /// No description provided for @showPatriarchBadge.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le badge patriarche'**
+  String get showPatriarchBadge;
+
+  /// No description provided for @badgePosition.
+  ///
+  /// In fr, this message translates to:
+  /// **'Position du badge'**
+  String get badgePosition;
+
+  /// No description provided for @badgeStyle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Style du badge'**
+  String get badgeStyle;
+
+  /// No description provided for @viewPatriarchProfile.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir la fiche du patriarche'**
+  String get viewPatriarchProfile;
+
+  /// No description provided for @familyDistinctions.
+  ///
+  /// In fr, this message translates to:
+  /// **'Distinctions familiales'**
+  String get familyDistinctions;
 }
 
 class _AppLocalizationsDelegate
