@@ -5,14 +5,11 @@ import '../l10n/app_localizations.dart';
 import '../models/family_notification.dart';
 import '../models/person.dart';
 import '../providers/app_providers.dart';
+import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 
 class NotificationForm extends ConsumerStatefulWidget {
-  const NotificationForm({
-    super.key,
-    required this.people,
-    this.initialPerson,
-  });
+  const NotificationForm({super.key, required this.people, this.initialPerson});
 
   final List<Person> people;
   final Person? initialPerson;
@@ -54,6 +51,19 @@ class _NotificationFormState extends ConsumerState<NotificationForm> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final auth = ref.watch(authSessionProvider);
+    if (!auth.isAdmin) {
+      return AlertDialog(
+        title: Text(l10n.notifications),
+        content: Text(l10n.notificationAdminOnly),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel),
+          ),
+        ],
+      );
+    }
     final availableChannels = _channelsFor(_target);
     if (!availableChannels.contains(_channel)) {
       _channel = availableChannels.first;
@@ -114,7 +124,9 @@ class _NotificationFormState extends ConsumerState<NotificationForm> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _channel,
-                decoration: InputDecoration(labelText: l10n.notificationChannel),
+                decoration: InputDecoration(
+                  labelText: l10n.notificationChannel,
+                ),
                 items: availableChannels
                     .map(
                       (channel) => DropdownMenuItem(
@@ -123,7 +135,8 @@ class _NotificationFormState extends ConsumerState<NotificationForm> {
                       ),
                     )
                     .toList(),
-                onChanged: (value) => setState(() => _channel = value ?? _channel),
+                onChanged: (value) =>
+                    setState(() => _channel = value ?? _channel),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -186,7 +199,16 @@ class _NotificationFormState extends ConsumerState<NotificationForm> {
 
   Future<void> _send() async {
     final l10n = AppLocalizations.of(context);
-    final title = _title.text.trim().isEmpty ? l10n.notifications : _title.text.trim();
+    final auth = ref.read(authSessionProvider);
+    if (!auth.isAdmin) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.notificationAdminOnly)));
+      return;
+    }
+    final title = _title.text.trim().isEmpty
+        ? l10n.notifications
+        : _title.text.trim();
     final message = _message.text.trim().isEmpty
         ? '${l10n.notifyPerson}: ${_target.fullName}'
         : _message.text.trim();
@@ -213,29 +235,34 @@ class _NotificationFormState extends ConsumerState<NotificationForm> {
     try {
       switch (_channel) {
         case 'email':
-          await ref.read(communicationServiceProvider).sendEmail(
-                email: _target.email,
-                subject: title,
-                body: message,
-              );
+          await ref
+              .read(communicationServiceProvider)
+              .sendEmail(email: _target.email, subject: title, body: message);
         case 'whatsapp':
-          await ref.read(communicationServiceProvider).openWhatsApp(
+          await ref
+              .read(communicationServiceProvider)
+              .openWhatsApp(
                 phoneNumber: _target.whatsappNumber,
                 message: message,
               );
         case 'local':
           status = 'pending';
-          await ref.read(notificationServiceProvider).scheduleLocalReminder(
+          await ref
+              .read(notificationServiceProvider)
+              .scheduleLocalReminder(
                 id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
                 title: title,
                 message: message,
                 scheduledDate:
-                    DateTime.tryParse(_scheduledDate.text.trim()) ?? DateTime.now(),
+                    DateTime.tryParse(_scheduledDate.text.trim()) ??
+                    DateTime.now(),
               );
         case 'copy':
           await ref.read(communicationServiceProvider).copyText(message);
         case 'futurePush':
-          await ref.read(pushNotificationProvider).sendPushNotification(
+          await ref
+              .read(pushNotificationProvider)
+              .sendPushNotification(
                 targetUserId: _target.id,
                 title: title,
                 message: message,
@@ -257,7 +284,14 @@ class _NotificationFormState extends ConsumerState<NotificationForm> {
       status: status,
       createdAt: DateTime.now().toIso8601String(),
     );
-    await ref.read(familyTreeProvider.notifier).upsertNotification(notification);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .upsertNotification(
+          notification,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+          adminName: auth.session?.role ?? '',
+        );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -265,15 +299,16 @@ class _NotificationFormState extends ConsumerState<NotificationForm> {
           status == 'failed'
               ? l10n.notificationFailed
               : _channel == 'local'
-                  ? l10n.notificationScheduled
-                  : l10n.notificationSent,
+              ? l10n.notificationScheduled
+              : l10n.notificationSent,
         ),
       ),
     );
     Navigator.pop(context);
   }
 
-  String _channelLabel(AppLocalizations l10n, String channel) => switch (channel) {
+  String _channelLabel(AppLocalizations l10n, String channel) =>
+      switch (channel) {
         'local' => l10n.localNotification,
         'email' => l10n.emailNotification,
         'whatsapp' => l10n.whatsappNotification,

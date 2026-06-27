@@ -22,6 +22,8 @@ class ChangeNotificationPopup extends StatelessWidget {
   Widget build(BuildContext context) {
     final latest = notifications.take(6).toList();
     return AlertDialog(
+      alignment: Alignment.bottomLeft,
+      insetPadding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
       title: Row(
         children: [
           Icon(

@@ -23,8 +23,9 @@ class AuthState {
   bool get isAdmin => session?.isAdmin == true;
 }
 
-final authSessionProvider =
-    NotifierProvider<AuthController, AuthState>(AuthController.new);
+final authSessionProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);
 
 class AuthController extends Notifier<AuthState> {
   @override
@@ -39,21 +40,30 @@ class AuthController extends Notifier<AuthState> {
     }
     await service.saveLastCode(code);
     state = AuthState(mode: AuthMode.authenticated, session: session);
+    await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
     return true;
   }
 
   Future<bool> unlockModification(String code) async {
     final data = await ref.read(familyTreeProvider.future);
-    final match = ref.read(modificationCodeServiceProvider).validate(data, code);
-    await ref.read(familyTreeProvider.notifier).addAuditLog(
-          match == null ? 'modification_code_refused' : 'modification_code_accepted',
+    final match = ref
+        .read(modificationCodeServiceProvider)
+        .validate(data, code);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .addAuditLog(
+          match == null
+              ? 'modification_code_refused'
+              : 'modification_code_accepted',
           description: match == null
               ? 'Code de modification incorrect.'
               : 'Code de modification accepté.',
           actorRole: state.session?.role ?? 'viewer',
         );
     if (match == null) return false;
-    await ref.read(familyTreeProvider.notifier).markModificationCodeUsed(match.code);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .markModificationCodeUsed(match.code);
     state = AuthState(
       mode: AuthMode.authenticated,
       session: state.session,

@@ -7,6 +7,7 @@ import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../providers/auth_provider.dart';
 import 'person_card.dart';
+import 'responsive.dart';
 
 class FamilyTreeCanvas extends StatefulWidget {
   const FamilyTreeCanvas({
@@ -67,8 +68,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
             children: [
               InteractiveViewer(
                 transformationController: _controller,
-                minScale: 0.45,
+                minScale: ResponsiveBreakpoints.isMobile(context) ? 0.35 : 0.45,
                 maxScale: 2.4,
+                panAxis: PanAxis.free,
+                clipBehavior: Clip.none,
                 boundaryMargin: EdgeInsets.all(metrics.canvasPadding * 3),
                 onInteractionUpdate: (_) {
                   final next = _controller.value.getMaxScaleOnAxis();
@@ -82,8 +85,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: CustomPaint(
-                          painter: _TreeConnectorPainter(layout, offset),
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _TreeConnectorPainter(layout, offset),
+                          ),
                         ),
                       ),
                       for (final marker in layout.marriageMarkers)
@@ -96,14 +101,16 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
                         Positioned(
                           left: offset.dx + entry.value.left,
                           top: offset.dy + entry.value.top,
-                          child: PersonCard(
-                            person: entry.key,
-                            data: widget.data,
-                            authMode: widget.authMode,
-                            width: metrics.cardWidth,
-                            height: metrics.cardHeight,
-                            compact: constraints.maxWidth < 700,
-                            onOpen: () => widget.onOpenPerson(entry.key),
+                          child: RepaintBoundary(
+                            child: PersonCard(
+                              person: entry.key,
+                              data: widget.data,
+                              authMode: widget.authMode,
+                              width: metrics.cardWidth,
+                              height: metrics.cardHeight,
+                              compact: constraints.maxWidth < 700,
+                              onOpen: () => widget.onOpenPerson(entry.key),
+                            ),
                           ),
                         ),
                     ],
@@ -152,7 +159,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
   }
 
   void _applyScale(double factor) {
-    final next = (_scale * factor).clamp(0.45, 2.4);
+    final minScale = ResponsiveBreakpoints.isMobile(context) ? 0.35 : 0.45;
+    final next = (_scale * factor).clamp(minScale, 2.4);
     setState(() => _scale = next.toDouble());
     _controller.value = Matrix4.identity()..scaleByDouble(_scale, _scale, 1, 1);
   }
@@ -342,30 +350,30 @@ class _TreeMetrics {
     if (width < 620) {
       return const _TreeMetrics(
         canvasPadding: 12,
-        verticalGap: 44,
+        verticalGap: 54,
         cardGap: 12,
         spouseGap: 12,
-        cardWidth: 260,
-        cardHeight: 96,
+        cardWidth: 310,
+        cardHeight: 112,
       );
     }
     if (width < 1000) {
       return const _TreeMetrics(
         canvasPadding: 16,
-        verticalGap: 56,
+        verticalGap: 68,
         cardGap: 18,
         spouseGap: 18,
-        cardWidth: 280,
-        cardHeight: 96,
+        cardWidth: 360,
+        cardHeight: 118,
       );
     }
     return const _TreeMetrics(
       canvasPadding: 24,
-      verticalGap: 72,
-      cardGap: 24,
-      spouseGap: 24,
-      cardWidth: 320,
-      cardHeight: 96,
+      verticalGap: 82,
+      cardGap: 32,
+      spouseGap: 44,
+      cardWidth: 430,
+      cardHeight: 126,
     );
   }
 }

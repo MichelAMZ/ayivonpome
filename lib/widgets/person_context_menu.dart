@@ -31,6 +31,7 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
   required bool canDelete,
   required bool hasMap,
   required bool hasContact,
+  required bool canNotify,
 }) {
   return [
     if (canModify) ...[
@@ -48,11 +49,17 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
       ),
       PopupMenuItem(
         value: PersonContextAction.linkFather,
-        child: _MenuRow(icon: Icons.link, label: '${l10n.father} · ${l10n.linkExistingPerson}'),
+        child: _MenuRow(
+          icon: Icons.link,
+          label: '${l10n.father} · ${l10n.linkExistingPerson}',
+        ),
       ),
       PopupMenuItem(
         value: PersonContextAction.linkMother,
-        child: _MenuRow(icon: Icons.link, label: '${l10n.mother} · ${l10n.linkExistingPerson}'),
+        child: _MenuRow(
+          icon: Icons.link,
+          label: '${l10n.mother} · ${l10n.linkExistingPerson}',
+        ),
       ),
       const PopupMenuDivider(),
       PopupMenuItem(
@@ -61,11 +68,17 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
       ),
       PopupMenuItem(
         value: PersonContextAction.addChildren,
-        child: _MenuRow(icon: Icons.escalator_warning_outlined, label: l10n.addChildren),
+        child: _MenuRow(
+          icon: Icons.escalator_warning_outlined,
+          label: l10n.addChildren,
+        ),
       ),
       PopupMenuItem(
         value: PersonContextAction.linkChild,
-        child: _MenuRow(icon: Icons.link, label: '${l10n.children} · ${l10n.linkExistingPerson}'),
+        child: _MenuRow(
+          icon: Icons.link,
+          label: '${l10n.children} · ${l10n.linkExistingPerson}',
+        ),
       ),
       const PopupMenuDivider(),
       PopupMenuItem(
@@ -74,7 +87,10 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
       ),
       PopupMenuItem(
         value: PersonContextAction.linkSpouse,
-        child: _MenuRow(icon: Icons.link, label: '${l10n.spouse} · ${l10n.linkExistingPerson}'),
+        child: _MenuRow(
+          icon: Icons.link,
+          label: '${l10n.spouse} · ${l10n.linkExistingPerson}',
+        ),
       ),
       PopupMenuItem(
         value: PersonContextAction.addBrother,
@@ -98,7 +114,10 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
     if (canModify)
       PopupMenuItem(
         value: PersonContextAction.addHistoricalEvent,
-        child: _MenuRow(icon: Icons.history_edu_outlined, label: l10n.addHistoricalEvent),
+        child: _MenuRow(
+          icon: Icons.history_edu_outlined,
+          label: l10n.addHistoricalEvent,
+        ),
       ),
     if (hasMap)
       PopupMenuItem(
@@ -110,10 +129,14 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
         value: PersonContextAction.sendMessage,
         child: _MenuRow(icon: Icons.chat_outlined, label: l10n.sendMessage),
       ),
-    PopupMenuItem(
-      value: PersonContextAction.notifyPerson,
-      child: _MenuRow(icon: Icons.notifications_outlined, label: l10n.notifyPerson),
-    ),
+    if (canNotify)
+      PopupMenuItem(
+        value: PersonContextAction.notifyPerson,
+        child: _MenuRow(
+          icon: Icons.notifications_outlined,
+          label: l10n.notifyPerson,
+        ),
+      ),
     PopupMenuItem(
       value: PersonContextAction.copyInfo,
       child: _MenuRow(icon: Icons.copy_outlined, label: l10n.copyInformation),

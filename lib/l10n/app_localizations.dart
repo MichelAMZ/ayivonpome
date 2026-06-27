@@ -212,6 +212,396 @@ abstract class AppLocalizations {
   /// **'Enfants'**
   String get children;
 
+  /// No description provided for @directChildren.
+  ///
+  /// In fr, this message translates to:
+  /// **'Enfants directs'**
+  String get directChildren;
+
+  /// No description provided for @totalDescendants.
+  ///
+  /// In fr, this message translates to:
+  /// **'Descendants totaux'**
+  String get totalDescendants;
+
+  /// No description provided for @descendants.
+  ///
+  /// In fr, this message translates to:
+  /// **'Descendants'**
+  String get descendants;
+
+  /// No description provided for @childrenCount.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nombre d’enfants'**
+  String get childrenCount;
+
+  /// No description provided for @familyHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique familial'**
+  String get familyHistory;
+
+  /// No description provided for @generalFamilyHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique général de la famille'**
+  String get generalFamilyHistory;
+
+  /// No description provided for @viewFamilyHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir l’histoire générale de la famille'**
+  String get viewFamilyHistory;
+
+  /// No description provided for @editFamilyHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier l’historique familial'**
+  String get editFamilyHistory;
+
+  /// No description provided for @linkedFamilyHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique de la famille liée'**
+  String get linkedFamilyHistory;
+
+  /// No description provided for @historyContent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Contenu de l’histoire'**
+  String get historyContent;
+
+  /// No description provided for @historyTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Titre de l’histoire'**
+  String get historyTitle;
+
+  /// No description provided for @characterLimit.
+  ///
+  /// In fr, this message translates to:
+  /// **'Limite de caractères'**
+  String get characterLimit;
+
+  /// No description provided for @charactersRemaining.
+  ///
+  /// In fr, this message translates to:
+  /// **'Caractères restants'**
+  String get charactersRemaining;
+
+  /// No description provided for @characterLimitExceeded.
+  ///
+  /// In fr, this message translates to:
+  /// **'La limite de caractères est dépassée.'**
+  String get characterLimitExceeded;
+
+  /// No description provided for @lastUpdatedBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernière modification par'**
+  String get lastUpdatedBy;
+
+  /// No description provided for @lastUpdatedAt.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernière modification le'**
+  String get lastUpdatedAt;
+
+  /// No description provided for @familyCouncil.
+  ///
+  /// In fr, this message translates to:
+  /// **'Conseil familial'**
+  String get familyCouncil;
+
+  /// No description provided for @councilMembers.
+  ///
+  /// In fr, this message translates to:
+  /// **'Membres du conseil'**
+  String get councilMembers;
+
+  /// No description provided for @councilMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Membre du conseil'**
+  String get councilMember;
+
+  /// No description provided for @roleInCouncil.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fonction dans le conseil'**
+  String get roleInCouncil;
+
+  /// No description provided for @residencePlace.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lieu d’habitation'**
+  String get residencePlace;
+
+  /// No description provided for @contactCouncilMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Contacter le membre du conseil'**
+  String get contactCouncilMember;
+
+  /// No description provided for @viewCouncilMembers.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir les membres du conseil familial'**
+  String get viewCouncilMembers;
+
+  /// No description provided for @addCouncilMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ajouter un membre'**
+  String get addCouncilMember;
+
+  /// No description provided for @editCouncilMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier le membre'**
+  String get editCouncilMember;
+
+  /// No description provided for @deleteCouncilMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer le membre'**
+  String get deleteCouncilMember;
+
+  /// No description provided for @councilDescription.
+  ///
+  /// In fr, this message translates to:
+  /// **'Membres qui accompagnent le chef de famille.'**
+  String get councilDescription;
+
+  /// No description provided for @chiefCouncil.
+  ///
+  /// In fr, this message translates to:
+  /// **'Conseil du chef'**
+  String get chiefCouncil;
+
+  /// No description provided for @infoNews.
+  ///
+  /// In fr, this message translates to:
+  /// **'Information'**
+  String get infoNews;
+
+  /// No description provided for @infoNewsManagement.
+  ///
+  /// In fr, this message translates to:
+  /// **'Informations / Actualités'**
+  String get infoNewsManagement;
+
+  /// No description provided for @addInfoNews.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ajouter une information'**
+  String get addInfoNews;
+
+  /// No description provided for @editInfoNews.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier l’information'**
+  String get editInfoNews;
+
+  /// No description provided for @deleteInfoNews.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer l’information'**
+  String get deleteInfoNews;
+
+  /// No description provided for @infoNewsTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Titre de l’information'**
+  String get infoNewsTitle;
+
+  /// No description provided for @infoNewsMessage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Message court'**
+  String get infoNewsMessage;
+
+  /// No description provided for @infoNewsActive.
+  ///
+  /// In fr, this message translates to:
+  /// **'Information active'**
+  String get infoNewsActive;
+
+  /// No description provided for @priority.
+  ///
+  /// In fr, this message translates to:
+  /// **'Priorité'**
+  String get priority;
+
+  /// No description provided for @startAt.
+  ///
+  /// In fr, this message translates to:
+  /// **'Début d’affichage'**
+  String get startAt;
+
+  /// No description provided for @endAt.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fin d’affichage'**
+  String get endAt;
+
+  /// No description provided for @sendToContacts.
+  ///
+  /// In fr, this message translates to:
+  /// **'Envoyer aux contacts disponibles'**
+  String get sendToContacts;
+
+  /// No description provided for @sendViaWhatsApp.
+  ///
+  /// In fr, this message translates to:
+  /// **'Envoyer via WhatsApp'**
+  String get sendViaWhatsApp;
+
+  /// No description provided for @infoNewsSendLog.
+  ///
+  /// In fr, this message translates to:
+  /// **'Journal d’envoi'**
+  String get infoNewsSendLog;
+
+  /// No description provided for @whatsappManualNotice.
+  ///
+  /// In fr, this message translates to:
+  /// **'WhatsApp s’ouvrira avec un message prérempli. L’admin doit valider l’envoi.'**
+  String get whatsappManualNotice;
+
+  /// No description provided for @freeWhatsAppQueue.
+  ///
+  /// In fr, this message translates to:
+  /// **'File d’envoi gratuite : WhatsApp s’ouvre avec un message prérempli, puis l’admin confirme manuellement.'**
+  String get freeWhatsAppQueue;
+
+  /// No description provided for @copyMessage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Copier le message'**
+  String get copyMessage;
+
+  /// No description provided for @markAsSent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Marquer comme envoyé'**
+  String get markAsSent;
+
+  /// No description provided for @skipContact.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ignorer ce contact'**
+  String get skipContact;
+
+  /// No description provided for @nextContact.
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivant'**
+  String get nextContact;
+
+  /// No description provided for @messageCopied.
+  ///
+  /// In fr, this message translates to:
+  /// **'Message copié'**
+  String get messageCopied;
+
+  /// No description provided for @whatsappOpened.
+  ///
+  /// In fr, this message translates to:
+  /// **'WhatsApp ouvert'**
+  String get whatsappOpened;
+
+  /// No description provided for @sent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Envoyé'**
+  String get sent;
+
+  /// No description provided for @failed.
+  ///
+  /// In fr, this message translates to:
+  /// **'Échec'**
+  String get failed;
+
+  /// No description provided for @skipped.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ignoré'**
+  String get skipped;
+
+  /// No description provided for @historyCleanupNotice.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les historiques de plus de 3 mois sont automatiquement supprimés.'**
+  String get historyCleanupNotice;
+
+  /// No description provided for @autoHistoryCleanup.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nettoyage automatique des historiques'**
+  String get autoHistoryCleanup;
+
+  /// No description provided for @deleteOldHistoriesNow.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer maintenant les historiques anciens'**
+  String get deleteOldHistoriesNow;
+
+  /// No description provided for @confirmDeleteOldHistories.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voulez-vous supprimer maintenant les historiques d’envoi de plus de 3 mois ?'**
+  String get confirmDeleteOldHistories;
+
+  /// No description provided for @historiesKept.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historiques conservés'**
+  String get historiesKept;
+
+  /// No description provided for @lastCleanup.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernier nettoyage'**
+  String get lastCleanup;
+
+  /// No description provided for @autoCleanupNotifications.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nettoyage automatique des notifications après 1 semaine'**
+  String get autoCleanupNotifications;
+
+  /// No description provided for @autoCleanupKpiActivityLogs.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nettoyage automatique du journal KPI après 3 mois'**
+  String get autoCleanupKpiActivityLogs;
+
+  /// No description provided for @deletedItems.
+  ///
+  /// In fr, this message translates to:
+  /// **'Éléments supprimés'**
+  String get deletedItems;
+
+  /// No description provided for @cleanNow.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nettoyer maintenant'**
+  String get cleanNow;
+
+  /// No description provided for @confirmDataCleanup.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voulez-vous nettoyer maintenant les notifications anciennes et le journal KPI ancien ?'**
+  String get confirmDataCleanup;
+
+  /// No description provided for @notificationAdminOnly.
+  ///
+  /// In fr, this message translates to:
+  /// **'Seuls les administrateurs sont autorisés à envoyer des notifications.'**
+  String get notificationAdminOnly;
+
   /// No description provided for @history.
   ///
   /// In fr, this message translates to:
@@ -1700,6 +2090,60 @@ abstract class AppLocalizations {
   /// **'Ce code existe déjà'**
   String get codeAlreadyExists;
 
+  /// No description provided for @regenerateCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Régénérer'**
+  String get regenerateCode;
+
+  /// No description provided for @confirmRegenerateCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voulez-vous régénérer ce code ? L’ancien code sera désactivé.'**
+  String get confirmRegenerateCode;
+
+  /// No description provided for @codeRegenerated.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nouveau code généré avec succès.'**
+  String get codeRegenerated;
+
+  /// No description provided for @newGeneratedCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nouveau code généré'**
+  String get newGeneratedCode;
+
+  /// No description provided for @copyNewCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Copier le nouveau code'**
+  String get copyNewCode;
+
+  /// No description provided for @oldCodeDisabled.
+  ///
+  /// In fr, this message translates to:
+  /// **'L’ancien code a été désactivé.'**
+  String get oldCodeDisabled;
+
+  /// No description provided for @previousCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code précédent'**
+  String get previousCode;
+
+  /// No description provided for @replacedByCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Remplacé par le code'**
+  String get replacedByCode;
+
+  /// No description provided for @regeneratedAt.
+  ///
+  /// In fr, this message translates to:
+  /// **'Régénéré le'**
+  String get regeneratedAt;
+
   /// No description provided for @familyHonor.
   ///
   /// In fr, this message translates to:
@@ -1753,6 +2197,138 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Distinctions familiales'**
   String get familyDistinctions;
+
+  /// No description provided for @leader.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chef'**
+  String get leader;
+
+  /// No description provided for @currentLeader.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chef actuel'**
+  String get currentLeader;
+
+  /// No description provided for @familyLeader.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chef de famille'**
+  String get familyLeader;
+
+  /// No description provided for @familyChief.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chef familial'**
+  String get familyChief;
+
+  /// No description provided for @matriarch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Matriarche'**
+  String get matriarch;
+
+  /// No description provided for @viewLeaderProfile.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir la fiche du chef actuel'**
+  String get viewLeaderProfile;
+
+  /// No description provided for @chiefTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Titre du chef'**
+  String get chiefTitle;
+
+  /// No description provided for @showLeaderInTopBar.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le chef dans la TopBar'**
+  String get showLeaderInTopBar;
+
+  /// No description provided for @showLeaderPhoto.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher la photo / avatar'**
+  String get showLeaderPhoto;
+
+  /// No description provided for @topBarLogoMode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mode logo TopBar'**
+  String get topBarLogoMode;
+
+  /// No description provided for @classicLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Logo classique'**
+  String get classicLogo;
+
+  /// No description provided for @logoAndLeader.
+  ///
+  /// In fr, this message translates to:
+  /// **'Logo + chef actuel'**
+  String get logoAndLeader;
+
+  /// No description provided for @leaderOnly.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chef actuel seul'**
+  String get leaderOnly;
+
+  /// No description provided for @currentChief.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chef actuel'**
+  String get currentChief;
+
+  /// No description provided for @formerChief.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ancien chef'**
+  String get formerChief;
+
+  /// No description provided for @successor.
+  ///
+  /// In fr, this message translates to:
+  /// **'Héritier désigné'**
+  String get successor;
+
+  /// No description provided for @familyLeadership.
+  ///
+  /// In fr, this message translates to:
+  /// **'Direction familiale'**
+  String get familyLeadership;
+
+  /// No description provided for @leadershipHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chronologie des chefs'**
+  String get leadershipHistory;
+
+  /// No description provided for @familyHonorHall.
+  ///
+  /// In fr, this message translates to:
+  /// **'Personnalités familiales'**
+  String get familyHonorHall;
+
+  /// No description provided for @appointLeader.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nommer un chef'**
+  String get appointLeader;
+
+  /// No description provided for @removeLeader.
+  ///
+  /// In fr, this message translates to:
+  /// **'Retirer le chef'**
+  String get removeLeader;
+
+  /// No description provided for @chiefSince.
+  ///
+  /// In fr, this message translates to:
+  /// **'Chef depuis'**
+  String get chiefSince;
 }
 
 class _AppLocalizationsDelegate

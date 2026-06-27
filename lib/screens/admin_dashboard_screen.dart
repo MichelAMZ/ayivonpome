@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/access_code.dart';
+import '../models/family_announcement.dart';
 import '../models/family_honor.dart';
+import '../models/family_leadership.dart';
+import '../models/family_tree_data.dart';
+import '../models/info_news.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
@@ -12,11 +16,25 @@ import '../services/admin_access_service.dart';
 import '../widgets/admin_contact_card.dart';
 import '../widgets/kpi_card.dart';
 
-class AdminDashboardScreen extends ConsumerWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminDashboardScreen> createState() =>
+      _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
@@ -122,6 +140,10 @@ class AdminDashboardScreen extends ConsumerWidget {
           _AccessCodeManagementSection(
             dataRole: auth.session?.role ?? 'viewer',
           ),
+          const SizedBox(height: 24),
+          const _InfoNewsManagementSection(),
+          const SizedBox(height: 24),
+          const _FamilyAnnouncementSection(),
           const SizedBox(height: 24),
           const _FamilyHonorSection(),
           const SizedBox(height: 24),
@@ -269,6 +291,399 @@ class AdminDashboardScreen extends ConsumerWidget {
   }
 }
 
+class _InfoNewsManagementSection extends ConsumerStatefulWidget {
+  const _InfoNewsManagementSection();
+
+  @override
+  ConsumerState<_InfoNewsManagementSection> createState() =>
+      _InfoNewsManagementSectionState();
+}
+
+class _InfoNewsManagementSectionState
+    extends ConsumerState<_InfoNewsManagementSection> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(familyTreeProvider.notifier).cleanOldInfoNewsSendHistory(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final data = ref.watch(familyTreeProvider).value!;
+    final auth = ref.watch(authSessionProvider);
+    final canManage = auth.isAdmin;
+    final logs = data.infoNewsSendLogs
+        .where(
+          (log) =>
+              log.status == 'pending' ||
+              log.status == 'opened' ||
+              log.status == 'failed',
+        )
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.infoNewsManagement,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: canManage ? () => _showDialog(context, ref) : null,
+              icon: const Icon(Icons.add),
+              label: Text(l10n.addInfoNews),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final news in data.infoNews)
+          Card(
+            child: ListTile(
+              leading: Icon(
+                news.isActive
+                    ? Icons.campaign_outlined
+                    : Icons.campaign_outlined,
+                color: news.isActive ? const Color(0xFF4D742B) : null,
+              ),
+              title: Text(news.title.isEmpty ? l10n.infoNews : news.title),
+              subtitle: Text(
+                [
+                  news.message,
+                  '${l10n.priority}: ${news.priority}',
+                  news.startAt.isEmpty
+                      ? ''
+                      : '${l10n.startAt}: ${news.startAt}',
+                  news.endAt.isEmpty ? '' : '${l10n.endAt}: ${news.endAt}',
+                ].where((value) => value.isNotEmpty).join('\n'),
+              ),
+              isThreeLine: true,
+              trailing: Wrap(
+                spacing: 4,
+                children: [
+                  IconButton(
+                    tooltip: news.isActive
+                        ? l10n.disableAccessCode
+                        : l10n.enableAccessCode,
+                    onPressed: canManage
+                        ? () => _save(
+                            ref,
+                            news.copyWith(isActive: !news.isActive),
+                          )
+                        : null,
+                    icon: Icon(
+                      news.isActive
+                          ? Icons.toggle_on_outlined
+                          : Icons.toggle_off_outlined,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: l10n.editInfoNews,
+                    onPressed: canManage
+                        ? () => _showDialog(context, ref, news)
+                        : null,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                  IconButton(
+                    tooltip: l10n.deleteInfoNews,
+                    onPressed: canManage ? () => _delete(ref, news) : null,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ...[
+          const SizedBox(height: 12),
+          Text(
+            l10n.infoNewsSendLog,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.freeWhatsAppQueue,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.historyCleanupNotice,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${l10n.historiesKept}: ${data.infoNewsSendLogs.length} · '
+            '${l10n.lastCleanup}: ${_formatCleanupDate(data.infoNewsSendHistoryLastCleanedAt)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.icon(
+              onPressed: logs.isEmpty
+                  ? null
+                  : () => _openNextWhatsApp(context, ref, logs),
+              icon: const Icon(Icons.skip_next_outlined),
+              label: Text(l10n.nextContact),
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final log in logs.take(8))
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.send_outlined),
+              title: Text(log.contactName),
+              subtitle: Text(
+                '${log.contactPhone} - ${_sendStatusLabel(l10n, log.status)}',
+              ),
+              trailing: Wrap(
+                spacing: 4,
+                children: [
+                  IconButton(
+                    tooltip: l10n.sendViaWhatsApp,
+                    onPressed: () => _openWhatsApp(context, ref, log),
+                    icon: const Icon(Icons.chat_outlined),
+                  ),
+                  IconButton(
+                    tooltip: l10n.copyMessage,
+                    onPressed: () => _copyWhatsAppMessage(context, ref, log),
+                    icon: const Icon(Icons.copy_outlined),
+                  ),
+                  IconButton(
+                    tooltip: l10n.markAsSent,
+                    onPressed: () => _markSendLog(ref, log, 'sent'),
+                    icon: const Icon(Icons.done_all_outlined),
+                  ),
+                  IconButton(
+                    tooltip: l10n.skipContact,
+                    onPressed: () => _markSendLog(ref, log, 'skipped'),
+                    icon: const Icon(Icons.skip_next_outlined),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _showDialog(
+    BuildContext context,
+    WidgetRef ref, [
+    InfoNews? news,
+  ]) async {
+    final l10n = AppLocalizations.of(context);
+    final title = TextEditingController(text: news?.title ?? '');
+    final message = TextEditingController(text: news?.message ?? '');
+    final priority = TextEditingController(text: '${news?.priority ?? 0}');
+    final startAt = TextEditingController(text: news?.startAt ?? '');
+    final endAt = TextEditingController(text: news?.endAt ?? '');
+    var isActive = news?.isActive ?? true;
+    var sendToContacts = news?.sendToContacts ?? false;
+
+    final saved = await showDialog<InfoNews>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(news == null ? l10n.addInfoNews : l10n.editInfoNews),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: title,
+                    decoration: InputDecoration(labelText: l10n.infoNewsTitle),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: message,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: l10n.infoNewsMessage,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: priority,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: l10n.priority),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: startAt,
+                    decoration: InputDecoration(labelText: l10n.startAt),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: endAt,
+                    decoration: InputDecoration(labelText: l10n.endAt),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: isActive,
+                    title: Text(l10n.infoNewsActive),
+                    onChanged: (value) =>
+                        setDialogState(() => isActive = value),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: sendToContacts,
+                    title: Text(l10n.sendToContacts),
+                    subtitle: Text(l10n.whatsappManualNotice),
+                    onChanged: news == null
+                        ? (value) =>
+                              setDialogState(() => sendToContacts = value)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                InfoNews(
+                  id: news?.id ?? '',
+                  title: title.text.trim(),
+                  message: message.text.trim(),
+                  isActive: isActive,
+                  priority: int.tryParse(priority.text) ?? 0,
+                  startAt: startAt.text.trim(),
+                  endAt: endAt.text.trim(),
+                  sendToContacts: sendToContacts,
+                  createdAt: news?.createdAt ?? '',
+                  updatedAt: news?.updatedAt ?? '',
+                  createdBy: news?.createdBy ?? '',
+                ),
+              ),
+              child: Text(l10n.save),
+            ),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    message.dispose();
+    priority.dispose();
+    startAt.dispose();
+    endAt.dispose();
+    if (saved != null) await _save(ref, saved);
+  }
+
+  Future<void> _save(WidgetRef ref, InfoNews news) async {
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .upsertInfoNews(
+          news,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+  }
+
+  Future<void> _delete(WidgetRef ref, InfoNews news) async {
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .deleteInfoNews(
+          news,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+  }
+
+  Future<void> _openNextWhatsApp(
+    BuildContext context,
+    WidgetRef ref,
+    List<InfoNewsSendLog> logs,
+  ) async {
+    if (logs.isEmpty) return;
+    await _openWhatsApp(context, ref, logs.first);
+  }
+
+  Future<void> _openWhatsApp(
+    BuildContext context,
+    WidgetRef ref,
+    InfoNewsSendLog log,
+  ) async {
+    final data = ref.read(familyTreeProvider).value!;
+    final news = data.infoNews
+        .where((item) => item.id == log.infoNewsId)
+        .firstOrNull;
+    if (news == null) return;
+    try {
+      final message = ref.read(infoNewsServiceProvider).whatsappMessage(news);
+      await ref
+          .read(communicationServiceProvider)
+          .openWhatsApp(phoneNumber: log.contactPhone, message: message);
+      await ref
+          .read(familyTreeProvider.notifier)
+          .updateInfoNewsSendLog(log, status: 'opened');
+    } catch (error) {
+      await ref
+          .read(familyTreeProvider.notifier)
+          .updateInfoNewsSendLog(log, status: 'failed', error: '$error');
+    }
+  }
+
+  Future<void> _copyWhatsAppMessage(
+    BuildContext context,
+    WidgetRef ref,
+    InfoNewsSendLog log,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final data = ref.read(familyTreeProvider).value!;
+    final news = data.infoNews
+        .where((item) => item.id == log.infoNewsId)
+        .firstOrNull;
+    if (news == null) return;
+    final message = ref.read(infoNewsServiceProvider).whatsappMessage(news);
+    await Clipboard.setData(ClipboardData(text: message));
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.messageCopied)));
+    }
+  }
+
+  Future<void> _markSendLog(WidgetRef ref, InfoNewsSendLog log, String status) {
+    return ref
+        .read(familyTreeProvider.notifier)
+        .updateInfoNewsSendLog(log, status: status);
+  }
+
+  String _sendStatusLabel(AppLocalizations l10n, String status) {
+    return switch (status) {
+      'pending' => l10n.pending,
+      'opened' => l10n.whatsappOpened,
+      'sent' => l10n.sent,
+      'failed' => l10n.failed,
+      'skipped' => l10n.skipped,
+      _ => status,
+    };
+  }
+
+  String _formatCleanupDate(String value) {
+    final date = DateTime.tryParse(value);
+    if (date == null) return '-';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+}
+
 class _InfoRow extends StatelessWidget {
   const _InfoRow({required this.label, required this.value});
 
@@ -286,6 +701,201 @@ class _InfoRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _FamilyAnnouncementSection extends ConsumerWidget {
+  const _FamilyAnnouncementSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final data = ref.watch(familyTreeProvider).value!;
+    final auth = ref.watch(authSessionProvider);
+    final settings = data.familyAnnouncementSettings;
+    final history = data.familyAnnouncementHistory.reversed.toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Annonces familiales',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  value: settings.birthdayPopupsEnabled,
+                  title: const Text('Popups anniversaires'),
+                  onChanged: auth.isAdmin
+                      ? (value) => _save(
+                          ref,
+                          auth,
+                          settings.copyWith(birthdayPopupsEnabled: value),
+                        )
+                      : null,
+                ),
+                SwitchListTile(
+                  value: settings.birthPopupsEnabled,
+                  title: const Text('Popups nouvelles naissances'),
+                  onChanged: auth.isAdmin
+                      ? (value) => _save(
+                          ref,
+                          auth,
+                          settings.copyWith(birthPopupsEnabled: value),
+                        )
+                      : null,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cake_outlined),
+                  title: const Text('Message anniversaire'),
+                  subtitle: Text(settings.birthdayMessage),
+                  trailing: IconButton(
+                    onPressed: auth.isAdmin
+                        ? () => _editMessage(
+                            context,
+                            ref,
+                            auth,
+                            settings,
+                            isBirthday: true,
+                          )
+                        : null,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.child_friendly_outlined),
+                  title: const Text('Message naissance'),
+                  subtitle: Text(settings.birthMessage),
+                  trailing: IconButton(
+                    onPressed: auth.isAdmin
+                        ? () => _editMessage(
+                            context,
+                            ref,
+                            auth,
+                            settings,
+                            isBirthday: false,
+                          )
+                        : null,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Historique des annonces',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Les historiques de plus de 3 mois sont automatiquement supprimés.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        for (final item in history.take(8))
+          ListTile(
+            dense: true,
+            leading: Icon(
+              item.type == 'birthday'
+                  ? Icons.cake_outlined
+                  : Icons.child_friendly_outlined,
+            ),
+            title: Text(_personName(data, item.memberId)),
+            subtitle: Text(
+              '${item.type} · ${item.date} · ${item.whatsappStatus}',
+            ),
+            trailing: Wrap(
+              spacing: 4,
+              children: [
+                IconButton(
+                  tooltip: 'Marquer comme envoyé',
+                  onPressed: auth.isAdmin
+                      ? () => ref
+                            .read(familyTreeProvider.notifier)
+                            .updateFamilyAnnouncementStatus(item, 'sent')
+                      : null,
+                  icon: const Icon(Icons.done_all_outlined),
+                ),
+                IconButton(
+                  tooltip: 'Ignorer',
+                  onPressed: auth.isAdmin
+                      ? () => ref
+                            .read(familyTreeProvider.notifier)
+                            .updateFamilyAnnouncementStatus(item, 'skipped')
+                      : null,
+                  icon: const Icon(Icons.skip_next_outlined),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _editMessage(
+    BuildContext context,
+    WidgetRef ref,
+    AuthState auth,
+    FamilyAnnouncementSettings settings, {
+    required bool isBirthday,
+  }) async {
+    final controller = TextEditingController(
+      text: isBirthday ? settings.birthdayMessage : settings.birthMessage,
+    );
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isBirthday ? 'Message anniversaire' : 'Message naissance'),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Message'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    await _save(
+      ref,
+      auth,
+      isBirthday
+          ? settings.copyWith(birthdayMessage: value)
+          : settings.copyWith(birthMessage: value),
+    );
+  }
+
+  Future<void> _save(
+    WidgetRef ref,
+    AuthState auth,
+    FamilyAnnouncementSettings settings,
+  ) {
+    return ref
+        .read(familyTreeProvider.notifier)
+        .updateFamilyAnnouncementSettings(
+          settings,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+  }
+
+  String _personName(FamilyTreeData data, String id) {
+    return data.people.where((item) => item.id == id).firstOrNull?.fullName ??
+        id;
   }
 }
 
@@ -308,9 +918,10 @@ class _AccessCodeManagementSectionState
     final l10n = AppLocalizations.of(context);
     final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
-    final codes = ref
-        .watch(accessCodeServiceProvider)
-        .visibleCodes(data, auth.session?.role ?? 'viewer');
+    final accessCodeService = ref.watch(accessCodeServiceProvider);
+    final actorRole = auth.session?.role ?? 'viewer';
+    final adminId = auth.session?.familyCode ?? '';
+    final codes = accessCodeService.visibleCodes(data, actorRole);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,6 +1031,18 @@ class _AccessCodeManagementSectionState
                                 tooltip: l10n.deleteAccessCode,
                                 icon: const Icon(Icons.delete_outline),
                                 onPressed: () => _deleteCode(code),
+                              ),
+                              IconButton(
+                                tooltip: l10n.regenerateCode,
+                                icon: const Icon(Icons.autorenew),
+                                onPressed:
+                                    accessCodeService.canRegenerate(
+                                      code,
+                                      actorRole: actorRole,
+                                      adminId: adminId,
+                                    )
+                                    ? () => _regenerateCode(code)
+                                    : null,
                               ),
                             ],
                           ),
@@ -675,6 +1298,79 @@ class _AccessCodeManagementSectionState
     }
   }
 
+  Future<void> _regenerateCode(AccessCode code) async {
+    final l10n = AppLocalizations.of(context);
+    if (!await _confirm(l10n.confirmRegenerateCode)) return;
+    final auth = ref.read(authSessionProvider);
+    try {
+      final newCode = await ref
+          .read(familyTreeProvider.notifier)
+          .regenerateAccessCode(
+            code,
+            actorRole: auth.session?.role ?? 'viewer',
+            adminId: auth.session?.familyCode ?? '',
+            adminName: auth.session?.role ?? '',
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.codeRegenerated)));
+      await _showNewCodeDialog(newCode);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _showNewCodeDialog(AccessCode code) async {
+    final l10n = AppLocalizations.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.newGeneratedCode),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(
+                code.code,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Copiez ce code maintenant. Il ne sera pas affiché automatiquement ensuite.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(l10n.oldCodeDisabled),
+            ],
+          ),
+        ),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: code.code));
+              if (context.mounted) Navigator.pop(context);
+            },
+            icon: const Icon(Icons.copy),
+            label: Text(l10n.copyNewCode),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _copyCode(AccessCode code) async {
     final auth = ref.read(authSessionProvider);
     await Clipboard.setData(ClipboardData(text: code.code));
@@ -755,10 +1451,26 @@ class _FamilyHonorSection extends ConsumerWidget {
     final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
     final honor = data.familyHonor;
+    final leadership = data.familyLeadership;
     final selected = honor.patriarchPersonId.isEmpty
         ? null
         : data.people
               .where((person) => person.id == honor.patriarchPersonId)
+              .firstOrNull;
+    final selectedLeader = leadership.currentLeaderPersonId.isEmpty
+        ? null
+        : data.people
+              .where((person) => person.id == leadership.currentLeaderPersonId)
+              .firstOrNull;
+    final selectedFormerLeader = leadership.formerLeaderPersonId.isEmpty
+        ? null
+        : data.people
+              .where((person) => person.id == leadership.formerLeaderPersonId)
+              .firstOrNull;
+    final selectedSuccessor = leadership.successorPersonId.isEmpty
+        ? null
+        : data.people
+              .where((person) => person.id == leadership.successorPersonId)
               .firstOrNull;
 
     return Column(
@@ -844,6 +1556,209 @@ class _FamilyHonorSection extends ConsumerWidget {
                     honor.copyWith(badgeStyle: value ?? 'premium'),
                   ),
                 ),
+                const Divider(height: 32),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.showLeaderInTopBar),
+                  value: leadership.showLeaderInTopBar,
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(showLeaderInTopBar: value),
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.familyLeader),
+                  subtitle: Text(l10n.currentLeader),
+                  value: leadership.showLeaderBadge,
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(showLeaderBadge: value),
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.showLeaderPhoto),
+                  value: leadership.showLeaderPhoto,
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(showLeaderPhoto: value),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedLeader?.id ?? '',
+                  decoration: InputDecoration(labelText: l10n.currentLeader),
+                  items: [
+                    const DropdownMenuItem(value: '', child: Text('-')),
+                    ...data.people.map(
+                      (person) => DropdownMenuItem(
+                        value: person.id,
+                        child: Text(person.fullName),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(currentLeaderPersonId: value ?? ''),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedFormerLeader?.id ?? '',
+                  decoration: InputDecoration(labelText: l10n.formerChief),
+                  items: [
+                    const DropdownMenuItem(value: '', child: Text('-')),
+                    ...data.people.map(
+                      (person) => DropdownMenuItem(
+                        value: person.id,
+                        child: Text(person.fullName),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(formerLeaderPersonId: value ?? ''),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedSuccessor?.id ?? '',
+                  decoration: InputDecoration(labelText: l10n.successor),
+                  items: [
+                    const DropdownMenuItem(value: '', child: Text('-')),
+                    ...data.people.map(
+                      (person) => DropdownMenuItem(
+                        value: person.id,
+                        child: Text(person.fullName),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(successorPersonId: value ?? ''),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: leadership.title,
+                  decoration: InputDecoration(labelText: l10n.chiefTitle),
+                  onFieldSubmitted: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(
+                      title: value.trim().isEmpty
+                          ? 'Chef actuel'
+                          : value.trim(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: leadership.officialPhoto,
+                  decoration: const InputDecoration(
+                    labelText: 'Photo officielle',
+                    hintText: 'Chemin local ou URL',
+                  ),
+                  onFieldSubmitted: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(officialPhoto: value.trim()),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: leadership.badgeStyle,
+                  decoration: InputDecoration(labelText: l10n.badgeStyle),
+                  items: const [
+                    DropdownMenuItem(value: 'royal', child: Text('royal')),
+                    DropdownMenuItem(
+                      value: 'traditional',
+                      child: Text('traditional'),
+                    ),
+                    DropdownMenuItem(value: 'premium', child: Text('premium')),
+                    DropdownMenuItem(value: 'simple', child: Text('simple')),
+                    DropdownMenuItem(value: 'gold', child: Text('gold')),
+                    DropdownMenuItem(value: 'green', child: Text('green')),
+                  ],
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(badgeStyle: value ?? 'royal'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: leadership.topBarLogoMode,
+                  decoration: InputDecoration(labelText: l10n.topBarLogoMode),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'classicLogo',
+                      child: Text(l10n.classicLogo),
+                    ),
+                    DropdownMenuItem(
+                      value: 'logoAndLeader',
+                      child: Text(l10n.logoAndLeader),
+                    ),
+                    DropdownMenuItem(
+                      value: 'leaderOnly',
+                      child: Text(l10n.leaderOnly),
+                    ),
+                  ],
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(topBarLogoMode: value ?? 'leaderOnly'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.person_remove_outlined),
+                    label: Text(l10n.removeLeader),
+                    onPressed: leadership.currentLeaderPersonId.isEmpty
+                        ? null
+                        : () => _saveLeadership(
+                            ref,
+                            auth,
+                            leadership.copyWith(currentLeaderPersonId: ''),
+                          ),
+                  ),
+                ),
+                if (data.familyLeadershipHistory.isNotEmpty) ...[
+                  const Divider(height: 32),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      l10n.leadershipHistory,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final entry in data.familyLeadershipHistory.take(4))
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.history),
+                      title: Text(entry.title),
+                      subtitle: Text(
+                        [
+                          entry.personId,
+                          if (entry.startDate.isNotEmpty) entry.startDate,
+                          if (entry.endDate.isNotEmpty) entry.endDate,
+                        ].join(' · '),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -857,6 +1772,20 @@ class _FamilyHonorSection extends ConsumerWidget {
         .read(familyTreeProvider.notifier)
         .updateFamilyHonor(
           familyHonor,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+  }
+
+  Future<void> _saveLeadership(
+    WidgetRef ref,
+    AuthState auth,
+    FamilyLeadership familyLeadership,
+  ) {
+    return ref
+        .read(familyTreeProvider.notifier)
+        .updateFamilyLeadership(
+          familyLeadership,
           actorRole: auth.session?.role ?? 'viewer',
           adminId: auth.session?.familyCode ?? '',
         );

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/family_tree_data.dart';
 import '../models/person.dart';
+import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../services/family_relation_service.dart';
 
-class PersonPreviewPopup extends StatelessWidget {
+class PersonPreviewPopup extends ConsumerWidget {
   const PersonPreviewPopup({
     super.key,
     required this.person,
@@ -21,9 +23,12 @@ class PersonPreviewPopup extends StatelessWidget {
   final VoidCallback onViewProfile;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final relationService = FamilyRelationService();
+    final statistics = ref
+        .watch(genealogyStatisticsServiceProvider(data))
+        .getStatistics(person.id);
     final father = relationService.fatherOf(data, person);
     final mother = relationService.motherOf(data, person);
     final spouses = relationService.spousesOf(data, person);
@@ -53,9 +58,15 @@ class PersonPreviewPopup extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (authMode == AuthMode.authenticated) ...[
-                _line(l10n.birthDate, _join([person.birthDate, person.birthPlace])),
+                _line(
+                  l10n.birthDate,
+                  _join([person.birthDate, person.birthPlace]),
+                ),
                 if (person.deathDate.isNotEmpty || person.deathPlace.isNotEmpty)
-                  _line(l10n.deathDate, _join([person.deathDate, person.deathPlace])),
+                  _line(
+                    l10n.deathDate,
+                    _join([person.deathDate, person.deathPlace]),
+                  ),
                 _line(l10n.father, father?.fullName ?? ''),
                 _line(l10n.mother, mother?.fullName ?? ''),
                 _line(
@@ -65,12 +76,39 @@ class PersonPreviewPopup extends StatelessWidget {
                 _line(l10n.parents, _names(person.parents)),
                 _line(l10n.spouses, _names(person.spouses)),
                 _line(l10n.children, _names(person.children)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _StatBadge(
+                      icon: Icons.child_care_outlined,
+                      label: l10n.directChildren,
+                      value: statistics.directChildrenCount,
+                    ),
+                    _StatBadge(
+                      icon: Icons.account_tree_outlined,
+                      label: l10n.totalDescendants,
+                      value: statistics.totalDescendantsCount,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 _line(l10n.familyBranch, person.familyCode),
                 if (person.history.isNotEmpty)
                   _line(l10n.history, person.history.first.description),
-              ] else if (person.privacy.showMapInPublicMode &&
-                  person.publicMapLocation.isNotEmpty)
-                _line(l10n.googleMaps, person.publicMapLocation),
+              ] else ...[
+                _StatBadge(
+                  icon: Icons.account_tree_outlined,
+                  label: l10n.descendants,
+                  value: statistics.totalDescendantsCount,
+                ),
+                if (person.privacy.showMapInPublicMode &&
+                    person.publicMapLocation.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _line(l10n.googleMaps, person.publicMapLocation),
+                ],
+              ],
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
@@ -97,9 +135,9 @@ class PersonPreviewPopup extends StatelessWidget {
   }
 
   static Widget _line(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text('$label: ${value.isEmpty ? '-' : value}'),
-      );
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text('$label: ${value.isEmpty ? '-' : value}'),
+  );
 
   static String _join(List<String> values) =>
       values.where((value) => value.isNotEmpty).join(' - ');
@@ -109,5 +147,46 @@ class PersonPreviewPopup extends StatelessWidget {
     final last = person.lastName.isEmpty ? '' : person.lastName[0];
     final value = '$first$last';
     return value.isEmpty ? '?' : value.toUpperCase();
+  }
+}
+
+class _StatBadge extends StatelessWidget {
+  const _StatBadge({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF3DE),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFCFE1BD)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: const Color(0xFF4D742B)),
+            const SizedBox(width: 5),
+            Text(
+              '$label : $value',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: const Color(0xFF35581C),
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

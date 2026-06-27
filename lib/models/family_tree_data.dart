@@ -3,12 +3,18 @@ import 'audit_log.dart';
 import 'admin_access.dart';
 import 'admin_user.dart';
 import 'change_notification.dart';
+import 'family_announcement.dart';
 import 'family_code.dart';
+import 'family_council_member.dart';
+import 'family_history.dart';
 import 'family_honor.dart';
+import 'family_leadership.dart';
+import 'family_leadership_history_entry.dart';
 import 'family_link.dart';
 import 'family_notification.dart';
 import 'history_event.dart';
 import 'important_place.dart';
+import 'info_news.dart';
 import 'marriage_relation.dart';
 import 'modification_history.dart';
 import 'person.dart';
@@ -21,7 +27,16 @@ class FamilyTreeData {
     this.mainFamilyCode = 'ayivon',
     this.publicMode = const PublicModeConfig(),
     this.language = 'fr',
+    this.familyGeneralHistory = const FamilyHistory(
+      title: 'Histoire de la famille Ayivon',
+      maxCharacters: 5000,
+    ),
+    this.familyCouncil = const FamilyCouncil(),
     this.familyHonor = const FamilyHonor(),
+    this.familyLeadership = const FamilyLeadership(),
+    this.familyLeadershipHistory = const [],
+    this.familyAnnouncementSettings = const FamilyAnnouncementSettings(),
+    this.familyAnnouncementHistory = const [],
     this.familyCodes = const [],
     this.accessCodes = const [],
     this.modificationCodes = const [],
@@ -32,6 +47,14 @@ class FamilyTreeData {
     this.marriageRelations = const [],
     this.notifications = const [],
     this.changeNotifications = const [],
+    this.infoNews = const [],
+    this.infoNewsSendLogs = const [],
+    this.autoCleanupInfoNewsSendHistory = true,
+    this.infoNewsSendHistoryLastCleanedAt = '',
+    this.autoCleanupNotifications = true,
+    this.autoCleanupKpiActivityLogs = true,
+    this.dataCleanupLastCleanedAt = '',
+    this.dataCleanupLastDeletedCount = 0,
     this.modificationHistory = const [],
     this.auditLog = const [],
   });
@@ -40,7 +63,13 @@ class FamilyTreeData {
   final String mainFamilyCode;
   final PublicModeConfig publicMode;
   final String language;
+  final FamilyHistory familyGeneralHistory;
+  final FamilyCouncil familyCouncil;
   final FamilyHonor familyHonor;
+  final FamilyLeadership familyLeadership;
+  final List<FamilyLeadershipHistoryEntry> familyLeadershipHistory;
+  final FamilyAnnouncementSettings familyAnnouncementSettings;
+  final List<FamilyAnnouncementHistory> familyAnnouncementHistory;
   final List<FamilyCode> familyCodes;
   final List<AccessCode> accessCodes;
   final List<ModificationCode> modificationCodes;
@@ -51,6 +80,14 @@ class FamilyTreeData {
   final List<MarriageRelation> marriageRelations;
   final List<FamilyNotification> notifications;
   final List<ChangeNotification> changeNotifications;
+  final List<InfoNews> infoNews;
+  final List<InfoNewsSendLog> infoNewsSendLogs;
+  final bool autoCleanupInfoNewsSendHistory;
+  final String infoNewsSendHistoryLastCleanedAt;
+  final bool autoCleanupNotifications;
+  final bool autoCleanupKpiActivityLogs;
+  final String dataCleanupLastCleanedAt;
+  final int dataCleanupLastDeletedCount;
   final List<ModificationHistory> modificationHistory;
   final List<AuditLog> auditLog;
 
@@ -61,9 +98,44 @@ class FamilyTreeData {
       Map<String, dynamic>.from(json['publicMode'] as Map? ?? const {}),
     ),
     language: json['language'] as String? ?? 'fr',
+    familyGeneralHistory: FamilyHistory.fromJson(
+      Map<String, dynamic>.from(
+        json['familyGeneralHistory'] as Map? ?? const {},
+      ),
+      defaultMaxCharacters: 5000,
+    ),
+    familyCouncil: FamilyCouncil.fromJson(
+      Map<String, dynamic>.from(json['familyCouncil'] as Map? ?? const {}),
+    ),
     familyHonor: FamilyHonor.fromJson(
       Map<String, dynamic>.from(json['familyHonor'] as Map? ?? const {}),
     ),
+    familyLeadership: FamilyLeadership.fromJson(
+      Map<String, dynamic>.from(json['familyLeadership'] as Map? ?? const {}),
+    ),
+    familyAnnouncementSettings: FamilyAnnouncementSettings.fromJson(
+      Map<String, dynamic>.from(
+        json['familyAnnouncementSettings'] as Map? ?? const {},
+      ),
+    ),
+    familyAnnouncementHistory:
+        (json['familyAnnouncementHistory'] as List? ?? const [])
+            .whereType<Map>()
+            .map(
+              (item) => FamilyAnnouncementHistory.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList(),
+    familyLeadershipHistory:
+        (json['familyLeadershipHistory'] as List? ?? const [])
+            .whereType<Map>()
+            .map(
+              (item) => FamilyLeadershipHistoryEntry.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList(),
     familyCodes: (json['familyCodes'] as List? ?? const [])
         .whereType<Map>()
         .map((item) => FamilyCode.fromJson(Map<String, dynamic>.from(item)))
@@ -113,6 +185,26 @@ class FamilyTreeData {
               ChangeNotification.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList(),
+    infoNews: (json['infoNews'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => InfoNews.fromJson(Map<String, dynamic>.from(item)))
+        .toList(),
+    infoNewsSendLogs: (json['infoNewsSendLogs'] as List? ?? const [])
+        .whereType<Map>()
+        .map(
+          (item) => InfoNewsSendLog.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList(),
+    autoCleanupInfoNewsSendHistory:
+        json['autoCleanupInfoNewsSendHistory'] as bool? ?? true,
+    infoNewsSendHistoryLastCleanedAt:
+        json['infoNewsSendHistoryLastCleanedAt'] as String? ?? '',
+    autoCleanupNotifications: json['autoCleanupNotifications'] as bool? ?? true,
+    autoCleanupKpiActivityLogs:
+        json['autoCleanupKpiActivityLogs'] as bool? ?? true,
+    dataCleanupLastCleanedAt: json['dataCleanupLastCleanedAt'] as String? ?? '',
+    dataCleanupLastDeletedCount:
+        json['dataCleanupLastDeletedCount'] as int? ?? 0,
     modificationHistory: (json['modificationHistory'] as List? ?? const [])
         .whereType<Map>()
         .map(
@@ -128,12 +220,51 @@ class FamilyTreeData {
 
   factory FamilyTreeData.demo() => FamilyTreeData(
     mainFamilyCode: 'ayivon',
+    familyGeneralHistory: const FamilyHistory(
+      title: 'Histoire de la famille Ayivon',
+      content:
+          'Cette page rassemble les souvenirs, les origines et les grandes étapes de la famille.',
+      maxCharacters: 5000,
+    ),
+    familyCouncil: const FamilyCouncil(
+      members: [
+        FamilyCouncilMember(
+          id: 'council001',
+          personId: 'p001',
+          firstName: 'Kossi',
+          lastName: 'Ayivon',
+          roleTitle: 'Conseiller principal',
+          residencePlace: 'Lomé, Togo',
+          order: 1,
+        ),
+      ],
+    ),
     familyHonor: const FamilyHonor(
       patriarchPersonId: 'p002',
       showPatriarchBadge: true,
       badgePosition: 'topLeft',
       badgeStyle: 'premium',
     ),
+    familyLeadership: const FamilyLeadership(
+      currentLeaderPersonId: 'p002',
+      formerLeaderPersonId: 'p001',
+      successorPersonId: 'p003',
+      title: 'Chef actuel',
+      showLeaderInTopBar: true,
+      showLeaderPhoto: true,
+      showLeaderBadge: true,
+      badgeStyle: 'royal',
+      topBarLogoMode: 'leaderOnly',
+    ),
+    familyLeadershipHistory: const [
+      FamilyLeadershipHistoryEntry(
+        personId: 'p001',
+        title: 'Chef de famille',
+        startDate: '1985-01-01',
+        endDate: '2015-08-10',
+        notes: 'Responsable de la transmission familiale.',
+      ),
+    ],
     familyCodes: const [
       FamilyCode(
         code: 'ayivon',
@@ -344,6 +475,16 @@ class FamilyTreeData {
         message: 'Ama Amouzou a été ajoutée par Admin Principal Ayivon.',
       ),
     ],
+    infoNews: const [
+      InfoNews(
+        id: 'news001',
+        title: 'Bienvenue',
+        message: 'Consultez les dernières informations de la famille.',
+        isActive: true,
+        priority: 1,
+        createdAt: '2026-06-27T10:00:00',
+      ),
+    ],
     modificationHistory: const [
       ModificationHistory(
         id: 'mh001',
@@ -364,7 +505,17 @@ class FamilyTreeData {
     'mainFamilyCode': mainFamilyCode,
     'publicMode': publicMode.toJson(),
     'language': language,
+    'familyGeneralHistory': familyGeneralHistory.toJson(),
+    'familyCouncil': familyCouncil.toJson(),
     'familyHonor': familyHonor.toJson(),
+    'familyLeadership': familyLeadership.toJson(),
+    'familyAnnouncementSettings': familyAnnouncementSettings.toJson(),
+    'familyAnnouncementHistory': familyAnnouncementHistory
+        .map((item) => item.toJson())
+        .toList(),
+    'familyLeadershipHistory': familyLeadershipHistory
+        .map((item) => item.toJson())
+        .toList(),
     'familyCodes': familyCodes.map((item) => item.toJson()).toList(),
     'accessCodes': accessCodes.map((item) => item.toJson()).toList(),
     'modificationCodes': modificationCodes
@@ -381,6 +532,14 @@ class FamilyTreeData {
     'changeNotifications': changeNotifications
         .map((item) => item.toJson())
         .toList(),
+    'infoNews': infoNews.map((item) => item.toJson()).toList(),
+    'infoNewsSendLogs': infoNewsSendLogs.map((item) => item.toJson()).toList(),
+    'autoCleanupInfoNewsSendHistory': autoCleanupInfoNewsSendHistory,
+    'infoNewsSendHistoryLastCleanedAt': infoNewsSendHistoryLastCleanedAt,
+    'autoCleanupNotifications': autoCleanupNotifications,
+    'autoCleanupKpiActivityLogs': autoCleanupKpiActivityLogs,
+    'dataCleanupLastCleanedAt': dataCleanupLastCleanedAt,
+    'dataCleanupLastDeletedCount': dataCleanupLastDeletedCount,
     'modificationHistory': modificationHistory
         .map((item) => item.toJson())
         .toList(),
@@ -392,7 +551,13 @@ class FamilyTreeData {
     String? mainFamilyCode,
     PublicModeConfig? publicMode,
     String? language,
+    FamilyHistory? familyGeneralHistory,
+    FamilyCouncil? familyCouncil,
     FamilyHonor? familyHonor,
+    FamilyLeadership? familyLeadership,
+    List<FamilyLeadershipHistoryEntry>? familyLeadershipHistory,
+    FamilyAnnouncementSettings? familyAnnouncementSettings,
+    List<FamilyAnnouncementHistory>? familyAnnouncementHistory,
     List<FamilyCode>? familyCodes,
     List<AccessCode>? accessCodes,
     List<ModificationCode>? modificationCodes,
@@ -403,6 +568,14 @@ class FamilyTreeData {
     List<MarriageRelation>? marriageRelations,
     List<FamilyNotification>? notifications,
     List<ChangeNotification>? changeNotifications,
+    List<InfoNews>? infoNews,
+    List<InfoNewsSendLog>? infoNewsSendLogs,
+    bool? autoCleanupInfoNewsSendHistory,
+    String? infoNewsSendHistoryLastCleanedAt,
+    bool? autoCleanupNotifications,
+    bool? autoCleanupKpiActivityLogs,
+    String? dataCleanupLastCleanedAt,
+    int? dataCleanupLastDeletedCount,
     List<ModificationHistory>? modificationHistory,
     List<AuditLog>? auditLog,
   }) {
@@ -411,7 +584,16 @@ class FamilyTreeData {
       mainFamilyCode: mainFamilyCode ?? this.mainFamilyCode,
       publicMode: publicMode ?? this.publicMode,
       language: language ?? this.language,
+      familyGeneralHistory: familyGeneralHistory ?? this.familyGeneralHistory,
+      familyCouncil: familyCouncil ?? this.familyCouncil,
       familyHonor: familyHonor ?? this.familyHonor,
+      familyLeadership: familyLeadership ?? this.familyLeadership,
+      familyLeadershipHistory:
+          familyLeadershipHistory ?? this.familyLeadershipHistory,
+      familyAnnouncementSettings:
+          familyAnnouncementSettings ?? this.familyAnnouncementSettings,
+      familyAnnouncementHistory:
+          familyAnnouncementHistory ?? this.familyAnnouncementHistory,
       familyCodes: familyCodes ?? this.familyCodes,
       accessCodes: accessCodes ?? this.accessCodes,
       modificationCodes: modificationCodes ?? this.modificationCodes,
@@ -422,6 +604,21 @@ class FamilyTreeData {
       marriageRelations: marriageRelations ?? this.marriageRelations,
       notifications: notifications ?? this.notifications,
       changeNotifications: changeNotifications ?? this.changeNotifications,
+      infoNews: infoNews ?? this.infoNews,
+      infoNewsSendLogs: infoNewsSendLogs ?? this.infoNewsSendLogs,
+      autoCleanupInfoNewsSendHistory:
+          autoCleanupInfoNewsSendHistory ?? this.autoCleanupInfoNewsSendHistory,
+      infoNewsSendHistoryLastCleanedAt:
+          infoNewsSendHistoryLastCleanedAt ??
+          this.infoNewsSendHistoryLastCleanedAt,
+      autoCleanupNotifications:
+          autoCleanupNotifications ?? this.autoCleanupNotifications,
+      autoCleanupKpiActivityLogs:
+          autoCleanupKpiActivityLogs ?? this.autoCleanupKpiActivityLogs,
+      dataCleanupLastCleanedAt:
+          dataCleanupLastCleanedAt ?? this.dataCleanupLastCleanedAt,
+      dataCleanupLastDeletedCount:
+          dataCleanupLastDeletedCount ?? this.dataCleanupLastDeletedCount,
       modificationHistory: modificationHistory ?? this.modificationHistory,
       auditLog: auditLog ?? this.auditLog,
     );

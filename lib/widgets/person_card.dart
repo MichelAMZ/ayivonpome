@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/family_relation_service.dart';
 import '../screens/person_edit_screen.dart';
+import '../theme/app_colors.dart';
 import '../widgets/modification_code_required_dialog.dart';
 import '../widgets/notification_form.dart';
 import 'person_context_menu.dart';
@@ -41,6 +42,7 @@ class PersonCard extends ConsumerStatefulWidget {
 
 class _PersonCardState extends ConsumerState<PersonCard> {
   OverlayEntry? _entry;
+  bool _hovered = false;
 
   @override
   void dispose() {
@@ -50,148 +52,250 @@ class _PersonCardState extends ConsumerState<PersonCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isCurrentLeader =
+        widget.data.familyLeadership.currentLeaderPersonId == widget.person.id;
+    final compact = widget.compact;
+    final location = _displayLocation;
+    final primary = Theme.of(context).colorScheme.primary;
+    final borderColor = _genderColor;
+    final avatarBackground = _genderLightColor;
+
     return MouseRegion(
-      onEnter: (_) => _show(),
-      onExit: (_) => _remove(),
+      onEnter: (_) {
+        setState(() => _hovered = true);
+        _show();
+      },
+      onExit: (_) {
+        setState(() => _hovered = false);
+        _remove();
+      },
       child: GestureDetector(
         onTap: widget.onOpen,
         onSecondaryTapDown: (details) =>
             _showContextMenu(details.globalPosition),
-        onLongPressStart: (details) => _showContextMenu(details.globalPosition),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFEFA),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE0E6D8)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: SizedBox(
-              width: widget.width ?? (widget.compact ? 190 : 250),
-              height: widget.height ?? (widget.compact ? 96 : 104),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 25,
-                      backgroundColor: const Color(0xFFD8F0B5),
-                      foregroundColor: const Color(0xFF365D1C),
-                      child: Text(
-                        _initials(widget.person),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+        onLongPressStart: (_) => _show(),
+        onLongPressEnd: (_) => _remove(),
+        child: SizedBox(
+          width: widget.width ?? (compact ? 300 : 420),
+          height: widget.height ?? (compact ? 112 : 126),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: isCurrentLeader
+                      ? const Color(0x30C59A2A)
+                      : const Color(0x14000000),
+                  blurRadius: _hovered ? 26 : 18,
+                  offset: Offset(0, _hovered ? 12 : 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    left: 0,
+                    right: null,
+                    child: Container(width: 5, color: borderColor),
+                  ),
+                  if (isCurrentLeader)
+                    Positioned(
+                      top: 8,
+                      right: compact ? 76 : 88,
+                      child: _LeaderPill(
+                        label: AppLocalizations.of(context).currentChief,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                _genderSymbol,
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 16 : 22,
+                      compact ? 14 : 18,
+                      compact ? 10 : 14,
+                      compact ? 14 : 18,
+                    ),
+                    child: Row(
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CircleAvatar(
+                              radius: compact ? 34 : 42,
+                              backgroundColor: avatarBackground,
+                              foregroundColor: borderColor,
+                              child: Text(
+                                _initials(widget.person),
                                 style: TextStyle(
-                                  color: _genderColor,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: compact ? 25 : 32,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  widget.person.fullName,
-                                  maxLines: widget.compact ? 2 : 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 0,
-                                      ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (widget.authMode == AuthMode.authenticated) ...[
-                            const SizedBox(height: 4),
-                            _relationLine(context, _fatherLine),
-                            _relationLine(context, _motherLine),
-                            _relationLine(context, _spouseLine),
-                          ] else if (_publicMapLocation.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.location_on_outlined,
-                                  size: 16,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    _publicMapLocation,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
+                            ),
+                            if (isCurrentLeader)
+                              Positioned(
+                                right: -3,
+                                top: -6,
+                                child: Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE3B344),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.workspace_premium,
+                                    size: 15,
+                                    color: Color(0xFF6F4C0E),
                                   ),
                                 ),
+                              ),
+                          ],
+                        ),
+                        SizedBox(width: compact ? 16 : 22),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    _genderSymbol,
+                                    style: TextStyle(
+                                      color: _genderColor,
+                                      fontSize: compact ? 27 : 32,
+                                      height: 1,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  SizedBox(width: compact ? 8 : 12),
+                                  Expanded(
+                                    child: Text(
+                                      widget.person.fullName,
+                                      maxLines: compact ? 2 : 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: const Color(0xFF121411),
+                                            fontSize: compact ? 19 : 23,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 0,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (location.isNotEmpty) ...[
+                                SizedBox(height: compact ? 9 : 13),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.location_on_outlined,
+                                      size: compact ? 25 : 31,
+                                      color: const Color(0xFF4C7A2E),
+                                    ),
+                                    SizedBox(width: compact ? 7 : 10),
+                                    Expanded(
+                                      child: Text(
+                                        location,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              color: const Color(0xFF4F514C),
+                                              fontSize: compact ? 16 : 20,
+                                              fontWeight: FontWeight.w500,
+                                              letterSpacing: 0,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ],
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: compact ? 6 : 10),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_mapAddress.isNotEmpty)
+                              IconButton(
+                                tooltip: 'Google Maps',
+                                visualDensity: VisualDensity.compact,
+                                constraints: BoxConstraints.tightFor(
+                                  width: compact ? 34 : 38,
+                                  height: compact ? 34 : 38,
+                                ),
+                                padding: EdgeInsets.zero,
+                                iconSize: compact ? 28 : 32,
+                                icon: const Icon(Icons.location_on_outlined),
+                                color: primary,
+                                onPressed: () => ref
+                                    .read(mapServiceProvider)
+                                    .openInGoogleMaps(address: _mapAddress),
+                              ),
+                            Builder(
+                              builder: (buttonContext) => IconButton(
+                                tooltip: 'Menu',
+                                visualDensity: VisualDensity.compact,
+                                constraints: BoxConstraints.tightFor(
+                                  width: compact ? 30 : 34,
+                                  height: compact ? 34 : 38,
+                                ),
+                                padding: EdgeInsets.zero,
+                                iconSize: compact ? 25 : 30,
+                                icon: const Icon(Icons.more_vert),
+                                onPressed: () {
+                                  final box =
+                                      buttonContext.findRenderObject()
+                                          as RenderBox;
+                                  final center = box.localToGlobal(
+                                    box.size.center(Offset.zero),
+                                  );
+                                  _showContextMenu(center);
+                                },
+                              ),
                             ),
                           ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_mapAddress.isNotEmpty)
-                          IconButton(
-                            tooltip: 'Google Maps',
-                            visualDensity: VisualDensity.compact,
-                            icon: const Icon(
-                              Icons.location_on_outlined,
-                              size: 20,
-                            ),
-                            color: Theme.of(context).colorScheme.primary,
-                            onPressed: () => ref
-                                .read(mapServiceProvider)
-                                .openInGoogleMaps(address: _mapAddress),
-                          ),
-                        Builder(
-                          builder: (buttonContext) => IconButton(
-                            tooltip: 'Menu',
-                            visualDensity: VisualDensity.compact,
-                            icon: const Icon(Icons.more_vert, size: 20),
-                            onPressed: () {
-                              final box =
-                                  buttonContext.findRenderObject() as RenderBox;
-                              final center = box.localToGlobal(
-                                box.size.center(Offset.zero),
-                              );
-                              _showContextMenu(center);
-                            },
-                          ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  String get _displayLocation {
+    if (widget.authMode == AuthMode.authenticated) {
+      final currentAddress = widget.person.currentAddress.trim();
+      if (currentAddress.isNotEmpty) return currentAddress;
+      final publicLocation = widget.person.publicMapLocation.trim();
+      if (publicLocation.isNotEmpty) return publicLocation;
+      final birthPlace = widget.person.birthPlace.trim();
+      if (birthPlace.isNotEmpty) return birthPlace;
+      return widget.person.burialPlace.trim();
+    }
+    return _publicMapLocation;
   }
 
   void _show() {
@@ -243,6 +347,7 @@ class _PersonCardState extends ConsumerState<PersonCard> {
         canDelete: auth.canModify && auth.isAdmin,
         hasMap: hasMap,
         hasContact: hasContact,
+        canNotify: auth.isAdmin,
       ),
     );
     if (selected == null || !mounted) return;
@@ -487,21 +592,30 @@ class _PersonCardState extends ConsumerState<PersonCard> {
 
   String get _genderSymbol {
     final gender = widget.person.gender.toLowerCase();
-    if (gender == 'male' || gender == 'm' || gender == 'homme') return '♂';
-    if (gender == 'female' || gender == 'f' || gender == 'femme') return '♀';
-    return '⚪';
+    if (_isMaleGender(gender)) return '♂';
+    if (_isFemaleGender(gender)) return '♀';
+    return '○';
   }
 
   Color get _genderColor {
     final gender = widget.person.gender.toLowerCase();
-    if (gender == 'male' || gender == 'm' || gender == 'homme') {
-      return const Color(0xFF2D7DD2);
-    }
-    if (gender == 'female' || gender == 'f' || gender == 'femme') {
-      return const Color(0xFFE53964);
-    }
-    return const Color(0xFF80856E);
+    if (_isMaleGender(gender)) return AppColors.maleBlue;
+    if (_isFemaleGender(gender)) return AppColors.femalePink;
+    return AppColors.neutralGrey;
   }
+
+  Color get _genderLightColor {
+    final gender = widget.person.gender.toLowerCase();
+    if (_isMaleGender(gender)) return AppColors.maleLight;
+    if (_isFemaleGender(gender)) return AppColors.femaleLight;
+    return AppColors.neutralLight;
+  }
+
+  bool _isMaleGender(String gender) =>
+      gender == 'male' || gender == 'm' || gender == 'homme';
+
+  bool _isFemaleGender(String gender) =>
+      gender == 'female' || gender == 'f' || gender == 'femme';
 
   String get _fatherLine {
     final father = _relations.fatherOf(widget.data, widget.person);
@@ -519,20 +633,52 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     return 'Marié(e) à: ${spouses.map((person) => person.fullName).join(', ')}';
   }
 
-  Widget _relationLine(BuildContext context, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodySmall,
-    );
-  }
-
   static String _initials(Person person) {
     final first = person.firstName.isEmpty ? '' : person.firstName[0];
     final last = person.lastName.isEmpty ? '' : person.lastName[0];
     final value = '$first$last';
     return value.isEmpty ? '?' : value.toUpperCase();
+  }
+}
+
+class _LeaderPill extends StatelessWidget {
+  const _LeaderPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3CF),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE1B84E)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.workspace_premium,
+              size: 11,
+              color: Color(0xFF8B6818),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: const Color(0xFF8B6818),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/family_notification.dart';
+import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../widgets/notification_form.dart';
 
@@ -13,9 +14,10 @@ class NotificationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final data = ref.watch(familyTreeProvider).value!;
+    final auth = ref.watch(authSessionProvider);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.notifications)),
-      floatingActionButton: data.people.isEmpty
+      floatingActionButton: data.people.isEmpty || !auth.isAdmin
           ? null
           : FloatingActionButton.extended(
               onPressed: () => showDialog<void>(

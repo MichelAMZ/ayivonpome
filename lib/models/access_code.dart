@@ -16,6 +16,9 @@ class AccessCode {
     this.enabled = true,
     this.lastUsedAt = '',
     this.notes = '',
+    this.previousCodeId = '',
+    this.replacedByCodeId = '',
+    this.regeneratedAt = '',
   });
 
   final String id;
@@ -34,6 +37,9 @@ class AccessCode {
   final bool enabled;
   final String lastUsedAt;
   final String notes;
+  final String previousCodeId;
+  final String replacedByCodeId;
+  final String regeneratedAt;
 
   bool get isExpired {
     if (expiresAt.trim().isEmpty) return false;
@@ -60,6 +66,9 @@ class AccessCode {
     enabled: json['enabled'] as bool? ?? true,
     lastUsedAt: json['lastUsedAt'] as String? ?? '',
     notes: json['notes'] as String? ?? '',
+    previousCodeId: json['previousCodeId'] as String? ?? '',
+    replacedByCodeId: json['replacedByCodeId'] as String? ?? '',
+    regeneratedAt: json['regeneratedAt'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -79,6 +88,9 @@ class AccessCode {
     'enabled': enabled,
     'lastUsedAt': lastUsedAt,
     'notes': notes,
+    'previousCodeId': previousCodeId,
+    'replacedByCodeId': replacedByCodeId,
+    'regeneratedAt': regeneratedAt,
   };
 
   AccessCode copyWith({
@@ -99,6 +111,9 @@ class AccessCode {
     bool? enabled,
     String? lastUsedAt,
     String? notes,
+    String? previousCodeId,
+    String? replacedByCodeId,
+    String? regeneratedAt,
   }) {
     return AccessCode(
       id: id ?? this.id,
@@ -117,6 +132,9 @@ class AccessCode {
       enabled: enabled ?? this.enabled,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       notes: notes ?? this.notes,
+      previousCodeId: previousCodeId ?? this.previousCodeId,
+      replacedByCodeId: replacedByCodeId ?? this.replacedByCodeId,
+      regeneratedAt: regeneratedAt ?? this.regeneratedAt,
     );
   }
 }

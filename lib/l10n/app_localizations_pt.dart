@@ -63,6 +63,209 @@ class AppLocalizationsPt extends AppLocalizations {
   String get children => 'Filhos';
 
   @override
+  String get directChildren => 'Filhos diretos';
+
+  @override
+  String get totalDescendants => 'Descendentes totais';
+
+  @override
+  String get descendants => 'Descendentes';
+
+  @override
+  String get childrenCount => 'Número de filhos';
+
+  @override
+  String get familyHistory => 'Histórico familiar';
+
+  @override
+  String get generalFamilyHistory => 'Histórico geral da família';
+
+  @override
+  String get viewFamilyHistory => 'Ver a história geral da família';
+
+  @override
+  String get editFamilyHistory => 'Editar histórico familiar';
+
+  @override
+  String get linkedFamilyHistory => 'Histórico da família ligada';
+
+  @override
+  String get historyContent => 'Conteúdo da história';
+
+  @override
+  String get historyTitle => 'Título da história';
+
+  @override
+  String get characterLimit => 'Limite de caracteres';
+
+  @override
+  String get charactersRemaining => 'Caracteres restantes';
+
+  @override
+  String get characterLimitExceeded => 'O limite de caracteres foi excedido.';
+
+  @override
+  String get lastUpdatedBy => 'Última alteração por';
+
+  @override
+  String get lastUpdatedAt => 'Última alteração em';
+
+  @override
+  String get familyCouncil => 'Conselho familiar';
+
+  @override
+  String get councilMembers => 'Membros do conselho';
+
+  @override
+  String get councilMember => 'Membro do conselho';
+
+  @override
+  String get roleInCouncil => 'Função no conselho';
+
+  @override
+  String get residencePlace => 'Local de residência';
+
+  @override
+  String get contactCouncilMember => 'Contactar membro do conselho';
+
+  @override
+  String get viewCouncilMembers => 'Ver membros do conselho familiar';
+
+  @override
+  String get addCouncilMember => 'Adicionar membro';
+
+  @override
+  String get editCouncilMember => 'Editar membro';
+
+  @override
+  String get deleteCouncilMember => 'Excluir membro';
+
+  @override
+  String get councilDescription => 'Membros que acompanham o chefe da família.';
+
+  @override
+  String get chiefCouncil => 'Conselho do chefe';
+
+  @override
+  String get infoNews => 'Informação';
+
+  @override
+  String get infoNewsManagement => 'Informações / Notícias';
+
+  @override
+  String get addInfoNews => 'Adicionar informação';
+
+  @override
+  String get editInfoNews => 'Editar informação';
+
+  @override
+  String get deleteInfoNews => 'Excluir informação';
+
+  @override
+  String get infoNewsTitle => 'Título da informação';
+
+  @override
+  String get infoNewsMessage => 'Mensagem curta';
+
+  @override
+  String get infoNewsActive => 'Informação ativa';
+
+  @override
+  String get priority => 'Prioridade';
+
+  @override
+  String get startAt => 'Início da exibição';
+
+  @override
+  String get endAt => 'Fim da exibição';
+
+  @override
+  String get sendToContacts => 'Enviar aos contatos disponíveis';
+
+  @override
+  String get sendViaWhatsApp => 'Enviar via WhatsApp';
+
+  @override
+  String get infoNewsSendLog => 'Histórico de envios';
+
+  @override
+  String get whatsappManualNotice =>
+      'O WhatsApp será aberto com uma mensagem preenchida. O admin deve confirmar o envio.';
+
+  @override
+  String get freeWhatsAppQueue =>
+      'Fila de envio gratuita: o WhatsApp abre com uma mensagem preenchida e o admin confirma manualmente.';
+
+  @override
+  String get copyMessage => 'Copiar mensagem';
+
+  @override
+  String get markAsSent => 'Marcar como enviado';
+
+  @override
+  String get skipContact => 'Ignorar este contato';
+
+  @override
+  String get nextContact => 'Próximo';
+
+  @override
+  String get messageCopied => 'Mensagem copiada';
+
+  @override
+  String get whatsappOpened => 'WhatsApp aberto';
+
+  @override
+  String get sent => 'Enviado';
+
+  @override
+  String get failed => 'Falhou';
+
+  @override
+  String get skipped => 'Ignorado';
+
+  @override
+  String get historyCleanupNotice =>
+      'Históricos com mais de 3 meses são excluídos automaticamente.';
+
+  @override
+  String get autoHistoryCleanup => 'Limpeza automática de históricos';
+
+  @override
+  String get deleteOldHistoriesNow => 'Excluir históricos antigos agora';
+
+  @override
+  String get confirmDeleteOldHistories =>
+      'Deseja excluir agora os históricos de envio com mais de 3 meses?';
+
+  @override
+  String get historiesKept => 'Históricos conservados';
+
+  @override
+  String get lastCleanup => 'Última limpeza';
+
+  @override
+  String get autoCleanupNotifications =>
+      'Limpeza automática das notificações após 1 semana';
+
+  @override
+  String get autoCleanupKpiActivityLogs =>
+      'Limpeza automática do registro KPI após 3 meses';
+
+  @override
+  String get deletedItems => 'Itens excluídos';
+
+  @override
+  String get cleanNow => 'Limpar agora';
+
+  @override
+  String get confirmDataCleanup =>
+      'Deseja limpar agora as notificações antigas e o registro KPI antigo?';
+
+  @override
+  String get notificationAdminOnly =>
+      'Somente administradores podem enviar notificações.';
+
+  @override
   String get history => 'Histórico';
 
   @override
@@ -818,6 +1021,34 @@ class AppLocalizationsPt extends AppLocalizations {
   String get codeAlreadyExists => 'Este código já existe';
 
   @override
+  String get regenerateCode => 'Regenerar';
+
+  @override
+  String get confirmRegenerateCode =>
+      'Deseja regenerar este código? O código antigo será desativado.';
+
+  @override
+  String get codeRegenerated => 'Novo código gerado com sucesso.';
+
+  @override
+  String get newGeneratedCode => 'Novo código gerado';
+
+  @override
+  String get copyNewCode => 'Copiar novo código';
+
+  @override
+  String get oldCodeDisabled => 'O código antigo foi desativado.';
+
+  @override
+  String get previousCode => 'Código anterior';
+
+  @override
+  String get replacedByCode => 'Substituído pelo código';
+
+  @override
+  String get regeneratedAt => 'Regenerado em';
+
+  @override
   String get familyHonor => 'Honra familiar';
 
   @override
@@ -843,4 +1074,70 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get familyDistinctions => 'Distinções familiares';
+
+  @override
+  String get leader => 'Líder';
+
+  @override
+  String get currentLeader => 'Líder atual';
+
+  @override
+  String get familyLeader => 'Líder familiar';
+
+  @override
+  String get familyChief => 'Chefe de família';
+
+  @override
+  String get matriarch => 'Matriarca';
+
+  @override
+  String get viewLeaderProfile => 'Ver ficha do líder atual';
+
+  @override
+  String get chiefTitle => 'Título do líder';
+
+  @override
+  String get showLeaderInTopBar => 'Mostrar líder na TopBar';
+
+  @override
+  String get showLeaderPhoto => 'Mostrar foto / avatar';
+
+  @override
+  String get topBarLogoMode => 'Modo do logo TopBar';
+
+  @override
+  String get classicLogo => 'Logo clássico';
+
+  @override
+  String get logoAndLeader => 'Logo + líder atual';
+
+  @override
+  String get leaderOnly => 'Somente líder atual';
+
+  @override
+  String get currentChief => 'Chefe atual';
+
+  @override
+  String get formerChief => 'Antigo chefe';
+
+  @override
+  String get successor => 'Sucessor designado';
+
+  @override
+  String get familyLeadership => 'Liderança familiar';
+
+  @override
+  String get leadershipHistory => 'Histórico dos chefes';
+
+  @override
+  String get familyHonorHall => 'Personalidades familiares';
+
+  @override
+  String get appointLeader => 'Nomear líder';
+
+  @override
+  String get removeLeader => 'Remover líder';
+
+  @override
+  String get chiefSince => 'Chefe desde';
 }

@@ -55,12 +55,70 @@ class AccessCodeService {
     return !code.isImportant && code.createdByAdminId.isNotEmpty;
   }
 
+  bool canRegenerate(
+    AccessCode code, {
+    required String actorRole,
+    required String adminId,
+  }) {
+    if (actorRole == 'superAdmin') return true;
+    if (actorRole != 'admin') return false;
+    if (code.role == 'superAdmin') return false;
+    if (code.type == 'adminKpi' && code.createdByAdminId != adminId) {
+      return false;
+    }
+    return code.createdByAdminId == adminId || code.familyCode == adminId;
+  }
+
+  String generateSecureCode(String type) {
+    final prefix = switch (type) {
+      'adminKpi' => 'ADMIN',
+      'modification' => 'EDIT',
+      'temporary' => 'TEMP',
+      'linkedFamily' || 'familyAccess' => 'FAMILY',
+      _ => 'FAMILY',
+    };
+    return '$prefix-${_randomChunk(4)}-${_randomChunk(4)}';
+  }
+
+  String generateUniqueSecureCode(FamilyTreeData data, String type) {
+    for (var attempt = 0; attempt < 100; attempt++) {
+      final code = generateSecureCode(type);
+      if (!_codeExists(data, code)) return code;
+    }
+    throw StateError('code_generation_failed');
+  }
+
   String generateCode({int length = 10}) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final random = Random.secure();
     return List.generate(
       length,
-      (_) => chars[random.nextInt(chars.length)],
+      (_) => chars[_random.nextInt(chars.length)],
     ).join();
   }
+
+  String _randomChunk(int length) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return List.generate(
+      length,
+      (_) => chars[_random.nextInt(chars.length)],
+    ).join();
+  }
+
+  bool _codeExists(FamilyTreeData data, String code) {
+    final normalized = code.trim().toUpperCase();
+    return data.accessCodes.any(
+          (item) => item.code.trim().toUpperCase() == normalized,
+        ) ||
+        data.familyCodes.any(
+          (item) => item.code.trim().toUpperCase() == normalized,
+        ) ||
+        data.modificationCodes.any(
+          (item) => item.code.trim().toUpperCase() == normalized,
+        ) ||
+        data.familyLinks.any(
+          (item) => item.linkedFamilyCode.trim().toUpperCase() == normalized,
+        );
+  }
+
+  static final _random = Random.secure();
 }

@@ -1,14 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/family_tree_data.dart';
 import '../services/auth_code_service.dart';
 import '../services/backup_service.dart';
 import '../services/change_notification_service.dart';
 import '../services/communication_service.dart';
+import '../services/data_cleanup_service.dart';
 import '../services/admin_service.dart';
 import '../services/admin_access_service.dart';
 import '../services/access_code_service.dart';
 import '../services/family_relation_service.dart';
+import '../services/family_council_service.dart';
+import '../services/family_announcement_service.dart';
+import '../services/genealogy_statistics_service.dart';
+import '../services/history_cleanup_service.dart';
 import '../services/import_export_service.dart';
+import '../services/info_news_service.dart';
 import '../services/json_storage_service.dart';
 import '../services/kpi_service.dart';
 import '../services/map_service.dart';
@@ -31,6 +38,10 @@ final authCodeServiceProvider = Provider<AuthCodeService>(
 
 final importExportServiceProvider = Provider<ImportExportService>(
   (ref) => ImportExportService(),
+);
+
+final dataCleanupServiceProvider = Provider<DataCleanupService>(
+  (ref) => const DataCleanupService(),
 );
 
 final mapServiceProvider = Provider<MapService>((ref) => MapService());
@@ -59,8 +70,29 @@ final familyRelationServiceProvider = Provider<FamilyRelationService>(
   (ref) => FamilyRelationService(),
 );
 
+final familyCouncilServiceProvider = Provider<FamilyCouncilService>(
+  (ref) => const FamilyCouncilService(),
+);
+
+final familyAnnouncementServiceProvider = Provider<FamilyAnnouncementService>(
+  (ref) => const FamilyAnnouncementService(),
+);
+
+final genealogyStatisticsServiceProvider =
+    Provider.family<GenealogyStatisticsService, FamilyTreeData>(
+      (ref, data) => GenealogyStatisticsService(data),
+    );
+
 final notificationServiceProvider = Provider<NotificationService>(
   (ref) => NotificationService(),
+);
+
+final infoNewsServiceProvider = Provider<InfoNewsService>(
+  (ref) => const InfoNewsService(),
+);
+
+final historyCleanupServiceProvider = Provider<HistoryCleanupService>(
+  (ref) => const HistoryCleanupService(),
 );
 
 final changeNotificationServiceProvider = Provider<ChangeNotificationService>(

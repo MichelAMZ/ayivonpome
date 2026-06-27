@@ -2,19 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/person.dart';
 import '../providers/auth_provider.dart';
 import '../providers/app_providers.dart';
+import '../providers/family_leader_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../screens/admin_dashboard_screen.dart';
 import '../screens/dashboard_screen.dart';
+import '../screens/family_honor_hall_screen.dart';
+import '../screens/family_council_screen.dart';
+import '../screens/family_history_screen.dart';
 import '../screens/family_link_requests_screen.dart';
 import '../screens/linked_families_screen.dart';
 import '../screens/modification_history_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/person_detail_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/tree_screen.dart';
 import '../services/admin_access_service.dart';
 import 'change_notification_popup.dart';
+import 'family_announcement_popup.dart';
+import 'family_council_button.dart';
+import 'family_history_button.dart';
+import 'family_leader_premium_badge.dart';
+import 'info_news_bar.dart';
+import 'responsive.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -27,7 +39,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   var _index = 0;
   var _popupOpen = false;
   var _adminKpiUnlocked = false;
+  var _familyAnnouncementsBootstrapped = false;
   final _dismissedThisSession = <String>{};
+  final _shownAnnouncementIds = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -42,11 +56,24 @@ class _AppShellState extends ConsumerState<AppShell> {
         _adminKpiUnlocked = false;
       }
     });
+    ref.listen(familyTreeProvider, (previous, next) {
+      next.whenData((_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (!_familyAnnouncementsBootstrapped) {
+            _bootstrapFamilyAnnouncements();
+          } else {
+            _showFamilyAnnouncementPopup();
+          }
+        });
+      });
+    });
     final l10n = AppLocalizations.of(context);
     final auth = ref.watch(authSessionProvider);
     final authenticated = auth.isAuthenticated;
     final screens = [
       const TreeScreen(),
+      const FamilyHonorHallScreen(),
       const DashboardScreen(),
       if (authenticated) const LinkedFamiliesScreen(),
       if (authenticated) const FamilyLinkRequestsScreen(),
@@ -60,6 +87,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         icon: const Icon(Icons.account_tree_outlined),
         selectedIcon: const Icon(Icons.account_tree),
         label: l10n.familyTree,
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.workspace_premium_outlined),
+        selectedIcon: const Icon(Icons.workspace_premium),
+        label: l10n.familyHonorHall,
       ),
       NavigationDestination(
         icon: const Icon(Icons.dashboard_outlined),
@@ -108,109 +140,184 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 900;
-        return Scaffold(
+        final device = ResponsiveBreakpoints.deviceForWidth(
+          constraints.maxWidth,
+        );
+        final mobileIndices = _mobileDestinationIndices(
+          authenticated: authenticated,
+          destinationCount: destinations.length,
+        );
+        final mobileSelectedIndex = mobileIndices.indexOf(_index);
+        return ResponsiveScaffold(
           backgroundColor: const Color(0xFFFBFCF7),
           appBar: AppBar(
-            toolbarHeight: 82,
+            toolbarHeight: device == ResponsiveDevice.desktop
+                ? 104
+                : device == ResponsiveDevice.tablet
+                ? 88
+                : 72,
             elevation: 0,
             scrolledUnderElevation: 0,
             backgroundColor: const Color(0xFFFFFEFA),
             surfaceTintColor: Colors.transparent,
-            titleSpacing: 24,
+            titleSpacing: device == ResponsiveDevice.mobile ? 8 : 24,
             title: const _BrandTitle(),
-            actions: [
-              if (authenticated)
-                OutlinedButton.icon(
-                  onPressed: () =>
-                      ref.read(authSessionProvider.notifier).logout(),
-                  icon: const Icon(Icons.logout),
-                  label: Text(l10n.logout),
-                  style: _accessButtonStyle(context),
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: () => _showAccessDialog(context),
-                  icon: const Icon(Icons.lock_open_outlined),
-                  label: Text(l10n.enterAccessCode),
-                  style: _accessButtonStyle(context),
-                ),
-              const SizedBox(width: 20),
-            ],
+            actions: _topBarActions(context, device, auth, l10n),
           ),
-          body: Row(
+          drawer: _NavigationDrawer(
+            selectedIndex: _index,
+            destinations: destinations,
+            onDestinationSelected: (value) {
+              _selectDestination(
+                value,
+                destinations: destinations,
+                authenticated: authenticated,
+              );
+            },
+          ),
+          desktopNavigation: _DesktopSidebar(
+            selectedIndex: _index,
+            onDestinationSelected: (value) => _selectDestination(
+              value,
+              destinations: destinations,
+              authenticated: authenticated,
+            ),
+            destinations: destinations,
+          ),
+          body: Column(
             children: [
-              if (wide)
-                _DesktopSidebar(
-                  selectedIndex: _index,
-                  onDestinationSelected: (value) => _selectDestination(
-                    value,
-                    destinations: destinations,
-                    authenticated: authenticated,
-                  ),
-                  destinations: destinations,
-                ),
+              const InfoNewsBar(),
+              const _FamilyLeadershipBanner(),
               Expanded(child: screens[_index]),
             ],
           ),
-          bottomNavigationBar: wide
-              ? null
-              : NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: (value) => _selectDestination(
-                    value,
-                    destinations: destinations,
-                    authenticated: authenticated,
-                  ),
-                  destinations: destinations,
-                ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: mobileSelectedIndex == -1 ? 0 : mobileSelectedIndex,
+            onDestinationSelected: (value) => _selectDestination(
+              mobileIndices[value],
+              destinations: destinations,
+              authenticated: authenticated,
+            ),
+            destinations: [
+              for (final index in mobileIndices) destinations[index],
+            ],
+          ),
         );
       },
     );
   }
 
-  Future<void> _showAccessDialog(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController();
-    String? error;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(l10n.enterAccessCode),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: l10n.familyCode,
-              errorText: error,
+  List<int> _mobileDestinationIndices({
+    required bool authenticated,
+    required int destinationCount,
+  }) {
+    final last = destinationCount - 1;
+    if (!authenticated) return [0, 2, last].where((i) => i <= last).toList();
+    return [0, 2, 5, last].where((i) => i <= last).toList();
+  }
+
+  List<Widget> _topBarActions(
+    BuildContext context,
+    ResponsiveDevice device,
+    AuthState auth,
+    AppLocalizations l10n,
+  ) {
+    final authenticated = auth.isAuthenticated;
+    final compact = device != ResponsiveDevice.desktop;
+    final authAction = authenticated
+        ? () => ref.read(authSessionProvider.notifier).logout()
+        : () => _showAccessDialog(context);
+    if (compact) {
+      return [
+        IconButton(
+          tooltip: authenticated ? l10n.logout : l10n.enterAccessCode,
+          onPressed: authAction,
+          icon: Icon(authenticated ? Icons.logout : Icons.lock_open_outlined),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'Menu',
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            if (value == 'history') {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const FamilyHistoryScreen()),
+              );
+            }
+            if (value == 'council') {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const FamilyCouncilScreen()),
+              );
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'history',
+              child: Row(
+                children: [
+                  const Icon(Icons.menu_book_outlined),
+                  const SizedBox(width: 12),
+                  Text(l10n.familyHistory),
+                ],
+              ),
             ),
-            onSubmitted: (_) async {
-              final ok = await ref
-                  .read(authSessionProvider.notifier)
-                  .login(controller.text);
-              if (context.mounted && ok) Navigator.pop(context);
-              if (!ok) setDialogState(() => error = l10n.invalidCode);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final ok = await ref
-                    .read(authSessionProvider.notifier)
-                    .login(controller.text);
-                if (context.mounted && ok) Navigator.pop(context);
-                if (!ok) setDialogState(() => error = l10n.invalidCode);
-              },
-              child: Text(l10n.enter),
+            PopupMenuItem(
+              value: 'council',
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_outlined),
+                  const SizedBox(width: 12),
+                  Text(l10n.familyCouncil),
+                ],
+              ),
             ),
           ],
         ),
+        const SizedBox(width: 8),
+      ];
+    }
+    return [
+      FamilyHistoryButton(
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const FamilyHistoryScreen())),
+      ),
+      const SizedBox(width: 10),
+      FamilyCouncilButton(
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const FamilyCouncilScreen())),
+      ),
+      const SizedBox(width: 10),
+      if (authenticated)
+        OutlinedButton.icon(
+          onPressed: authAction,
+          icon: const Icon(Icons.logout),
+          label: Text(l10n.logout),
+          style: _accessButtonStyle(context),
+        )
+      else
+        OutlinedButton.icon(
+          onPressed: authAction,
+          icon: const Icon(Icons.lock_open_outlined),
+          label: Text(l10n.enterAccessCode),
+          style: _accessButtonStyle(context),
+        ),
+      const SizedBox(width: 20),
+    ];
+  }
+
+  Future<void> _showAccessDialog(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => _CodeEntryDialog(
+        title: l10n.enterAccessCode,
+        label: l10n.familyCode,
+        invalidMessage: l10n.invalidCode,
+        cancelLabel: l10n.cancel,
+        submitLabel: l10n.enter,
+        onValidate: (code) =>
+            ref.read(authSessionProvider.notifier).login(code),
       ),
     );
   }
@@ -268,6 +375,36 @@ class _AppShellState extends ConsumerState<AppShell> {
     _popupOpen = false;
   }
 
+  Future<void> _bootstrapFamilyAnnouncements() async {
+    if (_familyAnnouncementsBootstrapped) return;
+    _familyAnnouncementsBootstrapped = true;
+    await ref
+        .read(familyTreeProvider.notifier)
+        .ensureTodayFamilyAnnouncements();
+    if (mounted) await _showFamilyAnnouncementPopup();
+  }
+
+  Future<void> _showFamilyAnnouncementPopup() async {
+    if (_popupOpen) return;
+    final data = ref.read(familyTreeProvider).value;
+    if (data == null) return;
+    final service = ref.read(familyAnnouncementServiceProvider);
+    final announcements = service
+        .pendingPopups(data)
+        .where((item) => !_shownAnnouncementIds.contains(item.id))
+        .toList();
+    if (announcements.isEmpty) return;
+    _popupOpen = true;
+    _shownAnnouncementIds.addAll(announcements.map((item) => item.id));
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) =>
+          FamilyAnnouncementPopup(announcements: announcements, data: data),
+    );
+    _popupOpen = false;
+  }
+
   Future<void> _selectDestination(
     int value, {
     required List<NavigationDestination> destinations,
@@ -286,46 +423,18 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Future<bool> _showAdminAccessDialog(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController();
-    String? error;
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(l10n.enterAdminCode),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: l10n.adminAccessCode,
-              errorText: error,
-            ),
-            onSubmitted: (_) {
-              final ok = _validateAdminCode(controller.text);
-              if (ok) Navigator.pop(context, true);
-              if (!ok) setDialogState(() => error = l10n.invalidAdminCode);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: () {
-                final ok = _validateAdminCode(controller.text);
-                if (ok) Navigator.pop(context, true);
-                if (!ok) setDialogState(() => error = l10n.invalidAdminCode);
-              },
-              child: Text(l10n.enter),
-            ),
-          ],
-        ),
+      builder: (dialogContext) => _CodeEntryDialog(
+        title: l10n.enterAdminCode,
+        label: l10n.adminAccessCode,
+        invalidMessage: l10n.invalidAdminCode,
+        cancelLabel: l10n.cancel,
+        submitLabel: l10n.enter,
+        onValidate: (code) async => _validateAdminCode(code),
       ),
     );
-    controller.dispose();
     if (result == true) {
       _showAdminRotationReminderIfNeeded();
     }
@@ -369,32 +478,226 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
-class _BrandTitle extends StatelessWidget {
+class _BrandTitle extends ConsumerWidget {
   const _BrandTitle();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final leader = ref.watch(familyLeaderProvider);
+    final leadership = ref.watch(familyLeadershipProvider);
+    final showLeader =
+        leadership.showLeaderInTopBar &&
+        leadership.showLeaderBadge &&
+        leader != null;
+    final showLeaderBadge =
+        showLeader && leadership.topBarLogoMode != 'classicLogo';
+    final compact =
+        MediaQuery.sizeOf(context).width <= ResponsiveBreakpoints.tabletMax;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: const BoxDecoration(
-            color: Color(0xFFEAF3DE),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.park, color: Color(0xFF4D742B), size: 28),
-        ),
+        if (showLeaderBadge)
+          FamilyLeaderPremiumBadge(
+            person: leader,
+            title: leadership.title,
+            subtitle: leadership.subtitle,
+            photo: leadership.officialPhoto,
+            compact: compact,
+            onTap: () => _openLeaderProfile(context, leader.id),
+            onMenuAction: (action) =>
+                _handleLeaderMenuAction(context, ref, leader, action),
+          )
+        else
+          const _ClassicFamilyLogo(),
+        if (showLeaderBadge && !compact) ...[
+          const SizedBox(width: 10),
+          const _ClassicFamilyLogo(),
+        ],
         const SizedBox(width: 14),
-        Text(
-          'FamilyTreeApp',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
+        Flexible(
+          child: Text(
+            'FamilyTreeApp',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+              fontSize: compact ? 18 : null,
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  void _openLeaderProfile(BuildContext context, String personId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PersonDetailScreen(personId: personId)),
+    );
+  }
+
+  Future<void> _handleLeaderMenuAction(
+    BuildContext context,
+    WidgetRef ref,
+    Person leader,
+    FamilyLeaderMenuAction action,
+  ) async {
+    switch (action) {
+      case FamilyLeaderMenuAction.profile:
+        _openLeaderProfile(context, leader.id);
+        return;
+      case FamilyLeaderMenuAction.descendants:
+      case FamilyLeaderMenuAction.ancestors:
+        _openLeaderProfile(context, leader.id);
+        return;
+      case FamilyLeaderMenuAction.map:
+        final publicLocation = leader.publicMapLocation.trim();
+        final address = publicLocation.isNotEmpty
+            ? publicLocation
+            : leader.currentAddress.trim().isNotEmpty
+            ? leader.currentAddress
+            : leader.birthPlace;
+        if (address.trim().isEmpty &&
+            (leader.latitude == null || leader.longitude == null)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aucun lieu disponible.')),
+          );
+          return;
+        }
+        await ref
+            .read(mapServiceProvider)
+            .openInGoogleMaps(
+              address: address,
+              latitude: leader.latitude,
+              longitude: leader.longitude,
+            );
+    }
+  }
+}
+
+class _ClassicFamilyLogo extends StatelessWidget {
+  const _ClassicFamilyLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: const BoxDecoration(
+        color: Color(0xFFEAF3DE),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.park, color: Color(0xFF4D742B), size: 28),
+    );
+  }
+}
+
+class _CodeEntryDialog extends StatefulWidget {
+  const _CodeEntryDialog({
+    required this.title,
+    required this.label,
+    required this.invalidMessage,
+    required this.cancelLabel,
+    required this.submitLabel,
+    required this.onValidate,
+  });
+
+  final String title;
+  final String label;
+  final String invalidMessage;
+  final String cancelLabel;
+  final String submitLabel;
+  final Future<bool> Function(String code) onValidate;
+
+  @override
+  State<_CodeEntryDialog> createState() => _CodeEntryDialogState();
+}
+
+class _CodeEntryDialogState extends State<_CodeEntryDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+  var _submitting = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        obscureText: true,
+        enabled: !_submitting,
+        decoration: InputDecoration(labelText: widget.label, errorText: _error),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context, false),
+          child: Text(widget.cancelLabel),
+        ),
+        FilledButton(
+          onPressed: _submitting ? null : _submit,
+          child: Text(widget.submitLabel),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    final ok = await widget.onValidate(_controller.text);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context, true);
+      return;
+    }
+    setState(() {
+      _submitting = false;
+      _error = widget.invalidMessage;
+    });
+  }
+}
+
+class _FamilyLeadershipBanner extends ConsumerWidget {
+  const _FamilyLeadershipBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final data = ref.watch(familyTreeProvider).value;
+    final leader = ref.watch(familyLeaderProvider);
+    if (data == null || leader == null) return const SizedBox.shrink();
+    final familyName = data.mainFamilyCode.trim().isEmpty
+        ? 'Famille'
+        : 'Famille ${data.mainFamilyCode.toUpperCase()}';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFF8E5),
+        border: Border(bottom: BorderSide(color: Color(0xFFE8D69A))),
+      ),
+      child: Text(
+        '$familyName · Sous la conduite de ${leader.fullName}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: const Color(0xFF725516),
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
     );
   }
 }
@@ -435,7 +738,10 @@ class _DesktopSidebar extends StatelessWidget {
                     : visiblePrimary[i].icon,
                 label: visiblePrimary[i].label,
                 selected: i == selectedIndex,
-                onTap: () => onDestinationSelected(i),
+                onTap: () {
+                  Navigator.pop(context);
+                  onDestinationSelected(i);
+                },
               ),
               const SizedBox(height: 12),
             ],
@@ -450,6 +756,54 @@ class _DesktopSidebar extends StatelessWidget {
                 selected: selectedIndex == settingsIndex,
                 outlined: true,
                 onTap: () => onDestinationSelected(settingsIndex),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavigationDrawer extends StatelessWidget {
+  const _NavigationDrawer({
+    required this.selectedIndex,
+    required this.destinations,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final List<NavigationDestination> destinations;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
+              child: Text(
+                'FamilyTreeApp',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            for (var i = 0; i < destinations.length; i++)
+              ListTile(
+                minLeadingWidth: 28,
+                selected: i == selectedIndex,
+                leading: i == selectedIndex
+                    ? destinations[i].selectedIcon ?? destinations[i].icon
+                    : destinations[i].icon,
+                title: Text(destinations[i].label),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onTap: () => onDestinationSelected(i),
               ),
           ],
         ),
