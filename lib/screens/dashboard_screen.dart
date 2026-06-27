@@ -10,6 +10,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../widgets/modification_code_required_dialog.dart';
+import '../widgets/responsive.dart';
 import 'person_detail_screen.dart';
 import 'person_edit_screen.dart';
 
@@ -29,7 +30,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
     final authenticated = auth.isAuthenticated;
-    final pending = data.familyLinks.where((link) => link.status == 'pending').length;
+    final pending = data.familyLinks
+        .where((link) => link.status == 'pending')
+        .length;
     final filtered = data.people.where((person) {
       final haystack =
           '${person.firstName} ${person.lastName} ${person.birthPlace} ${person.familyCode}'
@@ -41,17 +44,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: AppBar(title: Text(l10n.dashboardTitle)),
       floatingActionButton: authenticated
           ? FloatingActionButton.extended(
-              onPressed: () => _requestModificationThen(() => _openEditor(null)),
+              onPressed: () =>
+                  _requestModificationThen(() => _openEditor(null)),
               icon: const Icon(Icons.person_add),
               label: Text(l10n.addPerson),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: ResponsivePage(
         children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+          ResponsiveGrid(
+            mobileColumns: 1,
+            tabletColumns: 2,
+            desktopColumns: 3,
+            mainAxisExtent: 116,
             children: [
               _Metric(label: l10n.totalPeople, value: '${data.people.length}'),
               if (authenticated)
@@ -59,7 +64,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   label: l10n.familiesCount,
                   value: '${data.familyCodes.length}',
                 ),
-              if (authenticated) _Metric(label: l10n.pendingCount, value: '$pending'),
+              if (authenticated)
+                _Metric(label: l10n.pendingCount, value: '$pending'),
             ],
           ),
           const SizedBox(height: 16),
@@ -69,7 +75,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             children: [
               if (authenticated) ...[
                 FilledButton.icon(
-                  onPressed: () => _requestModificationThen(() => _openEditor(null)),
+                  onPressed: () =>
+                      _requestModificationThen(() => _openEditor(null)),
                   icon: const Icon(Icons.person_add),
                   label: Text(l10n.addPerson),
                 ),
@@ -96,10 +103,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
           const SizedBox(height: 16),
           if (filtered.isEmpty)
-            Center(child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(l10n.noResults),
-            ))
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(l10n.noResults),
+              ),
+            )
           else
             ...filtered.map(
               (person) => Card(
@@ -109,9 +118,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   subtitle: authenticated
                       ? Text(person.familyCode)
                       : person.privacy.showMapInPublicMode &&
-                              person.publicMapLocation.isNotEmpty
-                          ? Text(person.publicMapLocation)
-                          : null,
+                            person.publicMapLocation.isNotEmpty
+                      ? Text(person.publicMapLocation)
+                      : null,
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
@@ -127,9 +136,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _openEditor(Person? person) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PersonEditScreen(person: person)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PersonEditScreen(person: person)));
   }
 
   Future<void> _requestModificationThen(VoidCallback action) async {
@@ -138,7 +147,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       action();
       return;
     }
-    await ref.read(familyTreeProvider.notifier).addAuditLog(
+    await ref
+        .read(familyTreeProvider.notifier)
+        .addAuditLog(
           'modification_code_required',
           actorRole: auth.session?.role ?? 'viewer',
           description:
@@ -186,17 +197,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       if (merge == null) {
         return;
       }
-      await ref.read(familyTreeProvider.notifier).importData(imported, merge: merge);
+      await ref
+          .read(familyTreeProvider.notifier)
+          .importData(imported, merge: merge);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.backupCreated)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.backupCreated)));
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${l10n.importError}: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${l10n.importError}: $error')));
       }
     }
   }
@@ -211,9 +224,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       bytes: Uint8List.fromList(raw.codeUnits),
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.exportSuccess)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.exportSuccess)));
     }
   }
 }
@@ -226,19 +239,16 @@ class _Metric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 210,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 8),
-              Text(value, style: Theme.of(context).textTheme.headlineMedium),
-            ],
-          ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            const Spacer(),
+            Text(value, style: Theme.of(context).textTheme.headlineMedium),
+          ],
         ),
       ),
     );

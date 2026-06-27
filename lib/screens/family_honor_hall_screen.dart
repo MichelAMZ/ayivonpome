@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../models/person.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
+import '../widgets/responsive.dart';
 import 'person_detail_screen.dart';
 
 class FamilyHonorHallScreen extends ConsumerWidget {
@@ -23,12 +24,14 @@ class FamilyHonorHallScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.familyHonorHall)),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: ResponsivePage(
         children: [
-          Wrap(
+          ResponsiveGrid(
+            mobileColumns: 1,
+            tabletColumns: 2,
+            desktopColumns: 4,
             spacing: 14,
-            runSpacing: 14,
+            mainAxisExtent: 106,
             children: [
               if (current != null)
                 _HonorCard(
@@ -121,54 +124,52 @@ class _HonorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 260,
-      child: Card(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PersonDetailScreen(personId: person.id),
-            ),
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PersonDetailScreen(personId: person.id),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: const Color(0xFFD8F0B5),
-                  child: Text(_initials(person)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: const Color(0xFFD8F0B5),
+                child: Text(_initials(person)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: const Color(0xFF8B6818),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      person.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: const Color(0xFF8B6818),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        person.fullName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

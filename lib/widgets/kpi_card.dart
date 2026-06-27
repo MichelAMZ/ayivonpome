@@ -8,19 +8,16 @@ class KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 8),
-              Text('$value', style: Theme.of(context).textTheme.headlineMedium),
-            ],
-          ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
+            const Spacer(),
+            Text('$value', style: Theme.of(context).textTheme.headlineMedium),
+          ],
         ),
       ),
     );

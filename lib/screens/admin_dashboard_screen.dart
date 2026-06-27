@@ -15,6 +15,7 @@ import '../providers/family_tree_provider.dart';
 import '../services/admin_access_service.dart';
 import '../widgets/admin_contact_card.dart';
 import '../widgets/kpi_card.dart';
+import '../widgets/responsive.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -44,14 +45,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         .rotationStatus(data);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.adminDashboard)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: ResponsivePage(
         children: [
           Text(l10n.adminKpi, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+          ResponsiveGrid(
+            mobileColumns: 1,
+            tabletColumns: 2,
+            desktopColumns: 4,
+            mainAxisExtent: 126,
             children: [
               KpiCard(label: l10n.totalPeople, value: kpi.totalPeople),
               KpiCard(

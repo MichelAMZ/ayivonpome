@@ -6,6 +6,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../widgets/language_selector.dart';
+import '../widgets/responsive.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -17,8 +18,7 @@ class SettingsScreen extends ConsumerWidget {
     final auth = ref.watch(authSessionProvider);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settings)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: ResponsivePage(
         children: [
           LanguageSelector(value: data.language),
           const SizedBox(height: 16),

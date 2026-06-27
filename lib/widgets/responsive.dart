@@ -25,6 +25,54 @@ class ResponsiveBreakpoints {
   static bool isDesktop(BuildContext context) =>
       deviceForWidth(MediaQuery.sizeOf(context).width) ==
       ResponsiveDevice.desktop;
+
+  static EdgeInsets pagePadding(BuildContext context) {
+    return switch (deviceForWidth(MediaQuery.sizeOf(context).width)) {
+      ResponsiveDevice.mobile => const EdgeInsets.all(12),
+      ResponsiveDevice.tablet => const EdgeInsets.all(20),
+      ResponsiveDevice.desktop => const EdgeInsets.all(24),
+    };
+  }
+
+  static double maxContentWidth(BuildContext context) {
+    return switch (deviceForWidth(MediaQuery.sizeOf(context).width)) {
+      ResponsiveDevice.mobile => double.infinity,
+      ResponsiveDevice.tablet => 920,
+      ResponsiveDevice.desktop => 1180,
+    };
+  }
+}
+
+class ResponsivePage extends StatelessWidget {
+  const ResponsivePage({
+    super.key,
+    required this.children,
+    this.maxWidth,
+    this.padding,
+  });
+
+  final List<Widget> children;
+  final double? maxWidth;
+  final EdgeInsets? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: padding ?? ResponsiveBreakpoints.pagePadding(context),
+      children: [
+        for (final child in children)
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth:
+                    maxWidth ?? ResponsiveBreakpoints.maxContentWidth(context),
+              ),
+              child: SizedBox(width: double.infinity, child: child),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class ResponsiveLayout extends StatelessWidget {
