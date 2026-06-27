@@ -1140,4 +1140,59 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get chiefSince => 'Chefe desde';
+
+  @override
+  String get bugReports => 'Bugs reportados';
+
+  @override
+  String get reportBug => 'Reportar bug';
+
+  @override
+  String get bugTitle => 'Título do bug';
+
+  @override
+  String get bugDescription => 'Descrição';
+
+  @override
+  String get bugScreen => 'Tela afetada';
+
+  @override
+  String get bugPriority => 'Prioridade';
+
+  @override
+  String get bugStatus => 'Status do bug atualizado';
+
+  @override
+  String get reportedBy => 'Reportado por';
+
+  @override
+  String get reportedAt => 'Reportado em';
+
+  @override
+  String get notifyAdminsWhatsapp => 'Notificar admins pelo WhatsApp';
+
+  @override
+  String get bugOpen => 'Aberto';
+
+  @override
+  String get bugInProgress => 'Em andamento';
+
+  @override
+  String get bugResolved => 'Resolvido';
+
+  @override
+  String get bugDeleted => 'Excluído';
+
+  @override
+  String get deleteBugReport => 'Excluir relatório';
+
+  @override
+  String get confirmDeleteBugReport => 'Deseja excluir este relatório de bug?';
+
+  @override
+  String get bugReportCreated => 'Bug reportado.';
+
+  @override
+  String get adminWhatsappNotification =>
+      'O WhatsApp será aberto com uma mensagem preenchida. Cada admin deverá confirmar o envio.';
 }

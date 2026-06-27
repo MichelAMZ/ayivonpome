@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/access_code.dart';
+import '../models/bug_report.dart';
 import '../models/family_announcement.dart';
 import '../models/family_honor.dart';
 import '../models/family_leadership.dart';
@@ -14,6 +15,8 @@ import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/admin_access_service.dart';
 import '../widgets/admin_contact_card.dart';
+import '../widgets/bug_report_button.dart';
+import '../widgets/bug_report_card.dart';
 import '../widgets/kpi_card.dart';
 import '../widgets/responsive.dart';
 
@@ -142,6 +145,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           _AccessCodeManagementSection(
             dataRole: auth.session?.role ?? 'viewer',
           ),
+          const SizedBox(height: 24),
+          const _BugReportsSection(),
           const SizedBox(height: 24),
           const _InfoNewsManagementSection(),
           const SizedBox(height: 24),
@@ -290,6 +295,190 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     return '$day/$month/${date.year}';
+  }
+}
+
+class _BugReportsSection extends ConsumerStatefulWidget {
+  const _BugReportsSection();
+
+  @override
+  ConsumerState<_BugReportsSection> createState() => _BugReportsSectionState();
+}
+
+class _BugReportsSectionState extends ConsumerState<_BugReportsSection> {
+  var _status = 'all';
+  var _priority = 'all';
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final data = ref.watch(familyTreeProvider).value!;
+    final auth = ref.watch(authSessionProvider);
+    final service = ref.watch(bugReportServiceProvider);
+    final bugs = service.filter(data, status: _status, priority: _priority);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.bugReports,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            const BugReportButton(initialScreen: 'AdminDashboardScreen'),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            DropdownButton<String>(
+              value: _status,
+              items: [
+                const DropdownMenuItem(value: 'all', child: Text('Tous')),
+                DropdownMenuItem(value: 'open', child: Text(l10n.bugOpen)),
+                DropdownMenuItem(
+                  value: 'inProgress',
+                  child: Text(l10n.bugInProgress),
+                ),
+                DropdownMenuItem(
+                  value: 'resolved',
+                  child: Text(l10n.bugResolved),
+                ),
+                DropdownMenuItem(
+                  value: 'deleted',
+                  child: Text(l10n.bugDeleted),
+                ),
+              ],
+              onChanged: (value) => setState(() => _status = value ?? _status),
+            ),
+            DropdownButton<String>(
+              value: _priority,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('Toutes priorités')),
+                DropdownMenuItem(value: 'low', child: Text('Faible')),
+                DropdownMenuItem(value: 'medium', child: Text('Moyenne')),
+                DropdownMenuItem(value: 'high', child: Text('Haute')),
+                DropdownMenuItem(value: 'urgent', child: Text('Urgente')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _priority = value ?? _priority),
+            ),
+            OutlinedButton.icon(
+              onPressed: bugs.isEmpty
+                  ? null
+                  : () => _exportJson(context, service.exportJson(bugs)),
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Exporter JSON'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (bugs.isEmpty)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.bug_report_outlined),
+              title: Text(l10n.bugReports),
+              subtitle: const Text('Aucun bug signalé.'),
+            ),
+          )
+        else
+          ...bugs.map(
+            (bug) => BugReportCard(
+              bug: bug,
+              onInProgress: auth.isAdmin
+                  ? () => _setStatus(context, bug, 'inProgress')
+                  : null,
+              onResolved: auth.isAdmin
+                  ? () => _setStatus(context, bug, 'resolved')
+                  : null,
+              onDelete: auth.isAdmin ? () => _delete(context, bug) : null,
+              onContact: bug.reportedByContact.trim().isEmpty
+                  ? null
+                  : () => _contactReporter(bug),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _setStatus(
+    BuildContext context,
+    BugReport bug,
+    String status,
+  ) async {
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .updateBugReportStatus(
+          bug,
+          status: status,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).bugStatus)),
+    );
+  }
+
+  Future<void> _delete(BuildContext context, BugReport bug) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.deleteBugReport),
+        content: Text(l10n.confirmDeleteBugReport),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.deleteBugReport),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .deleteBugReport(
+          bug,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+  }
+
+  Future<void> _contactReporter(BugReport bug) async {
+    final contact = bug.reportedByContact.trim();
+    final message =
+        'Bonjour ${bug.reportedByName},\nNous vous contactons au sujet du bug signalé : ${bug.title}.';
+    final communication = ref.read(communicationServiceProvider);
+    if (contact.contains('@')) {
+      await communication.sendEmail(
+        email: contact,
+        subject: bug.title,
+        body: message,
+      );
+    } else {
+      await communication.openWhatsApp(phoneNumber: contact, message: message);
+    }
+  }
+
+  Future<void> _exportJson(BuildContext context, String content) async {
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Export JSON copié.')));
   }
 }
 

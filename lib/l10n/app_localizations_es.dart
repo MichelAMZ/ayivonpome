@@ -1141,4 +1141,60 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get chiefSince => 'Jefe desde';
+
+  @override
+  String get bugReports => 'Errores reportados';
+
+  @override
+  String get reportBug => 'Reportar un error';
+
+  @override
+  String get bugTitle => 'Título del error';
+
+  @override
+  String get bugDescription => 'Descripción';
+
+  @override
+  String get bugScreen => 'Pantalla afectada';
+
+  @override
+  String get bugPriority => 'Prioridad';
+
+  @override
+  String get bugStatus => 'Estado del error actualizado';
+
+  @override
+  String get reportedBy => 'Reportado por';
+
+  @override
+  String get reportedAt => 'Reportado el';
+
+  @override
+  String get notifyAdminsWhatsapp => 'Notificar admins por WhatsApp';
+
+  @override
+  String get bugOpen => 'Abierto';
+
+  @override
+  String get bugInProgress => 'En curso';
+
+  @override
+  String get bugResolved => 'Resuelto';
+
+  @override
+  String get bugDeleted => 'Eliminado';
+
+  @override
+  String get deleteBugReport => 'Eliminar reporte';
+
+  @override
+  String get confirmDeleteBugReport =>
+      '¿Quieres eliminar este reporte de error?';
+
+  @override
+  String get bugReportCreated => 'Error reportado.';
+
+  @override
+  String get adminWhatsappNotification =>
+      'WhatsApp se abrirá con un mensaje preparado. Cada admin deberá confirmar el envío.';
 }

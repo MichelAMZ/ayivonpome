@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/audit_log.dart';
 import '../models/access_code.dart';
+import '../models/bug_report.dart';
 import '../models/family_announcement.dart';
 import '../models/family_code.dart';
 import '../models/family_council_member.dart';
@@ -389,6 +390,119 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         .runAutomaticCleanup(nextData)
         .data;
     await save(nextData);
+  }
+
+  Future<BugReport> createBugReport(BugReport bug) async {
+    final data = await future;
+    final now = DateTime.now().toIso8601String();
+    final prepared = bug.copyWith(
+      id: bug.id.isEmpty
+          ? 'bug${DateTime.now().microsecondsSinceEpoch}'
+          : bug.id,
+      createdAt: bug.createdAt.isEmpty ? now : bug.createdAt,
+      status: bug.status.isEmpty ? 'open' : bug.status,
+    );
+    await save(
+      data.copyWith(
+        bugReports: [...data.bugReports, prepared],
+        auditLog: [
+          ...data.auditLog,
+          _log(
+            'bug_report_created',
+            '',
+            data.mainFamilyCode,
+            description: prepared.title,
+          ),
+        ],
+      ),
+    );
+    return prepared;
+  }
+
+  Future<void> updateBugReportStatus(
+    BugReport bug, {
+    required String status,
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' && actorRole != 'admin') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    await save(
+      data.copyWith(
+        bugReports: data.bugReports
+            .map(
+              (item) =>
+                  item.id == bug.id ? item.copyWith(status: status) : item,
+            )
+            .toList(),
+        auditLog: [
+          ...data.auditLog,
+          _log(
+            'bug_report_status_updated',
+            '',
+            data.mainFamilyCode,
+            actorRole: actorRole,
+            adminId: adminId,
+            description: '${bug.id}:$status',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> markBugReportAdminsNotified(
+    BugReport bug,
+    Iterable<String> adminIds,
+  ) async {
+    final data = await future;
+    final ids = {...bug.notifiedAdmins, ...adminIds}.toList();
+    await save(
+      data.copyWith(
+        bugReports: data.bugReports
+            .map(
+              (item) =>
+                  item.id == bug.id ? item.copyWith(notifiedAdmins: ids) : item,
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Future<void> deleteBugReport(
+    BugReport bug, {
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' && actorRole != 'admin') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final nextReports = actorRole == 'superAdmin'
+        ? data.bugReports.where((item) => item.id != bug.id).toList()
+        : data.bugReports
+              .map(
+                (item) =>
+                    item.id == bug.id ? item.copyWith(status: 'deleted') : item,
+              )
+              .toList();
+    await save(
+      data.copyWith(
+        bugReports: nextReports,
+        auditLog: [
+          ...data.auditLog,
+          _log(
+            'bug_report_deleted',
+            '',
+            data.mainFamilyCode,
+            actorRole: actorRole,
+            adminId: adminId,
+            description: bug.id,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> upsertInfoNews(

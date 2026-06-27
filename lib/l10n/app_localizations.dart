@@ -2329,6 +2329,114 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Chef depuis'**
   String get chiefSince;
+
+  /// No description provided for @bugReports.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bugs signalés'**
+  String get bugReports;
+
+  /// No description provided for @reportBug.
+  ///
+  /// In fr, this message translates to:
+  /// **'Signaler un bug'**
+  String get reportBug;
+
+  /// No description provided for @bugTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Titre du bug'**
+  String get bugTitle;
+
+  /// No description provided for @bugDescription.
+  ///
+  /// In fr, this message translates to:
+  /// **'Description'**
+  String get bugDescription;
+
+  /// No description provided for @bugScreen.
+  ///
+  /// In fr, this message translates to:
+  /// **'Écran concerné'**
+  String get bugScreen;
+
+  /// No description provided for @bugPriority.
+  ///
+  /// In fr, this message translates to:
+  /// **'Priorité'**
+  String get bugPriority;
+
+  /// No description provided for @bugStatus.
+  ///
+  /// In fr, this message translates to:
+  /// **'Statut du bug modifié'**
+  String get bugStatus;
+
+  /// No description provided for @reportedBy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Déclarant'**
+  String get reportedBy;
+
+  /// No description provided for @reportedAt.
+  ///
+  /// In fr, this message translates to:
+  /// **'Signalé le'**
+  String get reportedAt;
+
+  /// No description provided for @notifyAdminsWhatsapp.
+  ///
+  /// In fr, this message translates to:
+  /// **'Notifier les admins par WhatsApp'**
+  String get notifyAdminsWhatsapp;
+
+  /// No description provided for @bugOpen.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ouvert'**
+  String get bugOpen;
+
+  /// No description provided for @bugInProgress.
+  ///
+  /// In fr, this message translates to:
+  /// **'En cours'**
+  String get bugInProgress;
+
+  /// No description provided for @bugResolved.
+  ///
+  /// In fr, this message translates to:
+  /// **'Résolu'**
+  String get bugResolved;
+
+  /// No description provided for @bugDeleted.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimé'**
+  String get bugDeleted;
+
+  /// No description provided for @deleteBugReport.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer le bug'**
+  String get deleteBugReport;
+
+  /// No description provided for @confirmDeleteBugReport.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voulez-vous supprimer ce bug ?'**
+  String get confirmDeleteBugReport;
+
+  /// No description provided for @bugReportCreated.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bug signalé.'**
+  String get bugReportCreated;
+
+  /// No description provided for @adminWhatsappNotification.
+  ///
+  /// In fr, this message translates to:
+  /// **'WhatsApp s’ouvrira avec un message prérempli. Chaque admin devra valider l’envoi.'**
+  String get adminWhatsappNotification;
 }
 
 class _AppLocalizationsDelegate

@@ -4,6 +4,7 @@ import '../models/family_tree_data.dart';
 import '../services/auth_code_service.dart';
 import '../services/backup_service.dart';
 import '../services/change_notification_service.dart';
+import '../services/bug_report_service.dart';
 import '../services/communication_service.dart';
 import '../services/data_cleanup_service.dart';
 import '../services/admin_service.dart';
@@ -38,6 +39,10 @@ final authCodeServiceProvider = Provider<AuthCodeService>(
 
 final importExportServiceProvider = Provider<ImportExportService>(
   (ref) => ImportExportService(),
+);
+
+final bugReportServiceProvider = Provider<BugReportService>(
+  (ref) => const BugReportService(),
 );
 
 final dataCleanupServiceProvider = Provider<DataCleanupService>(

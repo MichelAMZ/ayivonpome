@@ -21,6 +21,7 @@ import '../screens/settings_screen.dart';
 import '../screens/tree_screen.dart';
 import '../services/admin_access_service.dart';
 import 'change_notification_popup.dart';
+import 'bug_report_button.dart';
 import 'family_announcement_popup.dart';
 import 'family_council_button.dart';
 import 'family_history_button.dart';
@@ -229,6 +230,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         : () => _showAccessDialog(context);
     if (compact) {
       return [
+        BugReportButton(compact: true, initialScreen: _currentScreenName()),
         IconButton(
           tooltip: authenticated ? l10n.logout : l10n.enterAccessCode,
           onPressed: authAction,
@@ -276,6 +278,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       ];
     }
     return [
+      BugReportButton(initialScreen: _currentScreenName()),
+      const SizedBox(width: 10),
       FamilyHistoryButton(
         onPressed: () => Navigator.of(
           context,
@@ -304,6 +308,15 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
       const SizedBox(width: 20),
     ];
+  }
+
+  String _currentScreenName() {
+    return switch (_index) {
+      0 => 'TreeScreen',
+      1 => 'FamilyHonorHallScreen',
+      2 => 'DashboardScreen',
+      _ => 'AppShell',
+    };
   }
 
   Future<void> _showAccessDialog(BuildContext context) async {

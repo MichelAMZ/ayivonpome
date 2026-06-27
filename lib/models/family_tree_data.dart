@@ -1,5 +1,6 @@
 import 'access_code.dart';
 import 'audit_log.dart';
+import 'bug_report.dart';
 import 'admin_access.dart';
 import 'admin_user.dart';
 import 'change_notification.dart';
@@ -47,6 +48,7 @@ class FamilyTreeData {
     this.marriageRelations = const [],
     this.notifications = const [],
     this.changeNotifications = const [],
+    this.bugReports = const [],
     this.infoNews = const [],
     this.infoNewsSendLogs = const [],
     this.autoCleanupInfoNewsSendHistory = true,
@@ -80,6 +82,7 @@ class FamilyTreeData {
   final List<MarriageRelation> marriageRelations;
   final List<FamilyNotification> notifications;
   final List<ChangeNotification> changeNotifications;
+  final List<BugReport> bugReports;
   final List<InfoNews> infoNews;
   final List<InfoNewsSendLog> infoNewsSendLogs;
   final bool autoCleanupInfoNewsSendHistory;
@@ -184,6 +187,10 @@ class FamilyTreeData {
           (item) =>
               ChangeNotification.fromJson(Map<String, dynamic>.from(item)),
         )
+        .toList(),
+    bugReports: (json['bugReports'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => BugReport.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
     infoNews: (json['infoNews'] as List? ?? const [])
         .whereType<Map>()
@@ -532,6 +539,7 @@ class FamilyTreeData {
     'changeNotifications': changeNotifications
         .map((item) => item.toJson())
         .toList(),
+    'bugReports': bugReports.map((item) => item.toJson()).toList(),
     'infoNews': infoNews.map((item) => item.toJson()).toList(),
     'infoNewsSendLogs': infoNewsSendLogs.map((item) => item.toJson()).toList(),
     'autoCleanupInfoNewsSendHistory': autoCleanupInfoNewsSendHistory,
@@ -568,6 +576,7 @@ class FamilyTreeData {
     List<MarriageRelation>? marriageRelations,
     List<FamilyNotification>? notifications,
     List<ChangeNotification>? changeNotifications,
+    List<BugReport>? bugReports,
     List<InfoNews>? infoNews,
     List<InfoNewsSendLog>? infoNewsSendLogs,
     bool? autoCleanupInfoNewsSendHistory,
@@ -604,6 +613,7 @@ class FamilyTreeData {
       marriageRelations: marriageRelations ?? this.marriageRelations,
       notifications: notifications ?? this.notifications,
       changeNotifications: changeNotifications ?? this.changeNotifications,
+      bugReports: bugReports ?? this.bugReports,
       infoNews: infoNews ?? this.infoNews,
       infoNewsSendLogs: infoNewsSendLogs ?? this.infoNewsSendLogs,
       autoCleanupInfoNewsSendHistory:

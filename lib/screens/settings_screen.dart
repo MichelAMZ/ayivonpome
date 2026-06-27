@@ -6,6 +6,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../widgets/language_selector.dart';
+import '../widgets/bug_report_button.dart';
 import '../widgets/responsive.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -20,6 +21,8 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: Text(l10n.settings)),
       body: ResponsivePage(
         children: [
+          const BugReportButton(initialScreen: 'SettingsScreen'),
+          const SizedBox(height: 16),
           LanguageSelector(value: data.language),
           const SizedBox(height: 16),
           Card(
