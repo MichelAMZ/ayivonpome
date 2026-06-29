@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'l10n/app_localizations.dart';
+import 'providers/app_settings_provider.dart';
 import 'providers/family_tree_provider.dart';
 import 'providers/locale_provider.dart';
 import 'widgets/app_shell.dart';
@@ -14,9 +15,13 @@ class FamilyTreeApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
     final data = ref.watch(familyTreeProvider);
+    final appSettings = ref.watch(appSettingsProvider);
+    final applicationTitle = appSettings.applicationTitle.trim().isEmpty
+        ? 'FamilyTreeApp'
+        : appSettings.applicationTitle.trim();
 
     return MaterialApp(
-      title: 'FamilyTreeApp',
+      title: applicationTitle,
       debugShowCheckedModeBanner: false,
       locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,

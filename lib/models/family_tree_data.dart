@@ -1,4 +1,5 @@
 import 'access_code.dart';
+import 'app_settings.dart';
 import 'audit_log.dart';
 import 'bug_report.dart';
 import 'admin_access.dart';
@@ -25,6 +26,7 @@ import 'modification_code.dart';
 class FamilyTreeData {
   const FamilyTreeData({
     this.appVersion = '1.0.0',
+    this.appSettings = const AppSettings(),
     this.mainFamilyCode = 'ayivon',
     this.publicMode = const PublicModeConfig(),
     this.language = 'fr',
@@ -62,6 +64,7 @@ class FamilyTreeData {
   });
 
   final String appVersion;
+  final AppSettings appSettings;
   final String mainFamilyCode;
   final PublicModeConfig publicMode;
   final String language;
@@ -96,6 +99,9 @@ class FamilyTreeData {
 
   factory FamilyTreeData.fromJson(Map<String, dynamic> json) => FamilyTreeData(
     appVersion: json['appVersion'] as String? ?? '1.0.0',
+    appSettings: AppSettings.fromJson(
+      Map<String, dynamic>.from(json['appSettings'] as Map? ?? const {}),
+    ),
     mainFamilyCode: json['mainFamilyCode'] as String? ?? 'ayivon',
     publicMode: PublicModeConfig.fromJson(
       Map<String, dynamic>.from(json['publicMode'] as Map? ?? const {}),
@@ -226,6 +232,12 @@ class FamilyTreeData {
   );
 
   factory FamilyTreeData.demo() => FamilyTreeData(
+    appSettings: const AppSettings(
+      applicationTitle: 'Famille AYIVON',
+      applicationSubtitle: 'La grande famille unie',
+      showApplicationSubtitle: false,
+      officialFamilyName: 'Famille AYIVON',
+    ),
     mainFamilyCode: 'ayivon',
     familyGeneralHistory: const FamilyHistory(
       title: 'Histoire de la famille Ayivon',
@@ -361,6 +373,7 @@ class FamilyTreeData {
         id: 'p001',
         firstName: 'Ama',
         lastName: 'Amouzou',
+        birthLastName: 'Lévonvi',
         gender: 'F',
         birthDate: '1954-04-20',
         birthPlace: 'Lome',
@@ -509,6 +522,7 @@ class FamilyTreeData {
 
   Map<String, dynamic> toJson() => {
     'appVersion': appVersion,
+    'appSettings': appSettings.toJson(),
     'mainFamilyCode': mainFamilyCode,
     'publicMode': publicMode.toJson(),
     'language': language,
@@ -556,6 +570,7 @@ class FamilyTreeData {
 
   FamilyTreeData copyWith({
     String? appVersion,
+    AppSettings? appSettings,
     String? mainFamilyCode,
     PublicModeConfig? publicMode,
     String? language,
@@ -590,6 +605,7 @@ class FamilyTreeData {
   }) {
     return FamilyTreeData(
       appVersion: appVersion ?? this.appVersion,
+      appSettings: appSettings ?? this.appSettings,
       mainFamilyCode: mainFamilyCode ?? this.mainFamilyCode,
       publicMode: publicMode ?? this.publicMode,
       language: language ?? this.language,

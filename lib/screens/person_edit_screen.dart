@@ -21,6 +21,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _firstName;
   late final TextEditingController _lastName;
+  late final TextEditingController _birthLastName;
   late final TextEditingController _gender;
   late final TextEditingController _birthDate;
   late final TextEditingController _birthPlace;
@@ -71,26 +72,35 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     final p = widget.person;
     _firstName = TextEditingController(text: p?.firstName ?? '');
     _lastName = TextEditingController(text: p?.lastName ?? '');
+    _birthLastName = TextEditingController(text: p?.birthLastName ?? '');
     _gender = TextEditingController(text: p?.gender ?? '');
     _birthDate = TextEditingController(text: p?.birthDate ?? '');
     _birthPlace = TextEditingController(text: p?.birthPlace ?? '');
     _deathDate = TextEditingController(text: p?.deathDate ?? '');
     _deathPlace = TextEditingController(text: p?.deathPlace ?? '');
-    _publicMapLocation = TextEditingController(text: p?.publicMapLocation ?? '');
+    _publicMapLocation = TextEditingController(
+      text: p?.publicMapLocation ?? '',
+    );
     _currentAddress = TextEditingController(text: p?.currentAddress ?? '');
     _burialPlace = TextEditingController(text: p?.burialPlace ?? '');
     _latitude = TextEditingController(text: p?.latitude?.toString() ?? '');
     _longitude = TextEditingController(text: p?.longitude?.toString() ?? '');
     final importantPlace = p?.importantPlaces.firstOrNull;
-    _importantPlaceName = TextEditingController(text: importantPlace?.name ?? '');
-    _importantPlaceAddress =
-        TextEditingController(text: importantPlace?.address ?? '');
-    _importantPlaceLatitude =
-        TextEditingController(text: importantPlace?.latitude?.toString() ?? '');
-    _importantPlaceLongitude =
-        TextEditingController(text: importantPlace?.longitude?.toString() ?? '');
-    _importantPlaceDescription =
-        TextEditingController(text: importantPlace?.description ?? '');
+    _importantPlaceName = TextEditingController(
+      text: importantPlace?.name ?? '',
+    );
+    _importantPlaceAddress = TextEditingController(
+      text: importantPlace?.address ?? '',
+    );
+    _importantPlaceLatitude = TextEditingController(
+      text: importantPlace?.latitude?.toString() ?? '',
+    );
+    _importantPlaceLongitude = TextEditingController(
+      text: importantPlace?.longitude?.toString() ?? '',
+    );
+    _importantPlaceDescription = TextEditingController(
+      text: importantPlace?.description ?? '',
+    );
     _email = TextEditingController(text: p?.email ?? '');
     _phoneNumber = TextEditingController(text: p?.phoneNumber ?? '');
     _whatsappNumber = TextEditingController(text: p?.whatsappNumber ?? '');
@@ -119,10 +129,12 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     _historyTitle = TextEditingController(text: event?.title ?? '');
     _historyDate = TextEditingController(text: event?.date ?? '');
     _historyPlace = TextEditingController(text: event?.place ?? '');
-    _historyLatitude =
-        TextEditingController(text: event?.latitude?.toString() ?? '');
-    _historyLongitude =
-        TextEditingController(text: event?.longitude?.toString() ?? '');
+    _historyLatitude = TextEditingController(
+      text: event?.latitude?.toString() ?? '',
+    );
+    _historyLongitude = TextEditingController(
+      text: event?.longitude?.toString() ?? '',
+    );
     _historyDescription = TextEditingController(text: event?.description ?? '');
   }
 
@@ -131,6 +143,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     for (final controller in [
       _firstName,
       _lastName,
+      _birthLastName,
       _gender,
       _birthDate,
       _birthPlace,
@@ -174,7 +187,9 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(widget.person == null ? l10n.addPerson : l10n.edit)),
+      appBar: AppBar(
+        title: Text(widget.person == null ? l10n.addPerson : l10n.edit),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -182,6 +197,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           children: [
             _field(_firstName, l10n.firstName, required: true),
             _field(_lastName, l10n.lastName, required: true),
+            _field(_birthLastName, l10n.bornLastName),
             _field(_gender, l10n.gender),
             _field(_birthDate, l10n.birthDate),
             _field(_birthPlace, l10n.birthPlace),
@@ -192,9 +208,13 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             _field(_burialPlace, l10n.burialPlace),
             Row(
               children: [
-                Expanded(child: _field(_latitude, l10n.latitude, keyboard: true)),
+                Expanded(
+                  child: _field(_latitude, l10n.latitude, keyboard: true),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _field(_longitude, l10n.longitude, keyboard: true)),
+                Expanded(
+                  child: _field(_longitude, l10n.longitude, keyboard: true),
+                ),
               ],
             ),
             _field(_familyCode, l10n.familyBranch),
@@ -217,7 +237,10 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
                   value: 'customary',
                   child: Text(l10n.customaryMarriage),
                 ),
-                DropdownMenuItem(value: 'civil', child: Text(l10n.civilMarriage)),
+                DropdownMenuItem(
+                  value: 'civil',
+                  child: Text(l10n.civilMarriage),
+                ),
                 DropdownMenuItem(
                   value: 'religious',
                   child: Text(l10n.religiousMarriage),
@@ -234,11 +257,16 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             _field(_children, l10n.children),
             _field(_notes, l10n.notes, maxLines: 3),
             const SizedBox(height: 12),
-            Text(l10n.communication, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              l10n.communication,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             SwitchListTile(
               value: _allowContact,
               title: Text(l10n.contact),
-              subtitle: Text(_allowContact ? l10n.accepted : l10n.contactDisabled),
+              subtitle: Text(
+                _allowContact ? l10n.accepted : l10n.contactDisabled,
+              ),
               onChanged: (value) => setState(() => _allowContact = value),
             ),
             _field(_email, l10n.email),
@@ -287,11 +315,15 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             ),
             _field(_importantPlaceDescription, l10n.notes, maxLines: 2),
             const SizedBox(height: 12),
-            Text(l10n.publicMode, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              l10n.publicMode,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             SwitchListTile(
               value: _showMapInPublicMode,
               title: Text(l10n.showMapInPublicMode),
-              onChanged: (value) => setState(() => _showMapInPublicMode = value),
+              onChanged: (value) =>
+                  setState(() => _showMapInPublicMode = value),
             ),
             SwitchListTile(
               value: _showBirthPlaceInPublicMode,
@@ -325,11 +357,19 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _field(_historyLatitude, l10n.latitude, keyboard: true),
+                  child: _field(
+                    _historyLatitude,
+                    l10n.latitude,
+                    keyboard: true,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _field(_historyLongitude, l10n.longitude, keyboard: true),
+                  child: _field(
+                    _historyLongitude,
+                    l10n.longitude,
+                    keyboard: true,
+                  ),
                 ),
               ],
             ),
@@ -365,8 +405,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         decoration: InputDecoration(labelText: label),
         validator: required
             ? (value) => value == null || value.trim().isEmpty
-                ? l10n.requiredField
-                : null
+                  ? l10n.requiredField
+                  : null
             : null,
       ),
     );
@@ -403,13 +443,15 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     }
     final l10n = AppLocalizations.of(context);
     final id = widget.person?.id ?? 'p${DateTime.now().microsecondsSinceEpoch}';
-    final history = _historyTitle.text.trim().isEmpty &&
+    final history =
+        _historyTitle.text.trim().isEmpty &&
             _historyDate.text.trim().isEmpty &&
             _historyDescription.text.trim().isEmpty
         ? <HistoryEvent>[]
         : [
             HistoryEvent(
-              id: widget.person?.history.firstOrNull?.id ??
+              id:
+                  widget.person?.history.firstOrNull?.id ??
                   'h${DateTime.now().microsecondsSinceEpoch}',
               date: _historyDate.text.trim(),
               title: _historyTitle.text.trim(),
@@ -419,7 +461,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
               longitude: _parseDouble(_historyLongitude.text),
             ),
           ];
-    final importantPlaces = _importantPlaceName.text.trim().isEmpty &&
+    final importantPlaces =
+        _importantPlaceName.text.trim().isEmpty &&
             _importantPlaceAddress.text.trim().isEmpty
         ? <ImportantPlace>[]
         : [
@@ -435,6 +478,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       id: id,
       firstName: _firstName.text.trim(),
       lastName: _lastName.text.trim(),
+      birthLastName: _birthLastName.text.trim(),
+      originalLastName: widget.person?.originalLastName ?? '',
       gender: _gender.text.trim(),
       birthDate: _birthDate.text.trim(),
       birthPlace: _birthPlace.text.trim(),
@@ -479,23 +524,26 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         person.parents.contains(person.id) ||
         person.spouses.contains(person.id) ||
         person.children.contains(person.id)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.invalidRelationship)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.invalidRelationship)));
       return;
     }
     try {
       await ref
           .read(familyTreeProvider.notifier)
-          .upsertPerson(person, widget.person == null ? 'create_person' : 'edit_person');
+          .upsertPerson(
+            person,
+            widget.person == null ? 'create_person' : 'edit_person',
+          );
       if (mounted) {
         Navigator.pop(context);
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.duplicatePerson)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.duplicatePerson)));
       }
     }
   }

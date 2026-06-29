@@ -6,6 +6,7 @@ class MarriageRelation {
     this.marriageType = 'unknown',
     this.status = 'active',
     this.marriageDate = '',
+    this.divorceDate = '',
     this.marriagePlace = '',
     this.endDate = '',
     this.notes = '',
@@ -18,6 +19,7 @@ class MarriageRelation {
   final String marriageType;
   final String status;
   final String marriageDate;
+  final String divorceDate;
   final String marriagePlace;
   final String endDate;
   final String notes;
@@ -31,6 +33,7 @@ class MarriageRelation {
         marriageType: json['marriageType'] as String? ?? 'unknown',
         status: json['status'] as String? ?? 'active',
         marriageDate: json['marriageDate'] as String? ?? '',
+        divorceDate: json['divorceDate'] as String? ?? '',
         marriagePlace: json['marriagePlace'] as String? ?? '',
         endDate: json['endDate'] as String? ?? '',
         notes: json['notes'] as String? ?? '',
@@ -38,15 +41,44 @@ class MarriageRelation {
       );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'personId': personId,
-        'spouseId': spouseId,
-        'marriageType': marriageType,
-        'status': status,
-        'marriageDate': marriageDate,
-        'marriagePlace': marriagePlace,
-        'endDate': endDate,
-        'notes': notes,
-        'order': order,
-      };
+    'id': id,
+    'personId': personId,
+    'spouseId': spouseId,
+    'marriageType': marriageType,
+    'status': status,
+    'marriageDate': marriageDate,
+    'divorceDate': divorceDate,
+    'marriagePlace': marriagePlace,
+    'endDate': endDate,
+    'notes': notes,
+    'order': order,
+  };
+
+  MarriageRelation copyWith({
+    String? id,
+    String? personId,
+    String? spouseId,
+    String? marriageType,
+    String? status,
+    String? marriageDate,
+    String? divorceDate,
+    String? marriagePlace,
+    String? endDate,
+    String? notes,
+    int? order,
+  }) {
+    return MarriageRelation(
+      id: id ?? this.id,
+      personId: personId ?? this.personId,
+      spouseId: spouseId ?? this.spouseId,
+      marriageType: marriageType ?? this.marriageType,
+      status: status ?? this.status,
+      marriageDate: marriageDate ?? this.marriageDate,
+      divorceDate: divorceDate ?? this.divorceDate,
+      marriagePlace: marriagePlace ?? this.marriagePlace,
+      endDate: endDate ?? this.endDate,
+      notes: notes ?? this.notes,
+      order: order ?? this.order,
+    );
+  }
 }

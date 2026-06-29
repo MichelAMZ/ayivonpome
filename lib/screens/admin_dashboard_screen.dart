@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/access_code.dart';
+import '../models/app_settings.dart';
 import '../models/bug_report.dart';
 import '../models/family_announcement.dart';
 import '../models/family_honor.dart';
@@ -17,8 +18,10 @@ import '../services/admin_access_service.dart';
 import '../widgets/admin_contact_card.dart';
 import '../widgets/bug_report_button.dart';
 import '../widgets/bug_report_card.dart';
+import '../widgets/edit_application_title_dialog.dart';
 import '../widgets/kpi_card.dart';
 import '../widgets/responsive.dart';
+import '../widgets/secure_code_text_field.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -32,16 +35,57 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup(),
-    );
+    debugPrint('AdminDashboardScreen init');
+    Future.microtask(() async {
+      try {
+        debugPrint('KPI loading started');
+        await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
+        debugPrint('KPI loading success');
+      } catch (error) {
+        debugPrint('KPI loading failed: $error');
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final data = ref.watch(familyTreeProvider).value!;
+    final dataState = ref.watch(familyTreeProvider);
     final auth = ref.watch(authSessionProvider);
+    return dataState.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: Text(l10n.adminDashboard)),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stackTrace) => Scaffold(
+        appBar: AppBar(title: Text(l10n.adminDashboard)),
+        body: _AdminDashboardError(
+          message: 'Erreur chargement Admin/KPI : $error',
+        ),
+      ),
+      data: (data) {
+        try {
+          return _buildDashboard(context, l10n, auth, data);
+        } catch (error, stackTrace) {
+          debugPrint('Admin KPI error: $error');
+          debugPrintStack(stackTrace: stackTrace);
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.adminDashboard)),
+            body: _AdminDashboardError(
+              message: 'Erreur chargement Admin/KPI : $error',
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildDashboard(
+    BuildContext context,
+    AppLocalizations l10n,
+    AuthState auth,
+    FamilyTreeData data,
+  ) {
     final kpi = ref.watch(kpiServiceProvider).compute(data);
     final rotationStatus = ref
         .watch(adminAccessServiceProvider)
@@ -74,6 +118,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               KpiCard(label: l10n.activityLog, value: data.auditLog.length),
             ],
           ),
+          const SizedBox(height: 24),
+          _ApplicationSettingsSection(data: data),
           const SizedBox(height: 24),
           Text(
             l10n.adminSecurity,
@@ -143,16 +189,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           const SizedBox(height: 24),
           _AccessCodeManagementSection(
+            data: data,
             dataRole: auth.session?.role ?? 'viewer',
           ),
           const SizedBox(height: 24),
-          const _BugReportsSection(),
+          _BugReportsSection(data: data),
           const SizedBox(height: 24),
-          const _InfoNewsManagementSection(),
+          _InfoNewsManagementSection(data: data),
           const SizedBox(height: 24),
-          const _FamilyAnnouncementSection(),
+          _FamilyAnnouncementSection(data: data),
           const SizedBox(height: 24),
-          const _FamilyHonorSection(),
+          _FamilyHonorSection(data: data),
           const SizedBox(height: 24),
           Text(
             l10n.manageAdmins,
@@ -202,25 +249,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                SecureCodeTextField(
                   controller: oldController,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: l10n.oldAdminCode),
+                  label: l10n.oldAdminCode,
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                SecureCodeTextField(
                   controller: newController,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: l10n.newAdminCode),
+                  label: l10n.newAdminCode,
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                SecureCodeTextField(
                   controller: confirmController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.confirmNewAdminCode,
-                    errorText: error,
-                  ),
+                  label: l10n.confirmNewAdminCode,
+                  errorText: error,
                 ),
               ],
             ),
@@ -298,8 +340,115 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 }
 
+class _ApplicationSettingsSection extends ConsumerWidget {
+  const _ApplicationSettingsSection({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final auth = ref.watch(authSessionProvider);
+    final settings = data.appSettings;
+    final subtitle = settings.applicationSubtitle.trim();
+    final canEdit = auth.isAdmin;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.applicationSettings,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: canEdit ? () => _edit(context, ref) : null,
+              icon: const Icon(Icons.edit_outlined),
+              label: Text(l10n.editApplicationTitle),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.title_outlined),
+                  title: Text(l10n.applicationTitle),
+                  subtitle: Text(settings.applicationTitle),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.short_text_outlined),
+                  title: Text(l10n.applicationSubtitle),
+                  subtitle: Text(subtitle.isEmpty ? '-' : subtitle),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.home_work_outlined),
+                  title: Text(l10n.officialFamilyName),
+                  subtitle: Text(
+                    settings.officialFamilyName.trim().isEmpty
+                        ? '-'
+                        : settings.officialFamilyName.trim(),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.zoom_out_map_outlined),
+                  title: Text(l10n.treeInitialZoom),
+                  subtitle: Text(
+                    '${(settings.treeSettings.initialZoom * 100).round()}%',
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.history_toggle_off_outlined),
+                  value: settings.treeSettings.rememberLastZoom,
+                  onChanged: null,
+                  title: Text(l10n.rememberLastZoom),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _edit(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
+    final next = await showDialog<AppSettings>(
+      context: context,
+      builder: (context) =>
+          EditApplicationTitleDialog(settings: data.appSettings),
+    );
+    if (next == null) return;
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .updateAppSettings(
+          next,
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.applicationSettings)));
+  }
+}
+
 class _BugReportsSection extends ConsumerStatefulWidget {
-  const _BugReportsSection();
+  const _BugReportsSection({required this.data});
+
+  final FamilyTreeData data;
 
   @override
   ConsumerState<_BugReportsSection> createState() => _BugReportsSectionState();
@@ -312,10 +461,13 @@ class _BugReportsSectionState extends ConsumerState<_BugReportsSection> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
     final service = ref.watch(bugReportServiceProvider);
-    final bugs = service.filter(data, status: _status, priority: _priority);
+    final bugs = service.filter(
+      widget.data,
+      status: _status,
+      priority: _priority,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,8 +634,50 @@ class _BugReportsSectionState extends ConsumerState<_BugReportsSection> {
   }
 }
 
+class _AdminDashboardError extends StatelessWidget {
+  const _AdminDashboardError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 42,
+                color: Color(0xFFB3261E),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Retour'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoNewsManagementSection extends ConsumerStatefulWidget {
-  const _InfoNewsManagementSection();
+  const _InfoNewsManagementSection({required this.data});
+
+  final FamilyTreeData data;
 
   @override
   ConsumerState<_InfoNewsManagementSection> createState() =>
@@ -503,10 +697,9 @@ class _InfoNewsManagementSectionState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
     final canManage = auth.isAdmin;
-    final logs = data.infoNewsSendLogs
+    final logs = widget.data.infoNewsSendLogs
         .where(
           (log) =>
               log.status == 'pending' ||
@@ -534,7 +727,7 @@ class _InfoNewsManagementSectionState
           ],
         ),
         const SizedBox(height: 8),
-        for (final news in data.infoNews)
+        for (final news in widget.data.infoNews)
           Card(
             child: ListTile(
               leading: Icon(
@@ -608,8 +801,8 @@ class _InfoNewsManagementSectionState
           ),
           const SizedBox(height: 4),
           Text(
-            '${l10n.historiesKept}: ${data.infoNewsSendLogs.length} · '
-            '${l10n.lastCleanup}: ${_formatCleanupDate(data.infoNewsSendHistoryLastCleanedAt)}',
+            '${l10n.historiesKept}: ${widget.data.infoNewsSendLogs.length} · '
+            '${l10n.lastCleanup}: ${_formatCleanupDate(widget.data.infoNewsSendHistoryLastCleanedAt)}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -809,7 +1002,8 @@ class _InfoNewsManagementSectionState
     WidgetRef ref,
     InfoNewsSendLog log,
   ) async {
-    final data = ref.read(familyTreeProvider).value!;
+    final data = ref.read(familyTreeProvider).value;
+    if (data == null) return;
     final news = data.infoNews
         .where((item) => item.id == log.infoNewsId)
         .firstOrNull;
@@ -835,7 +1029,8 @@ class _InfoNewsManagementSectionState
     InfoNewsSendLog log,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final data = ref.read(familyTreeProvider).value!;
+    final data = ref.read(familyTreeProvider).value;
+    if (data == null) return;
     final news = data.infoNews
         .where((item) => item.id == log.infoNewsId)
         .firstOrNull;
@@ -896,11 +1091,12 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _FamilyAnnouncementSection extends ConsumerWidget {
-  const _FamilyAnnouncementSection();
+  const _FamilyAnnouncementSection({required this.data});
+
+  final FamilyTreeData data;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
     final settings = data.familyAnnouncementSettings;
     final history = data.familyAnnouncementHistory.reversed.toList();
@@ -1091,8 +1287,12 @@ class _FamilyAnnouncementSection extends ConsumerWidget {
 }
 
 class _AccessCodeManagementSection extends ConsumerStatefulWidget {
-  const _AccessCodeManagementSection({required this.dataRole});
+  const _AccessCodeManagementSection({
+    required this.data,
+    required this.dataRole,
+  });
 
+  final FamilyTreeData data;
   final String dataRole;
 
   @override
@@ -1107,12 +1307,11 @@ class _AccessCodeManagementSectionState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
     final accessCodeService = ref.watch(accessCodeServiceProvider);
     final actorRole = auth.session?.role ?? 'viewer';
     final adminId = auth.session?.familyCode ?? '';
-    final codes = accessCodeService.visibleCodes(data, actorRole);
+    final codes = accessCodeService.visibleCodes(widget.data, actorRole);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1343,12 +1542,10 @@ class _AccessCodeManagementSectionState
                       });
                     },
                   ),
-                  TextField(
+                  SecureCodeTextField(
                     controller: value,
-                    decoration: InputDecoration(
-                      labelText: l10n.accessCodes,
-                      errorText: error,
-                    ),
+                    label: l10n.accessCodes,
+                    errorText: error,
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -1634,12 +1831,13 @@ class _AccessCodeManagementSectionState
 }
 
 class _FamilyHonorSection extends ConsumerWidget {
-  const _FamilyHonorSection();
+  const _FamilyHonorSection({required this.data});
+
+  final FamilyTreeData data;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
     final honor = data.familyHonor;
     final leadership = data.familyLeadership;

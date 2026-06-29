@@ -7,6 +7,7 @@ import '../models/person.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../services/family_relation_service.dart';
+import 'person_origin_name_text.dart';
 
 class PersonPreviewPopup extends ConsumerWidget {
   const PersonPreviewPopup({
@@ -32,6 +33,9 @@ class PersonPreviewPopup extends ConsumerWidget {
     final father = relationService.fatherOf(data, person);
     final mother = relationService.motherOf(data, person);
     final spouses = relationService.spousesOf(data, person);
+    final formerSpouses = ref
+        .watch(marriageServiceProvider)
+        .getFormerSpouses(data, person);
     return Material(
       elevation: 10,
       borderRadius: BorderRadius.circular(8),
@@ -49,9 +53,15 @@ class PersonPreviewPopup extends ConsumerWidget {
                   CircleAvatar(child: Text(_initials(person))),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      person.fullName,
-                      style: Theme.of(context).textTheme.titleMedium,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          person.fullName,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        PersonOriginNameText(person: person),
+                      ],
                     ),
                   ),
                 ],
@@ -73,6 +83,11 @@ class PersonPreviewPopup extends ConsumerWidget {
                   l10n.marriedTo,
                   spouses.map((person) => person.fullName).join(', '),
                 ),
+                if (formerSpouses.isNotEmpty)
+                  _line(
+                    l10n.formerSpouses,
+                    formerSpouses.map((person) => person.fullName).join(', '),
+                  ),
                 _line(l10n.parents, _names(person.parents)),
                 _line(l10n.spouses, _names(person.spouses)),
                 _line(l10n.children, _names(person.children)),

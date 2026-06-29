@@ -7,7 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('writes and reads family_tree.json', () async {
-    final directory = await Directory.systemTemp.createTemp('family_tree_test_');
+    final directory = await Directory.systemTemp.createTemp(
+      'family_tree_test_',
+    );
     addTearDown(() => directory.delete(recursive: true));
 
     final storage = JsonStorageService(storageDirectory: directory.path);
@@ -30,6 +32,7 @@ void main() {
     final parsed = service.parse(raw);
 
     expect(parsed.mainFamilyCode, 'ayivon');
+    expect(parsed.appSettings.applicationTitle, 'Famille AYIVON');
     expect(parsed.people, isNotEmpty);
   });
 }

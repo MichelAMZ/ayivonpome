@@ -13,6 +13,9 @@ enum PersonContextAction {
   linkChild,
   addSpouse,
   linkSpouse,
+  declareDivorce,
+  restoreMarriage,
+  divorceHistory,
   addBrother,
   addSister,
   viewProfile,
@@ -90,6 +93,27 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
         child: _MenuRow(
           icon: Icons.link,
           label: '${l10n.spouse} · ${l10n.linkExistingPerson}',
+        ),
+      ),
+      PopupMenuItem(
+        value: PersonContextAction.declareDivorce,
+        child: _MenuRow(
+          icon: Icons.heart_broken_outlined,
+          label: l10n.declareDivorce,
+        ),
+      ),
+      PopupMenuItem(
+        value: PersonContextAction.restoreMarriage,
+        child: _MenuRow(
+          icon: Icons.favorite_outlined,
+          label: l10n.restoreMarriage,
+        ),
+      ),
+      PopupMenuItem(
+        value: PersonContextAction.divorceHistory,
+        child: _MenuRow(
+          icon: Icons.history_outlined,
+          label: l10n.divorceHistory,
         ),
       ),
       PopupMenuItem(

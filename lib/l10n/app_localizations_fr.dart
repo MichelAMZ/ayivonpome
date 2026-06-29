@@ -12,6 +12,30 @@ class AppLocalizationsFr extends AppLocalizations {
   String get appTitle => 'FamilyTreeApp';
 
   @override
+  String get applicationTitle => 'Nom de l\'application';
+
+  @override
+  String get applicationSubtitle => 'Sous-titre';
+
+  @override
+  String get showApplicationSubtitle => 'Afficher le sous-titre';
+
+  @override
+  String get editApplicationTitle => 'Modifier le titre de l\'application';
+
+  @override
+  String get applicationSettings => 'Paramètres de l\'application';
+
+  @override
+  String get officialFamilyName => 'Nom officiel de la famille';
+
+  @override
+  String get treeInitialZoom => 'Zoom initial de l\'arbre';
+
+  @override
+  String get rememberLastZoom => 'Mémoriser le dernier zoom';
+
+  @override
   String get loginTitle => 'Connexion familiale';
 
   @override
@@ -385,6 +409,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get lastName => 'Nom';
 
   @override
+  String get bornLastName => 'Nom de naissance';
+
+  @override
+  String get bornAs => 'Né(e)';
+
+  @override
+  String get nee => 'née';
+
+  @override
   String get gender => 'Sexe';
 
   @override
@@ -641,7 +674,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get showHistoryInPublicMode => 'Autoriser l\'historique public';
 
   @override
-  String get familyTreeTitle => 'Arbre généalogique';
+  String get totalMembersTitle => 'Total des membres';
 
   @override
   String get visiblePeopleCount => 'personnes visibles';
@@ -775,13 +808,37 @@ class AppLocalizationsFr extends AppLocalizations {
   String get marriageStatus => 'Statut du mariage';
 
   @override
+  String get maritalStatus => 'Statut matrimonial';
+
+  @override
   String get activeMarriage => 'Mariage actif';
 
   @override
   String get separated => 'Séparé';
 
   @override
-  String get divorced => 'Divorcé';
+  String get divorced => 'Divorcé(e)';
+
+  @override
+  String get divorce => 'Divorce';
+
+  @override
+  String get declareDivorce => 'Déclarer un divorce';
+
+  @override
+  String get divorceDate => 'Date du divorce';
+
+  @override
+  String get formerSpouse => 'Ancien(ne) conjoint(e)';
+
+  @override
+  String get formerSpouses => 'Anciens conjoints';
+
+  @override
+  String get restoreMarriage => 'Annuler le divorce';
+
+  @override
+  String get divorceHistory => 'Historique matrimonial';
 
   @override
   String get widowed => 'Veuf / veuve';
@@ -967,6 +1024,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get hideCode => 'Masquer le code';
+
+  @override
+  String get showPassword => 'Afficher le mot de passe';
+
+  @override
+  String get hidePassword => 'Masquer le mot de passe';
 
   @override
   String get codeType => 'Type de code';

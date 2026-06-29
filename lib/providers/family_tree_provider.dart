@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/audit_log.dart';
 import '../models/access_code.dart';
+import '../models/app_settings.dart';
 import '../models/bug_report.dart';
 import '../models/family_announcement.dart';
 import '../models/family_code.dart';
@@ -16,6 +17,7 @@ import '../models/family_leadership_history_entry.dart';
 import '../models/family_notification.dart';
 import '../models/family_tree_data.dart';
 import '../models/info_news.dart';
+import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import 'app_providers.dart';
 
@@ -106,6 +108,94 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   Future<void> setLanguage(String languageCode) async {
     final data = await future;
     await save(data.copyWith(language: languageCode));
+  }
+
+  Future<void> updateAppSettings(
+    AppSettings settings, {
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' && actorRole != 'admin') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final normalized = ref.read(appSettingsServiceProvider).normalize(settings);
+    await save(
+      data.copyWith(
+        appSettings: normalized,
+        auditLog: [
+          ...data.auditLog,
+          _log(
+            'app_settings_updated',
+            '',
+            data.mainFamilyCode,
+            actorRole: actorRole,
+            adminId: adminId,
+            description: normalized.applicationTitle,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> declareDivorce(
+    MarriageRelation relation, {
+    required String divorceDate,
+    String notes = '',
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' && actorRole != 'admin') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final updated = ref
+        .read(marriageServiceProvider)
+        .declareDivorce(data, relation, divorceDate: divorceDate, notes: notes);
+    await save(
+      updated.copyWith(
+        auditLog: [
+          ...updated.auditLog,
+          _log(
+            'marriage_divorced',
+            relation.personId,
+            updated.mainFamilyCode,
+            actorRole: actorRole,
+            adminId: adminId,
+            description: '${relation.personId}-${relation.spouseId}',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> restoreMarriage(
+    MarriageRelation relation, {
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' && actorRole != 'admin') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final updated = ref
+        .read(marriageServiceProvider)
+        .restoreMarriage(data, relation);
+    await save(
+      updated.copyWith(
+        auditLog: [
+          ...updated.auditLog,
+          _log(
+            'marriage_restored',
+            relation.personId,
+            updated.mainFamilyCode,
+            actorRole: actorRole,
+            adminId: adminId,
+            description: '${relation.personId}-${relation.spouseId}',
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> upsertPerson(Person person, String action) async {

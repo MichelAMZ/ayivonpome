@@ -110,6 +110,54 @@ abstract class AppLocalizations {
   /// **'FamilyTreeApp'**
   String get appTitle;
 
+  /// No description provided for @applicationTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nom de l\'application'**
+  String get applicationTitle;
+
+  /// No description provided for @applicationSubtitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sous-titre'**
+  String get applicationSubtitle;
+
+  /// No description provided for @showApplicationSubtitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le sous-titre'**
+  String get showApplicationSubtitle;
+
+  /// No description provided for @editApplicationTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier le titre de l\'application'**
+  String get editApplicationTitle;
+
+  /// No description provided for @applicationSettings.
+  ///
+  /// In fr, this message translates to:
+  /// **'Paramètres de l\'application'**
+  String get applicationSettings;
+
+  /// No description provided for @officialFamilyName.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nom officiel de la famille'**
+  String get officialFamilyName;
+
+  /// No description provided for @treeInitialZoom.
+  ///
+  /// In fr, this message translates to:
+  /// **'Zoom initial de l\'arbre'**
+  String get treeInitialZoom;
+
+  /// No description provided for @rememberLastZoom.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mémoriser le dernier zoom'**
+  String get rememberLastZoom;
+
   /// No description provided for @loginTitle.
   ///
   /// In fr, this message translates to:
@@ -836,6 +884,24 @@ abstract class AppLocalizations {
   /// **'Nom'**
   String get lastName;
 
+  /// No description provided for @bornLastName.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nom de naissance'**
+  String get bornLastName;
+
+  /// No description provided for @bornAs.
+  ///
+  /// In fr, this message translates to:
+  /// **'Né(e)'**
+  String get bornAs;
+
+  /// No description provided for @nee.
+  ///
+  /// In fr, this message translates to:
+  /// **'née'**
+  String get nee;
+
   /// No description provided for @gender.
   ///
   /// In fr, this message translates to:
@@ -1334,11 +1400,11 @@ abstract class AppLocalizations {
   /// **'Autoriser l\'historique public'**
   String get showHistoryInPublicMode;
 
-  /// No description provided for @familyTreeTitle.
+  /// No description provided for @totalMembersTitle.
   ///
   /// In fr, this message translates to:
-  /// **'Arbre généalogique'**
-  String get familyTreeTitle;
+  /// **'Total des membres'**
+  String get totalMembersTitle;
 
   /// No description provided for @visiblePeopleCount.
   ///
@@ -1598,6 +1664,12 @@ abstract class AppLocalizations {
   /// **'Statut du mariage'**
   String get marriageStatus;
 
+  /// No description provided for @maritalStatus.
+  ///
+  /// In fr, this message translates to:
+  /// **'Statut matrimonial'**
+  String get maritalStatus;
+
   /// No description provided for @activeMarriage.
   ///
   /// In fr, this message translates to:
@@ -1613,8 +1685,50 @@ abstract class AppLocalizations {
   /// No description provided for @divorced.
   ///
   /// In fr, this message translates to:
-  /// **'Divorcé'**
+  /// **'Divorcé(e)'**
   String get divorced;
+
+  /// No description provided for @divorce.
+  ///
+  /// In fr, this message translates to:
+  /// **'Divorce'**
+  String get divorce;
+
+  /// No description provided for @declareDivorce.
+  ///
+  /// In fr, this message translates to:
+  /// **'Déclarer un divorce'**
+  String get declareDivorce;
+
+  /// No description provided for @divorceDate.
+  ///
+  /// In fr, this message translates to:
+  /// **'Date du divorce'**
+  String get divorceDate;
+
+  /// No description provided for @formerSpouse.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ancien(ne) conjoint(e)'**
+  String get formerSpouse;
+
+  /// No description provided for @formerSpouses.
+  ///
+  /// In fr, this message translates to:
+  /// **'Anciens conjoints'**
+  String get formerSpouses;
+
+  /// No description provided for @restoreMarriage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Annuler le divorce'**
+  String get restoreMarriage;
+
+  /// No description provided for @divorceHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Historique matrimonial'**
+  String get divorceHistory;
 
   /// No description provided for @widowed.
   ///
@@ -1981,6 +2095,18 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Masquer le code'**
   String get hideCode;
+
+  /// No description provided for @showPassword.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le mot de passe'**
+  String get showPassword;
+
+  /// No description provided for @hidePassword.
+  ///
+  /// In fr, this message translates to:
+  /// **'Masquer le mot de passe'**
+  String get hidePassword;
 
   /// No description provided for @codeType.
   ///

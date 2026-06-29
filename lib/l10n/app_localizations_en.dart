@@ -12,6 +12,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'FamilyTreeApp';
 
   @override
+  String get applicationTitle => 'Application name';
+
+  @override
+  String get applicationSubtitle => 'Subtitle';
+
+  @override
+  String get showApplicationSubtitle => 'Show subtitle';
+
+  @override
+  String get editApplicationTitle => 'Edit application title';
+
+  @override
+  String get applicationSettings => 'Application settings';
+
+  @override
+  String get officialFamilyName => 'Official family name';
+
+  @override
+  String get treeInitialZoom => 'Initial tree zoom';
+
+  @override
+  String get rememberLastZoom => 'Remember last zoom';
+
+  @override
   String get loginTitle => 'Family sign in';
 
   @override
@@ -383,6 +407,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lastName => 'Last name';
 
   @override
+  String get bornLastName => 'Birth last name';
+
+  @override
+  String get bornAs => 'Born as';
+
+  @override
+  String get nee => 'born';
+
+  @override
   String get gender => 'Gender';
 
   @override
@@ -637,7 +670,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showHistoryInPublicMode => 'Allow public history';
 
   @override
-  String get familyTreeTitle => 'Family tree';
+  String get totalMembersTitle => 'Total Members';
 
   @override
   String get visiblePeopleCount => 'visible people';
@@ -771,6 +804,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get marriageStatus => 'Marriage status';
 
   @override
+  String get maritalStatus => 'Marital status';
+
+  @override
   String get activeMarriage => 'Active marriage';
 
   @override
@@ -778,6 +814,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get divorced => 'Divorced';
+
+  @override
+  String get divorce => 'Divorce';
+
+  @override
+  String get declareDivorce => 'Declare divorce';
+
+  @override
+  String get divorceDate => 'Divorce date';
+
+  @override
+  String get formerSpouse => 'Former spouse';
+
+  @override
+  String get formerSpouses => 'Former spouses';
+
+  @override
+  String get restoreMarriage => 'Restore marriage';
+
+  @override
+  String get divorceHistory => 'Marriage history';
 
   @override
   String get widowed => 'Widowed';
@@ -963,6 +1020,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hideCode => 'Hide code';
+
+  @override
+  String get showPassword => 'Show password';
+
+  @override
+  String get hidePassword => 'Hide password';
 
   @override
   String get codeType => 'Code type';

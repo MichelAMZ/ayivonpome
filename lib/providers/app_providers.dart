@@ -10,6 +10,7 @@ import '../services/data_cleanup_service.dart';
 import '../services/admin_service.dart';
 import '../services/admin_access_service.dart';
 import '../services/access_code_service.dart';
+import '../services/app_settings_service.dart';
 import '../services/family_relation_service.dart';
 import '../services/family_council_service.dart';
 import '../services/family_announcement_service.dart';
@@ -20,10 +21,12 @@ import '../services/info_news_service.dart';
 import '../services/json_storage_service.dart';
 import '../services/kpi_service.dart';
 import '../services/map_service.dart';
+import '../services/marriage_service.dart';
 import '../services/modification_history_service.dart';
 import '../services/modification_code_service.dart';
 import '../services/notification_service.dart';
 import '../services/push_notification_provider.dart';
+import '../services/tree_view_settings_service.dart';
 
 final jsonStorageServiceProvider = Provider<JsonStorageService>(
   (ref) => JsonStorageService(),
@@ -51,6 +54,10 @@ final dataCleanupServiceProvider = Provider<DataCleanupService>(
 
 final mapServiceProvider = Provider<MapService>((ref) => MapService());
 
+final marriageServiceProvider = Provider<MarriageService>(
+  (ref) => const MarriageService(),
+);
+
 final communicationServiceProvider = Provider<CommunicationService>(
   (ref) => CommunicationService(),
 );
@@ -69,6 +76,14 @@ final adminAccessServiceProvider = Provider<AdminAccessService>(
 
 final accessCodeServiceProvider = Provider<AccessCodeService>(
   (ref) => const AccessCodeService(),
+);
+
+final appSettingsServiceProvider = Provider<AppSettingsService>(
+  (ref) => const AppSettingsService(),
+);
+
+final treeViewSettingsServiceProvider = Provider<TreeViewSettingsService>(
+  (ref) => const TreeViewSettingsService(),
 );
 
 final familyRelationServiceProvider = Provider<FamilyRelationService>(

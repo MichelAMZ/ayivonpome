@@ -6,6 +6,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import 'admin_contact_card.dart';
+import 'secure_code_text_field.dart';
 
 class ModificationCodeRequiredDialog extends ConsumerStatefulWidget {
   const ModificationCodeRequiredDialog({super.key});
@@ -44,12 +45,10 @@ class _ModificationCodeRequiredDialogState
               const SizedBox(height: 12),
               ...admins.map((admin) => AdminContactCard(admin: admin)),
               const SizedBox(height: 12),
-              TextField(
+              SecureCodeTextField(
                 controller: _controller,
-                decoration: InputDecoration(
-                  labelText: l10n.enterModificationCode,
-                  errorText: _error,
-                ),
+                label: l10n.enterModificationCode,
+                errorText: _error,
                 onSubmitted: (_) => _unlock(),
               ),
             ],
@@ -61,10 +60,7 @@ class _ModificationCodeRequiredDialogState
           onPressed: () => Navigator.pop(context, false),
           child: Text(l10n.cancel),
         ),
-        FilledButton(
-          onPressed: _unlock,
-          child: Text(l10n.enter),
-        ),
+        FilledButton(onPressed: _unlock, child: Text(l10n.enter)),
       ],
     );
   }
@@ -77,9 +73,9 @@ class _ModificationCodeRequiredDialogState
     if (!mounted) return;
     if (ok) {
       Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.validModificationCode)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.validModificationCode)));
     } else {
       setState(() => _error = l10n.invalidModificationCode);
     }

@@ -1,15 +1,19 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
+import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import 'person_card.dart';
-import 'responsive.dart';
 
-class FamilyTreeCanvas extends StatefulWidget {
+class FamilyTreeCanvas extends ConsumerStatefulWidget {
   const FamilyTreeCanvas({
     super.key,
     required this.data,
@@ -24,12 +28,19 @@ class FamilyTreeCanvas extends StatefulWidget {
   final double topReservedSpace;
 
   @override
-  State<FamilyTreeCanvas> createState() => _FamilyTreeCanvasState();
+  ConsumerState<FamilyTreeCanvas> createState() => _FamilyTreeCanvasState();
 }
 
-class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
+class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
+  static const _virtualCanvasMargin = 600.0;
+  static const _panBoundaryMargin = 2000.0;
+
   final _controller = TransformationController();
   var _scale = 1.0;
+  var _needsInitialView = true;
+  Size? _lastViewport;
+  Size? _lastTreeSize;
+  Size? _lastLayoutSize;
 
   @override
   void dispose() {
@@ -47,6 +58,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = _TreeMetrics.fromWidth(constraints.maxWidth);
+        final treeSettings = widget.data.appSettings.treeSettings;
         final layout = _TreeLayout.build(
           data: widget.data,
           metrics: metrics,
@@ -54,9 +66,19 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         );
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
         final treeSize = Size(
-          math.max(layout.size.width, viewport.width),
-          math.max(layout.size.height, viewport.height),
+          math.max(
+            viewport.width,
+            layout.size.width + _virtualCanvasMargin * 2,
+          ),
+          math.max(
+            viewport.height,
+            layout.size.height + _virtualCanvasMargin * 2,
+          ),
         );
+        _lastViewport = viewport;
+        _lastTreeSize = treeSize;
+        _lastLayoutSize = layout.size;
+        _scheduleInitialView(viewport, treeSize);
         final offset = Offset(
           math.max((treeSize.width - layout.size.width) / 2, 0),
           math.max((treeSize.height - layout.size.height) / 2, 0),
@@ -66,54 +88,63 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
           color: const Color(0xFFFBFCF7),
           child: Stack(
             children: [
-              InteractiveViewer(
-                transformationController: _controller,
-                minScale: ResponsiveBreakpoints.isMobile(context) ? 0.35 : 0.45,
-                maxScale: 2.4,
-                panAxis: PanAxis.free,
-                clipBehavior: Clip.none,
-                boundaryMargin: EdgeInsets.all(metrics.canvasPadding * 3),
-                onInteractionUpdate: (_) {
-                  final next = _controller.value.getMaxScaleOnAxis();
-                  if ((next - _scale).abs() > 0.01) {
-                    setState(() => _scale = next);
-                  }
-                },
-                child: SizedBox(
-                  width: treeSize.width,
-                  height: treeSize.height,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: RepaintBoundary(
-                          child: CustomPaint(
-                            painter: _TreeConnectorPainter(layout, offset),
-                          ),
-                        ),
-                      ),
-                      for (final marker in layout.marriageMarkers)
-                        Positioned(
-                          left: offset.dx + marker.center.dx - 24,
-                          top: offset.dy + marker.center.dy - 18,
-                          child: _MarriageMarker(year: marker.year),
-                        ),
-                      for (final entry in layout.nodes.entries)
-                        Positioned(
-                          left: offset.dx + entry.value.left,
-                          top: offset.dy + entry.value.top,
+              Listener(
+                onPointerSignal: _handlePointerSignal,
+                child: InteractiveViewer(
+                  constrained: false,
+                  transformationController: _controller,
+                  minScale: treeSettings.minZoom,
+                  maxScale: treeSettings.maxZoom,
+                  panAxis: PanAxis.free,
+                  clipBehavior: Clip.none,
+                  boundaryMargin: const EdgeInsets.all(_panBoundaryMargin),
+                  onInteractionUpdate: (_) {
+                    final next = _controller.value.getMaxScaleOnAxis();
+                    if ((next - _scale).abs() > 0.01) {
+                      setState(() => _scale = next);
+                    }
+                  },
+                  onInteractionEnd: (_) => _saveLastZoom(),
+                  child: SizedBox(
+                    width: treeSize.width,
+                    height: treeSize.height,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
                           child: RepaintBoundary(
-                            child: PersonCard(
-                              person: entry.key,
-                              data: widget.data,
-                              authMode: widget.authMode,
-                              width: metrics.cardWidth,
-                              height: metrics.cardHeight,
-                              compact: constraints.maxWidth < 700,
-                              onOpen: () => widget.onOpenPerson(entry.key),
+                            child: CustomPaint(
+                              painter: _TreeConnectorPainter(layout, offset),
                             ),
                           ),
                         ),
-                    ],
+                        for (final marker in layout.marriageMarkers)
+                          Positioned(
+                            left: offset.dx + marker.center.dx - 24,
+                            top: offset.dy + marker.center.dy - 18,
+                            child: _MarriageMarker(
+                              marriageYear: marker.marriageYear,
+                              divorceYear: marker.divorceYear,
+                              status: marker.status,
+                            ),
+                          ),
+                        for (final entry in layout.nodes.entries)
+                          Positioned(
+                            left: offset.dx + entry.value.left,
+                            top: offset.dy + entry.value.top,
+                            child: RepaintBoundary(
+                              child: PersonCard(
+                                person: entry.key,
+                                data: widget.data,
+                                authMode: widget.authMode,
+                                width: metrics.cardWidth,
+                                height: metrics.cardHeight,
+                                compact: constraints.maxWidth < 700,
+                                onOpen: () => widget.onOpenPerson(entry.key),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -143,6 +174,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
                   onZoomIn: () => _applyScale(1.15),
                   onZoomOut: () => _applyScale(0.87),
                   onReset: _resetView,
+                  onFit: _fitTreeView,
                 ),
               ),
               Positioned(
@@ -159,15 +191,95 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
   }
 
   void _applyScale(double factor) {
-    final minScale = ResponsiveBreakpoints.isMobile(context) ? 0.35 : 0.45;
-    final next = (_scale * factor).clamp(minScale, 2.4);
+    final settings = widget.data.appSettings.treeSettings;
+    final next = (_scale * factor).clamp(settings.minZoom, settings.maxZoom);
     setState(() => _scale = next.toDouble());
-    _controller.value = Matrix4.identity()..scaleByDouble(_scale, _scale, 1, 1);
+    _controller.value = _centeredMatrix(_scale);
+    _saveLastZoom();
   }
 
   void _resetView() {
-    setState(() => _scale = 1);
-    _controller.value = Matrix4.identity();
+    final zoom = ref
+        .read(treeViewSettingsServiceProvider)
+        .getInitialZoom(context, widget.data.appSettings.treeSettings);
+    setState(() => _scale = zoom);
+    _controller.value = _centeredMatrix(zoom);
+    _saveLastZoom();
+  }
+
+  void _fitTreeView() {
+    final viewport = _lastViewport;
+    final layoutSize = _lastLayoutSize;
+    if (viewport == null || layoutSize == null) {
+      _resetView();
+      return;
+    }
+    final settings = widget.data.appSettings.treeSettings;
+    const fitPadding = 96.0;
+    final widthScale =
+        (viewport.width - fitPadding).clamp(120, double.infinity) /
+        layoutSize.width;
+    final heightScale =
+        (viewport.height - fitPadding).clamp(120, double.infinity) /
+        layoutSize.height;
+    final zoom = math
+        .min(widthScale, heightScale)
+        .clamp(settings.minZoom, settings.maxZoom)
+        .toDouble();
+    setState(() => _scale = zoom);
+    _controller.value = _centeredMatrix(zoom);
+    _saveLastZoom();
+    _showFeedback('Tout l’arbre est visible');
+  }
+
+  void _scheduleInitialView(Size viewport, Size treeSize) {
+    if (!_needsInitialView) return;
+    _needsInitialView = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final settings = widget.data.appSettings.treeSettings;
+      final service = ref.read(treeViewSettingsServiceProvider);
+      final fallbackZoom = service.getInitialZoom(context, settings);
+      final restoredZoom = await service.restoreLastZoom(settings);
+      if (!mounted) return;
+      final zoom = restoredZoom ?? fallbackZoom;
+      setState(() => _scale = zoom);
+      _controller.value = _centeredMatrix(zoom, viewport, treeSize);
+    });
+  }
+
+  Matrix4 _centeredMatrix([double? zoom, Size? viewport, Size? treeSize]) {
+    final scale = zoom ?? _scale;
+    final effectiveViewport = viewport ?? _lastViewport;
+    final effectiveTreeSize = treeSize ?? _lastTreeSize;
+    if (effectiveViewport == null || effectiveTreeSize == null) {
+      return Matrix4.identity()..scaleByDouble(scale, scale, 1, 1);
+    }
+    final dx = (effectiveViewport.width - effectiveTreeSize.width * scale) / 2;
+    final dy =
+        (effectiveViewport.height - effectiveTreeSize.height * scale) / 2;
+    return Matrix4.identity()
+      ..translateByDouble(dx, dy, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
+  }
+
+  void _saveLastZoom() {
+    if (!widget.data.appSettings.treeSettings.rememberLastZoom) return;
+    ref.read(treeViewSettingsServiceProvider).saveLastZoom(_scale);
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    final keys = HardwareKeyboard.instance.logicalKeysPressed;
+    final shiftPressed =
+        keys.contains(LogicalKeyboardKey.shiftLeft) ||
+        keys.contains(LogicalKeyboardKey.shiftRight);
+    final delta = shiftPressed
+        ? Offset(-event.scrollDelta.dy, 0)
+        : Offset(-event.scrollDelta.dx, -event.scrollDelta.dy);
+    if (delta == Offset.zero) return;
+    _controller.value = _controller.value.clone()
+      ..translateByDouble(delta.dx, delta.dy, 0, 1);
   }
 
   Future<void> _openFullscreenCanvas() async {
@@ -176,7 +288,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         fullscreenDialog: true,
         builder: (context) => Scaffold(
           appBar: AppBar(
-            title: const Text('Arbre généalogique'),
+            title: Text(AppLocalizations.of(context).totalMembersTitle),
             actions: [
               IconButton(
                 tooltip: 'Fermer',
@@ -280,8 +392,13 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
               ),
               ListTile(
                 leading: const Icon(Icons.zoom_out_map),
-                title: const Text('Zoom 100%'),
-                onTap: () => Navigator.pop(context, 'zoom100'),
+                title: const Text('Voir tout l’arbre'),
+                onTap: () => Navigator.pop(context, 'fit'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.center_focus_strong_outlined),
+                title: const Text('Revenir au zoom initial'),
+                onTap: () => Navigator.pop(context, 'initialZoom'),
               ),
               ListTile(
                 leading: const Icon(Icons.fullscreen),
@@ -293,11 +410,14 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         ),
       ),
     );
-    if (selected == 'center' || selected == 'zoom100') {
+    if (selected == 'center' || selected == 'initialZoom') {
       _resetView();
       _showFeedback(
-        selected == 'center' ? 'Arbre recentré' : 'Zoom réinitialisé à 100%',
+        selected == 'center' ? 'Arbre recentré' : 'Zoom initial restauré',
       );
+    }
+    if (selected == 'fit') {
+      _fitTreeView();
     }
     if (selected == 'fullscreen') {
       await _openFullscreenCanvas();
@@ -354,7 +474,7 @@ class _TreeMetrics {
         cardGap: 12,
         spouseGap: 12,
         cardWidth: 310,
-        cardHeight: 112,
+        cardHeight: 122,
       );
     }
     if (width < 1000) {
@@ -364,7 +484,7 @@ class _TreeMetrics {
         cardGap: 18,
         spouseGap: 18,
         cardWidth: 360,
-        cardHeight: 118,
+        cardHeight: 126,
       );
     }
     return const _TreeMetrics(
@@ -373,7 +493,7 @@ class _TreeMetrics {
       cardGap: 32,
       spouseGap: 44,
       cardWidth: 430,
-      cardHeight: 126,
+      cardHeight: 132,
     );
   }
 }
@@ -453,7 +573,9 @@ class _TreeLayout {
           markers.add(
             _MarriageMarkerData(
               center: Offset((first.right + second.left) / 2, first.center.dy),
-              year: _yearOf(relation?.marriageDate ?? ''),
+              marriageYear: _yearOf(relation?.marriageDate ?? ''),
+              divorceYear: _yearOf(relation?.divorceDate ?? ''),
+              status: relation?.status ?? 'unknown',
             ),
           );
         }
@@ -595,10 +717,17 @@ class _ParentLink {
 }
 
 class _MarriageMarkerData {
-  const _MarriageMarkerData({required this.center, required this.year});
+  const _MarriageMarkerData({
+    required this.center,
+    required this.marriageYear,
+    required this.divorceYear,
+    required this.status,
+  });
 
   final Offset center;
-  final String year;
+  final String marriageYear;
+  final String divorceYear;
+  final String status;
 }
 
 class _TreeConnectorPainter extends CustomPainter {
@@ -618,13 +747,19 @@ class _TreeConnectorPainter extends CustomPainter {
       ..color = const Color(0xFFB9C4B4)
       ..strokeWidth = 1.25
       ..strokeCap = StrokeCap.round;
+    final divorcedMarriage = Paint()
+      ..color = const Color(0xFFE5A6AE)
+      ..strokeWidth = 1.25
+      ..strokeCap = StrokeCap.round;
 
     for (final marker in layout.marriageMarkers) {
-      canvas.drawLine(
-        offset + Offset(marker.center.dx - 30, marker.center.dy),
-        offset + Offset(marker.center.dx + 30, marker.center.dy),
-        marriage,
-      );
+      final start = offset + Offset(marker.center.dx - 30, marker.center.dy);
+      final end = offset + Offset(marker.center.dx + 30, marker.center.dy);
+      if (marker.status == 'divorced') {
+        _drawDashedLine(canvas, start, end, divorcedMarriage);
+      } else {
+        canvas.drawLine(start, end, marriage);
+      }
     }
 
     for (final link in layout.parentLinks) {
@@ -656,6 +791,23 @@ class _TreeConnectorPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TreeConnectorPainter oldDelegate) {
     return oldDelegate.layout != layout || oldDelegate.offset != offset;
+  }
+
+  void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
+    const dashWidth = 6.0;
+    const dashGap = 4.0;
+    final distance = (end - start).distance;
+    final direction = (end - start) / distance;
+    var current = 0.0;
+    while (current < distance) {
+      final next = math.min(current + dashWidth, distance);
+      canvas.drawLine(
+        start + direction * current,
+        start + direction * next,
+        paint,
+      );
+      current += dashWidth + dashGap;
+    }
   }
 }
 
@@ -816,12 +968,14 @@ class TreeZoomControls extends StatelessWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onReset,
+    required this.onFit,
   });
 
   final double scale;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onReset;
+  final VoidCallback onFit;
 
   @override
   Widget build(BuildContext context) {
@@ -888,6 +1042,26 @@ class TreeZoomControls extends StatelessWidget {
             icon: Icons.my_location_outlined,
             tooltip: 'Recentrer',
             onPressed: onReset,
+          ),
+        ),
+        const SizedBox(height: 10),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E7DC)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12000000),
+                blurRadius: 16,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: _ToolbarButton(
+            icon: Icons.fit_screen_outlined,
+            tooltip: 'Voir tout l’arbre',
+            onPressed: onFit,
           ),
         ),
       ],
@@ -958,6 +1132,11 @@ class TreeLegend extends StatelessWidget {
                 color: Color(0xFFE6A400),
               ),
               _LegendItem(
+                icon: '💔',
+                label: 'Divorcé(e)',
+                color: Color(0xFFD64D61),
+              ),
+              _LegendItem(
                 icon: '📍',
                 label: 'Lieu connu',
                 color: Color(0xFF4C7A2E),
@@ -998,9 +1177,15 @@ class _LegendItem extends StatelessWidget {
 }
 
 class _MarriageMarker extends StatelessWidget {
-  const _MarriageMarker({required this.year});
+  const _MarriageMarker({
+    required this.marriageYear,
+    required this.divorceYear,
+    required this.status,
+  });
 
-  final String year;
+  final String marriageYear;
+  final String divorceYear;
+  final String status;
 
   @override
   Widget build(BuildContext context) {
@@ -1008,20 +1193,30 @@ class _MarriageMarker extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '∞',
+          Text(
+            status == 'divorced' ? '💔' : '∞',
             style: TextStyle(
-              color: Color(0xFFE6A400),
-              fontSize: 28,
-              height: 0.8,
+              color: status == 'divorced'
+                  ? const Color(0xFFD64D61)
+                  : const Color(0xFFE6A400),
+              fontSize: status == 'divorced' ? 20 : 28,
+              height: 0.9,
               fontWeight: FontWeight.w700,
             ),
           ),
-          if (year.isNotEmpty)
+          if (marriageYear.isNotEmpty)
             Text(
-              year,
+              '💍 $marriageYear',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: const Color(0xFF4F4F45),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          if (divorceYear.isNotEmpty)
+            Text(
+              '💔 $divorceYear',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: const Color(0xFF9A2636),
                 fontWeight: FontWeight.w600,
               ),
             ),

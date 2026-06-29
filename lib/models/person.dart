@@ -7,6 +7,8 @@ class Person {
     required this.id,
     this.firstName = '',
     this.lastName = '',
+    this.birthLastName = '',
+    this.originalLastName = '',
     this.gender = '',
     this.birthDate = '',
     this.birthPlace = '',
@@ -43,6 +45,8 @@ class Person {
   final String id;
   final String firstName;
   final String lastName;
+  final String birthLastName;
+  final String originalLastName;
   final String gender;
   final String birthDate;
   final String birthPlace;
@@ -80,92 +84,116 @@ class Person {
     return value.isEmpty ? id : value;
   }
 
+  String get originLastName {
+    final birthName = birthLastName.trim();
+    if (birthName.isNotEmpty) return birthName;
+    return originalLastName.trim();
+  }
+
+  bool get isFemale {
+    final value = gender.toLowerCase().trim();
+    return value == 'female' || value == 'f' || value == 'femme';
+  }
+
+  bool get shouldShowOriginLastName {
+    final origin = originLastName;
+    if (origin.isEmpty) return false;
+    if (origin.toLowerCase() == lastName.trim().toLowerCase()) return false;
+    return isFemale || originalLastName.trim().isNotEmpty;
+  }
+
   factory Person.fromJson(Map<String, dynamic> json) => Person(
-        id: json['id'] as String? ?? '',
-        firstName: json['firstName'] as String? ?? '',
-        lastName: json['lastName'] as String? ?? '',
-        gender: json['gender'] as String? ?? '',
-        birthDate: json['birthDate'] as String? ?? '',
-        birthPlace: json['birthPlace'] as String? ?? '',
-        deathDate: json['deathDate'] as String? ?? '',
-        deathPlace: json['deathPlace'] as String? ?? '',
-        publicMapLocation: json['publicMapLocation'] as String? ?? '',
-        currentAddress: json['currentAddress'] as String? ?? '',
-        burialPlace: json['burialPlace'] as String? ?? '',
-        latitude: (json['latitude'] as num?)?.toDouble(),
-        longitude: (json['longitude'] as num?)?.toDouble(),
-        importantPlaces: (json['importantPlaces'] as List? ?? const [])
-            .whereType<Map>()
-            .map((item) => ImportantPlace.fromJson(Map<String, dynamic>.from(item)))
-            .toList(),
-        email: json['email'] as String? ?? '',
-        phoneNumber: json['phoneNumber'] as String? ?? '',
-        whatsappNumber: json['whatsappNumber'] as String? ?? '',
-        allowContact: json['allowContact'] as bool? ?? true,
-        emailVisibility: json['emailVisibility'] as String? ?? 'familyOnly',
-        phoneVisibility: json['phoneVisibility'] as String? ?? 'familyOnly',
-        whatsappVisibility: json['whatsappVisibility'] as String? ?? 'familyOnly',
-        privacy: PersonPrivacy.fromJson(
-          Map<String, dynamic>.from(json['privacy'] as Map? ?? const {}),
-        ),
-        photo: json['photo'] as String? ?? '',
-        familyCode: json['familyCode'] as String? ?? '',
-        fatherId: json['fatherId'] as String? ?? '',
-        motherId: json['motherId'] as String? ?? '',
-        spouseIds: List<String>.from(json['spouseIds'] as List? ?? const []),
-        childrenIds: List<String>.from(json['childrenIds'] as List? ?? const []),
-        marriageType: json['marriageType'] as String? ?? 'unknown',
-        parents: List<String>.from(json['parents'] as List? ?? const []),
-        spouses: List<String>.from(json['spouses'] as List? ?? const []),
-        children: List<String>.from(json['children'] as List? ?? const []),
-        history: (json['history'] as List? ?? const [])
-            .whereType<Map>()
-            .map((item) => HistoryEvent.fromJson(Map<String, dynamic>.from(item)))
-            .toList(),
-        notes: json['notes'] as String? ?? '',
-      );
+    id: json['id'] as String? ?? '',
+    firstName: json['firstName'] as String? ?? '',
+    lastName: json['lastName'] as String? ?? '',
+    birthLastName: json['birthLastName'] as String? ?? '',
+    originalLastName: json['originalLastName'] as String? ?? '',
+    gender: json['gender'] as String? ?? '',
+    birthDate: json['birthDate'] as String? ?? '',
+    birthPlace: json['birthPlace'] as String? ?? '',
+    deathDate: json['deathDate'] as String? ?? '',
+    deathPlace: json['deathPlace'] as String? ?? '',
+    publicMapLocation: json['publicMapLocation'] as String? ?? '',
+    currentAddress: json['currentAddress'] as String? ?? '',
+    burialPlace: json['burialPlace'] as String? ?? '',
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
+    importantPlaces: (json['importantPlaces'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => ImportantPlace.fromJson(Map<String, dynamic>.from(item)))
+        .toList(),
+    email: json['email'] as String? ?? '',
+    phoneNumber: json['phoneNumber'] as String? ?? '',
+    whatsappNumber: json['whatsappNumber'] as String? ?? '',
+    allowContact: json['allowContact'] as bool? ?? true,
+    emailVisibility: json['emailVisibility'] as String? ?? 'familyOnly',
+    phoneVisibility: json['phoneVisibility'] as String? ?? 'familyOnly',
+    whatsappVisibility: json['whatsappVisibility'] as String? ?? 'familyOnly',
+    privacy: PersonPrivacy.fromJson(
+      Map<String, dynamic>.from(json['privacy'] as Map? ?? const {}),
+    ),
+    photo: json['photo'] as String? ?? '',
+    familyCode: json['familyCode'] as String? ?? '',
+    fatherId: json['fatherId'] as String? ?? '',
+    motherId: json['motherId'] as String? ?? '',
+    spouseIds: List<String>.from(json['spouseIds'] as List? ?? const []),
+    childrenIds: List<String>.from(json['childrenIds'] as List? ?? const []),
+    marriageType: json['marriageType'] as String? ?? 'unknown',
+    parents: List<String>.from(json['parents'] as List? ?? const []),
+    spouses: List<String>.from(json['spouses'] as List? ?? const []),
+    children: List<String>.from(json['children'] as List? ?? const []),
+    history: (json['history'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => HistoryEvent.fromJson(Map<String, dynamic>.from(item)))
+        .toList(),
+    notes: json['notes'] as String? ?? '',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'firstName': firstName,
-        'lastName': lastName,
-        'gender': gender,
-        'birthDate': birthDate,
-        'birthPlace': birthPlace,
-        'deathDate': deathDate,
-        'deathPlace': deathPlace,
-        'publicMapLocation': publicMapLocation,
-        'currentAddress': currentAddress,
-        'burialPlace': burialPlace,
-        'latitude': latitude,
-        'longitude': longitude,
-        'importantPlaces': importantPlaces.map((place) => place.toJson()).toList(),
-        'email': email,
-        'phoneNumber': phoneNumber,
-        'whatsappNumber': whatsappNumber,
-        'allowContact': allowContact,
-        'emailVisibility': emailVisibility,
-        'phoneVisibility': phoneVisibility,
-        'whatsappVisibility': whatsappVisibility,
-        'privacy': privacy.toJson(),
-        'photo': photo,
-        'familyCode': familyCode,
-        'fatherId': fatherId,
-        'motherId': motherId,
-        'spouseIds': spouseIds,
-        'childrenIds': childrenIds,
-        'marriageType': marriageType,
-        'parents': parents,
-        'spouses': spouses,
-        'children': children,
-        'history': history.map((event) => event.toJson()).toList(),
-        'notes': notes,
-      };
+    'id': id,
+    'firstName': firstName,
+    'lastName': lastName,
+    'birthLastName': birthLastName,
+    'originalLastName': originalLastName,
+    'gender': gender,
+    'birthDate': birthDate,
+    'birthPlace': birthPlace,
+    'deathDate': deathDate,
+    'deathPlace': deathPlace,
+    'publicMapLocation': publicMapLocation,
+    'currentAddress': currentAddress,
+    'burialPlace': burialPlace,
+    'latitude': latitude,
+    'longitude': longitude,
+    'importantPlaces': importantPlaces.map((place) => place.toJson()).toList(),
+    'email': email,
+    'phoneNumber': phoneNumber,
+    'whatsappNumber': whatsappNumber,
+    'allowContact': allowContact,
+    'emailVisibility': emailVisibility,
+    'phoneVisibility': phoneVisibility,
+    'whatsappVisibility': whatsappVisibility,
+    'privacy': privacy.toJson(),
+    'photo': photo,
+    'familyCode': familyCode,
+    'fatherId': fatherId,
+    'motherId': motherId,
+    'spouseIds': spouseIds,
+    'childrenIds': childrenIds,
+    'marriageType': marriageType,
+    'parents': parents,
+    'spouses': spouses,
+    'children': children,
+    'history': history.map((event) => event.toJson()).toList(),
+    'notes': notes,
+  };
 
   Person copyWith({
     String? id,
     String? firstName,
     String? lastName,
+    String? birthLastName,
+    String? originalLastName,
     String? gender,
     String? birthDate,
     String? birthPlace,
@@ -202,6 +230,8 @@ class Person {
       id: id ?? this.id,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
+      birthLastName: birthLastName ?? this.birthLastName,
+      originalLastName: originalLastName ?? this.originalLastName,
       gender: gender ?? this.gender,
       birthDate: birthDate ?? this.birthDate,
       birthPlace: birthPlace ?? this.birthPlace,

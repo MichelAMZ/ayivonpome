@@ -11,6 +11,7 @@ import '../widgets/location_tile.dart';
 import '../widgets/mini_map_card.dart';
 import '../widgets/modification_code_required_dialog.dart';
 import '../widgets/notify_person_button.dart';
+import '../widgets/person_origin_name_text.dart';
 import 'person_edit_screen.dart';
 
 class PersonDetailScreen extends ConsumerWidget {
@@ -40,11 +41,13 @@ class PersonDetailScreen extends ConsumerWidget {
             IconButton(
               tooltip: l10n.googleMaps,
               icon: const Icon(Icons.location_on_outlined),
-              onPressed: () => ref.read(mapServiceProvider).openInGoogleMaps(
+              onPressed: () => ref
+                  .read(mapServiceProvider)
+                  .openInGoogleMaps(
                     address: authenticated
                         ? (person.currentAddress.isNotEmpty
-                            ? person.currentAddress
-                            : person.birthPlace)
+                              ? person.currentAddress
+                              : person.birthPlace)
                         : person.publicMapLocation,
                     latitude: authenticated ? person.latitude : null,
                     longitude: authenticated ? person.longitude : null,
@@ -81,12 +84,25 @@ class PersonDetailScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const CircleAvatar(radius: 36, child: Icon(Icons.person, size: 36)),
+              const CircleAvatar(
+                radius: 36,
+                child: Icon(Icons.person, size: 36),
+              ),
               const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  person.fullName,
-                  style: Theme.of(context).textTheme.headlineSmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      person.fullName,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    PersonOriginNameText(
+                      person: person,
+                      fontSize: 14,
+                      topPadding: 4,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -115,6 +131,8 @@ class PersonDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             _Tile(label: l10n.gender, value: person.gender),
+            if (person.shouldShowOriginLastName)
+              _Tile(label: l10n.bornLastName, value: person.originLastName),
             _Tile(label: l10n.birthDate, value: person.birthDate),
             MiniMapCard(
               address: person.currentAddress.isNotEmpty
@@ -172,22 +190,26 @@ class PersonDetailScreen extends ConsumerWidget {
                   child: ListTile(
                     title: Text(event.title.isEmpty ? event.date : event.title),
                     subtitle: Text(
-                      [event.date, event.place, event.description]
-                          .where((item) => item.isNotEmpty)
-                          .join('\n'),
+                      [
+                        event.date,
+                        event.place,
+                        event.description,
+                      ].where((item) => item.isNotEmpty).join('\n'),
                     ),
-                    trailing: event.place.isEmpty &&
+                    trailing:
+                        event.place.isEmpty &&
                             (event.latitude == null || event.longitude == null)
                         ? null
                         : IconButton(
                             tooltip: l10n.googleMaps,
                             icon: const Icon(Icons.map_outlined),
-                            onPressed: () =>
-                                ref.read(mapServiceProvider).openInGoogleMaps(
-                                      address: event.place,
-                                      latitude: event.latitude,
-                                      longitude: event.longitude,
-                                    ),
+                            onPressed: () => ref
+                                .read(mapServiceProvider)
+                                .openInGoogleMaps(
+                                  address: event.place,
+                                  latitude: event.latitude,
+                                  longitude: event.longitude,
+                                ),
                           ),
                   ),
                 ),
@@ -198,7 +220,11 @@ class PersonDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref, Person person) async {
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    Person person,
+  ) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -235,7 +261,9 @@ class PersonDetailScreen extends ConsumerWidget {
       action();
       return;
     }
-    await ref.read(familyTreeProvider.notifier).addAuditLog(
+    await ref
+        .read(familyTreeProvider.notifier)
+        .addAuditLog(
           'modification_code_required',
           actorRole: auth.session?.role ?? 'viewer',
           personId: personId,
