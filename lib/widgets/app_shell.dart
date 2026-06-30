@@ -8,6 +8,7 @@ import '../providers/app_providers.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/family_leader_provider.dart';
 import '../providers/family_tree_provider.dart';
+import '../providers/members_count_provider.dart';
 import '../screens/admin_dashboard_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/family_honor_hall_screen.dart';
@@ -28,8 +29,10 @@ import 'family_council_button.dart';
 import 'family_history_button.dart';
 import 'family_leader_premium_badge.dart';
 import 'info_news_bar.dart';
+import 'language_selector_button.dart';
 import 'responsive.dart';
 import 'secure_code_text_field.dart';
+import 'topbar_family_logo.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -155,10 +158,10 @@ class _AppShellState extends ConsumerState<AppShell> {
           backgroundColor: const Color(0xFFFBFCF7),
           appBar: AppBar(
             toolbarHeight: device == ResponsiveDevice.desktop
-                ? 104
+                ? 150
                 : device == ResponsiveDevice.tablet
-                ? 88
-                : 72,
+                ? 112
+                : 80,
             elevation: 0,
             scrolledUnderElevation: 0,
             backgroundColor: const Color(0xFFFFFEFA),
@@ -191,7 +194,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           body: Column(
             children: [
               const InfoNewsBar(),
-              const _FamilyLeadershipBanner(),
+              const _OptionalFamilyLeadershipBanner(),
               Expanded(child: screens[_index]),
             ],
           ),
@@ -233,7 +236,9 @@ class _AppShellState extends ConsumerState<AppShell> {
         : () => _showAccessDialog(context);
     if (compact) {
       return [
-        BugReportButton(compact: true, initialScreen: _currentScreenName()),
+        const LanguageSelectorButton(compact: true),
+        if (authenticated)
+          BugReportButton(compact: true, initialScreen: _currentScreenName()),
         IconButton(
           tooltip: authenticated ? l10n.logout : l10n.enterAccessCode,
           onPressed: authAction,
@@ -248,7 +253,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 MaterialPageRoute(builder: (_) => const FamilyHistoryScreen()),
               );
             }
-            if (value == 'council') {
+            if (value == 'council' && authenticated) {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const FamilyCouncilScreen()),
               );
@@ -261,40 +266,47 @@ class _AppShellState extends ConsumerState<AppShell> {
                 children: [
                   const Icon(Icons.menu_book_outlined),
                   const SizedBox(width: 12),
-                  Text(l10n.familyHistory),
+                  Text(l10n.ourHistory),
                 ],
               ),
             ),
-            PopupMenuItem(
-              value: 'council',
-              child: Row(
-                children: [
-                  const Icon(Icons.groups_outlined),
-                  const SizedBox(width: 12),
-                  Text(l10n.familyCouncil),
-                ],
+            if (authenticated)
+              PopupMenuItem(
+                value: 'council',
+                child: Row(
+                  children: [
+                    const Icon(Icons.groups_outlined),
+                    const SizedBox(width: 12),
+                    Text(l10n.familyCouncil),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(width: 8),
       ];
     }
     return [
-      BugReportButton(initialScreen: _currentScreenName()),
+      const LanguageSelectorButton(),
       const SizedBox(width: 10),
+      if (authenticated) ...[
+        BugReportButton(initialScreen: _currentScreenName()),
+        const SizedBox(width: 10),
+      ],
       FamilyHistoryButton(
         onPressed: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const FamilyHistoryScreen())),
       ),
       const SizedBox(width: 10),
-      FamilyCouncilButton(
-        onPressed: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const FamilyCouncilScreen())),
-      ),
-      const SizedBox(width: 10),
+      if (authenticated) ...[
+        FamilyCouncilButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const FamilyCouncilScreen()),
+          ),
+        ),
+        const SizedBox(width: 10),
+      ],
       if (authenticated)
         OutlinedButton.icon(
           onPressed: authAction,
@@ -451,6 +463,8 @@ class _AppShellState extends ConsumerState<AppShell> {
         invalidMessage: l10n.invalidAdminCode,
         cancelLabel: l10n.cancel,
         submitLabel: l10n.enter,
+        forgotCodeLabel: l10n.forgotCode,
+        onForgotCode: () => _showSuperAdminRecoveryDialog(dialogContext),
         debugAdminFlow: true,
         onValidate: (code) async => _validateAdminCode(code),
       ),
@@ -460,6 +474,69 @@ class _AppShellState extends ConsumerState<AppShell> {
       _showAdminRotationReminderIfNeeded();
     }
     return result == true;
+  }
+
+  Future<void> _showSuperAdminRecoveryDialog(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .addAuditLog(
+          'super_admin_recovery_opened',
+          actorRole: 'superAdminRecovery',
+        );
+    if (!context.mounted) return;
+    final recoveryCode = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _SuperAdminRecoveryCodeDialog(
+        onValidate: (code) async {
+          final data = ref.read(familyTreeProvider).value;
+          if (data == null) return false;
+          final ok = ref
+              .read(superAdminRecoveryServiceProvider)
+              .validate(data, code);
+          await ref
+              .read(familyTreeProvider.notifier)
+              .addAuditLog(
+                ok
+                    ? 'super_admin_recovery_success'
+                    : 'super_admin_recovery_failed',
+                actorRole: 'superAdminRecovery',
+              );
+          return ok;
+        },
+      ),
+    );
+    if (recoveryCode == null || !context.mounted) return;
+    final didReset = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _SuperAdminResetCodesDialog(
+        recoveryCode: recoveryCode,
+        onReset:
+            ({
+              required recoveryCode,
+              required familyAccessCode,
+              required adminKpiCode,
+              required modificationCode,
+              required generateAll,
+            }) async {
+              return ref
+                  .read(familyTreeProvider.notifier)
+                  .resetCodesWithSuperAdminRecovery(
+                    recoveryCode: recoveryCode,
+                    familyAccessCode: familyAccessCode,
+                    adminKpiCode: adminKpiCode,
+                    modificationCode: modificationCode,
+                    generateAll: generateAll,
+                  );
+            },
+      ),
+    );
+    if (didReset != true || !context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.codesResetSuccess)));
   }
 
   bool _validateAdminCode(String code) {
@@ -519,6 +596,7 @@ class _BrandTitle extends ConsumerWidget {
         ? AppLocalizations.of(context).appTitle
         : appSettings.applicationTitle.trim();
     final subtitle = appSettings.applicationSubtitle.trim();
+    final membersCount = ref.watch(membersCountProvider);
     final showSubtitle =
         appSettings.showApplicationSubtitle && subtitle.isNotEmpty;
     final showLeader =
@@ -532,6 +610,7 @@ class _BrandTitle extends ConsumerWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (showLeaderBadge)
           FamilyLeaderPremiumBadge(
@@ -543,14 +622,13 @@ class _BrandTitle extends ConsumerWidget {
             onTap: () => _openLeaderProfile(context, leader.id),
             onMenuAction: (action) =>
                 _handleLeaderMenuAction(context, ref, leader, action),
-          )
-        else
-          const _ClassicFamilyLogo(),
-        if (showLeaderBadge && !compact) ...[
-          const SizedBox(width: 10),
-          const _ClassicFamilyLogo(),
-        ],
-        const SizedBox(width: 14),
+          ),
+        if (showLeaderBadge) SizedBox(width: compact ? 14 : 24),
+        TopbarFamilyLogo(
+          membersCount: membersCount,
+          showCounter: appSettings.treeSettings.showMembersCounter,
+        ),
+        SizedBox(width: compact ? 12 : 18),
         Flexible(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -629,23 +707,6 @@ class _BrandTitle extends ConsumerWidget {
   }
 }
 
-class _ClassicFamilyLogo extends StatelessWidget {
-  const _ClassicFamilyLogo();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: const BoxDecoration(
-        color: Color(0xFFEAF3DE),
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(Icons.park, color: Color(0xFF4D742B), size: 28),
-    );
-  }
-}
-
 class _CodeEntryDialog extends StatefulWidget {
   const _CodeEntryDialog({
     required this.title,
@@ -654,6 +715,8 @@ class _CodeEntryDialog extends StatefulWidget {
     required this.cancelLabel,
     required this.submitLabel,
     required this.onValidate,
+    this.forgotCodeLabel,
+    this.onForgotCode,
     this.debugAdminFlow = false,
   });
 
@@ -663,6 +726,8 @@ class _CodeEntryDialog extends StatefulWidget {
   final String cancelLabel;
   final String submitLabel;
   final Future<bool> Function(String code) onValidate;
+  final String? forgotCodeLabel;
+  final VoidCallback? onForgotCode;
   final bool debugAdminFlow;
 
   @override
@@ -712,6 +777,11 @@ class _CodeEntryDialogState extends State<_CodeEntryDialog> {
         },
       ),
       actions: [
+        if (widget.forgotCodeLabel != null && widget.onForgotCode != null)
+          TextButton(
+            onPressed: _submitting ? null : widget.onForgotCode,
+            child: Text(widget.forgotCodeLabel!),
+          ),
         TextButton(
           onPressed: _submitting ? null : () => Navigator.pop(context, false),
           child: Text(widget.cancelLabel),
@@ -761,14 +831,265 @@ class _CodeEntryDialogState extends State<_CodeEntryDialog> {
   }
 }
 
-class _FamilyLeadershipBanner extends ConsumerWidget {
-  const _FamilyLeadershipBanner();
+typedef _RecoveryResetCallback =
+    Future<({String familyCode, String adminCode, String modificationCode})>
+    Function({
+      required String recoveryCode,
+      required String familyAccessCode,
+      required String adminKpiCode,
+      required String modificationCode,
+      required bool generateAll,
+    });
+
+class _SuperAdminRecoveryCodeDialog extends StatefulWidget {
+  const _SuperAdminRecoveryCodeDialog({required this.onValidate});
+
+  final Future<bool> Function(String code) onValidate;
+
+  @override
+  State<_SuperAdminRecoveryCodeDialog> createState() =>
+      _SuperAdminRecoveryCodeDialogState();
+}
+
+class _SuperAdminRecoveryCodeDialogState
+    extends State<_SuperAdminRecoveryCodeDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+  var _submitting = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.superAdminRecovery),
+      content: SizedBox(
+        width: 420,
+        child: SecureCodeTextField(
+          controller: _controller,
+          label: l10n.enterSuperAdminRecoveryCode,
+          autofocus: true,
+          enabled: !_submitting,
+          errorText: _error,
+          onSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(
+          onPressed: _submitting ? null : _submit,
+          child: Text(l10n.enter),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
+    if (_controller.text.trim().isEmpty || _submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    final ok = await widget.onValidate(_controller.text);
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.recoveryCodeAccepted)));
+      Navigator.pop(context, _controller.text);
+      return;
+    }
+    setState(() {
+      _submitting = false;
+      _error = l10n.recoveryCodeInvalid;
+    });
+  }
+}
+
+class _SuperAdminResetCodesDialog extends StatefulWidget {
+  const _SuperAdminResetCodesDialog({
+    required this.recoveryCode,
+    required this.onReset,
+  });
+
+  final String recoveryCode;
+  final _RecoveryResetCallback onReset;
+
+  @override
+  State<_SuperAdminResetCodesDialog> createState() =>
+      _SuperAdminResetCodesDialogState();
+}
+
+class _SuperAdminResetCodesDialogState
+    extends State<_SuperAdminResetCodesDialog> {
+  final _familyCode = TextEditingController();
+  final _adminCode = TextEditingController();
+  final _modificationCode = TextEditingController();
+  var _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _familyCode.dispose();
+    _adminCode.dispose();
+    _modificationCode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.resetCodes),
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SecureCodeTextField(
+              controller: _familyCode,
+              label: l10n.familyAccessCode,
+              enabled: !_submitting,
+            ),
+            const SizedBox(height: 12),
+            SecureCodeTextField(
+              controller: _adminCode,
+              label: l10n.adminAccessCode,
+              enabled: !_submitting,
+            ),
+            const SizedBox(height: 12),
+            SecureCodeTextField(
+              controller: _modificationCode,
+              label: l10n.enterModificationCode,
+              enabled: !_submitting,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+        OutlinedButton.icon(
+          onPressed: _submitting ? null : () => _confirmAndReset(true),
+          icon: const Icon(Icons.auto_fix_high_outlined),
+          label: Text(l10n.resetAllCodes),
+        ),
+        FilledButton.icon(
+          onPressed: _submitting ? null : () => _confirmAndReset(false),
+          icon: const Icon(Icons.save_outlined),
+          label: Text(l10n.generateNewCodes),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmAndReset(bool generateAll) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.resetCodes),
+        content: Text(l10n.confirmResetCodes),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.resetCodes),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.onReset(
+        recoveryCode: widget.recoveryCode,
+        familyAccessCode: _familyCode.text,
+        adminKpiCode: _adminCode.text,
+        modificationCode: _modificationCode.text,
+        generateAll: generateAll,
+      );
+      if (!mounted) return;
+      await _showGeneratedCodes(result);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = l10n.recoveryCodeInvalid;
+      });
+    }
+  }
+
+  Future<void> _showGeneratedCodes(
+    ({String familyCode, String adminCode, String modificationCode}) result,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.codesResetSuccess),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.newGeneratedCode),
+            const SizedBox(height: 12),
+            SelectableText('${l10n.familyAccessCode}: ${result.familyCode}'),
+            SelectableText('${l10n.adminAccessCode}: ${result.adminCode}'),
+            SelectableText(
+              '${l10n.enterModificationCode}: ${result.modificationCode}',
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.finishTutorial),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionalFamilyLeadershipBanner extends ConsumerWidget {
+  const _OptionalFamilyLeadershipBanner();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(familyTreeProvider).value;
     final leader = ref.watch(familyLeaderProvider);
-    if (data == null || leader == null) return const SizedBox.shrink();
+    if (data == null ||
+        leader == null ||
+        !data.familyLeadership.showLeaderBanner) {
+      return const SizedBox.shrink();
+    }
     final familyName = data.mainFamilyCode.trim().isEmpty
         ? 'Famille'
         : 'Famille ${data.mainFamilyCode.toUpperCase()}';

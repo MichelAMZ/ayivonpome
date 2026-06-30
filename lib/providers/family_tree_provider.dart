@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/audit_log.dart';
 import '../models/access_code.dart';
+import '../models/admin_access.dart';
 import '../models/app_settings.dart';
 import '../models/bug_report.dart';
 import '../models/family_announcement.dart';
@@ -18,6 +19,7 @@ import '../models/family_notification.dart';
 import '../models/family_tree_data.dart';
 import '../models/info_news.dart';
 import '../models/marriage_relation.dart';
+import '../models/modification_code.dart';
 import '../models/person.dart';
 import 'app_providers.dart';
 
@@ -53,11 +55,13 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         .runAutomaticCleanup(pruned)
         .data;
     pruned = dataCleaned;
+    pruned = ref.read(genealogyGenerationServiceProvider).recalculate(pruned);
     if (pruned.modificationHistory.length !=
             parsed.modificationHistory.length ||
         pruned.infoNewsSendLogs.length != parsed.infoNewsSendLogs.length ||
         pruned.notifications.length != parsed.notifications.length ||
         pruned.auditLog.length != parsed.auditLog.length ||
+        !_sameGenerations(pruned, parsed) ||
         pruned.dataCleanupLastCleanedAt != parsed.dataCleanupLastCleanedAt ||
         pruned.infoNewsSendHistoryLastCleanedAt !=
             parsed.infoNewsSendHistoryLastCleanedAt) {
@@ -67,10 +71,15 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   }
 
   Future<void> save(FamilyTreeData data) async {
+    final generationSynced = ref
+        .read(genealogyGenerationServiceProvider)
+        .recalculate(data);
     final synced = ref
         .read(changeNotificationServiceProvider)
         .syncFromAuditLog(
-          ref.read(modificationHistoryServiceProvider).pruneExpired(data),
+          ref
+              .read(modificationHistoryServiceProvider)
+              .pruneExpired(generationSynced),
         );
     await ref.read(jsonStorageServiceProvider).writeRaw(_encode(synced));
     state = AsyncData(synced);
@@ -105,9 +114,21 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     );
   }
 
-  Future<void> setLanguage(String languageCode) async {
+  Future<void> setLanguage(String languageCode, {bool manual = true}) async {
     final data = await future;
-    await save(data.copyWith(language: languageCode));
+    final normalized = languageCode.trim().toLowerCase();
+    final settings = data.appSettings.languageSettings;
+    await save(
+      data.copyWith(
+        language: normalized,
+        appSettings: data.appSettings.copyWith(
+          languageSettings: settings.copyWith(
+            manualLocale: manual ? normalized : settings.manualLocale,
+            currentLocale: normalized,
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> updateAppSettings(
@@ -135,6 +156,33 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> recalculateGenerations({
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' && actorRole != 'admin') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    await save(
+      ref
+          .read(genealogyGenerationServiceProvider)
+          .recalculate(data)
+          .copyWith(
+            auditLog: [
+              ...data.auditLog,
+              _log(
+                'generations_recalculated',
+                '',
+                data.mainFamilyCode,
+                actorRole: actorRole,
+                adminId: adminId,
+              ),
+            ],
+          ),
     );
   }
 
@@ -218,10 +266,17 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       await createBackup();
       people[index] = person;
     }
-    var nextData = data.copyWith(
-      people: people,
-      auditLog: [...data.auditLog, _log(action, person.id, person.familyCode)],
-    );
+    var nextData = ref
+        .read(familyRelationServiceProvider)
+        .normalizeRelationships(
+          data.copyWith(
+            people: people,
+            auditLog: [
+              ...data.auditLog,
+              _log(action, person.id, person.familyCode),
+            ],
+          ),
+        );
     if (index == -1 && action == 'create_person') {
       nextData = ref
           .read(familyAnnouncementServiceProvider)
@@ -1108,6 +1163,211 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return newCode;
   }
 
+  Future<({String familyCode, String adminCode, String modificationCode})>
+  resetCodesWithSuperAdminRecovery({
+    required String recoveryCode,
+    String? familyAccessCode,
+    String? adminKpiCode,
+    String? modificationCode,
+    required bool generateAll,
+  }) async {
+    final data = await future;
+    final recoveryService = ref.read(superAdminRecoveryServiceProvider);
+    final now = DateTime.now();
+    final nowIso = now.toIso8601String();
+
+    if (!recoveryService.validate(data, recoveryCode)) {
+      await save(
+        data.copyWith(
+          auditLog: [
+            ...data.auditLog,
+            _log(
+              'super_admin_recovery_failed',
+              '',
+              data.mainFamilyCode,
+              actorRole: 'superAdminRecovery',
+              description: 'Code secret Super Admin incorrect.',
+            ),
+          ],
+        ),
+      );
+      throw StateError('recovery_code_invalid');
+    }
+
+    if (!data.superAdminRecovery.allowResetAllCodes) {
+      throw StateError('recovery_reset_disabled');
+    }
+
+    await ref.read(backupServiceProvider).createBackup();
+
+    final codeService = ref.read(accessCodeServiceProvider);
+    final nextFamilyCode =
+        generateAll || (familyAccessCode ?? '').trim().isEmpty
+        ? codeService.generateUniqueSecureCode(data, 'familyAccess')
+        : familyAccessCode!.trim();
+    final nextAdminCode = generateAll || (adminKpiCode ?? '').trim().isEmpty
+        ? codeService.generateUniqueSecureCode(data, 'adminKpi')
+        : adminKpiCode!.trim();
+    final nextModificationCode =
+        generateAll || (modificationCode ?? '').trim().isEmpty
+        ? codeService.generateUniqueSecureCode(data, 'modification')
+        : modificationCode!.trim();
+
+    final disabledTypes = {
+      'familyAccess',
+      'adminKpi',
+      'modification',
+      'temporary',
+      'linkedFamily',
+    };
+    final disabledAccessCodes = data.accessCodes
+        .map(
+          (code) => disabledTypes.contains(code.type)
+              ? code.copyWith(enabled: false, updatedAt: nowIso)
+              : code,
+        )
+        .toList();
+    final newAccessCodes = [
+      AccessCode(
+        id: 'code${now.microsecondsSinceEpoch}family',
+        code: nextFamilyCode,
+        label: 'Code accès familial réinitialisé',
+        type: 'familyAccess',
+        role: 'viewer',
+        familyCode: data.mainFamilyCode.toUpperCase(),
+        createdByAdminId: 'superAdminRecovery',
+        createdByName: 'Super Admin Recovery',
+        createdAt: nowIso,
+      ),
+      AccessCode(
+        id: 'code${now.microsecondsSinceEpoch}admin',
+        code: nextAdminCode,
+        label: 'Code Admin KPI réinitialisé',
+        type: 'adminKpi',
+        role: 'admin',
+        familyCode: data.mainFamilyCode.toUpperCase(),
+        createdByAdminId: 'superAdminRecovery',
+        createdByName: 'Super Admin Recovery',
+        createdAt: nowIso,
+      ),
+      AccessCode(
+        id: 'code${now.microsecondsSinceEpoch}edit',
+        code: nextModificationCode,
+        label: 'Code modification réinitialisé',
+        type: 'modification',
+        role: 'editor',
+        familyCode: data.mainFamilyCode.toUpperCase(),
+        createdByAdminId: 'superAdminRecovery',
+        createdByName: 'Super Admin Recovery',
+        createdAt: nowIso,
+      ),
+    ];
+
+    final nextFamilyCodes = data.familyCodes.isEmpty
+        ? [
+            FamilyCode(
+              code: nextFamilyCode,
+              familyName: 'Famille principale',
+              role: 'owner',
+              status: 'accepted',
+            ),
+          ]
+        : data.familyCodes
+              .asMap()
+              .entries
+              .map(
+                (entry) => entry.key == 0 || generateAll
+                    ? entry.value.copyWith(
+                        code: entry.key == 0
+                            ? nextFamilyCode
+                            : codeService.generateSecureCode('linkedFamily'),
+                      )
+                    : entry.value,
+              )
+              .toList();
+
+    final nextAdminAccess = data.adminAccess.copyWith(
+      currentAdminCode: nextAdminCode,
+      lastChangedAt: nowIso,
+      nextChangeDueAt: DateTime(
+        now.year,
+        now.month + data.adminAccess.rotationMonths,
+        now.day,
+        now.hour,
+        now.minute,
+        now.second,
+      ).toIso8601String(),
+      codeHistory: [
+        ...data.adminAccess.codeHistory.map(
+          (item) => item.expiredAt.isEmpty
+              ? AdminCodeHistory(
+                  code: item.code,
+                  createdAt: item.createdAt,
+                  expiredAt: nowIso,
+                  changedByAdminId: item.changedByAdminId,
+                )
+              : item,
+        ),
+        AdminCodeHistory(
+          code: nextAdminCode,
+          createdAt: nowIso,
+          changedByAdminId: 'superAdminRecovery',
+        ),
+      ],
+    );
+
+    final nextModificationCodes = [
+      ...data.modificationCodes.map(
+        (code) => code.copyWith(enabled: false, usedCount: code.usedCount),
+      ),
+      ModificationCode(
+        code: nextModificationCode,
+        label: 'Code modification réinitialisé',
+        createdByAdminId: 'superAdminRecovery',
+      ),
+    ];
+
+    await save(
+      data.copyWith(
+        familyCodes: nextFamilyCodes,
+        accessCodes: [...disabledAccessCodes, ...newAccessCodes],
+        modificationCodes: nextModificationCodes,
+        adminAccess: nextAdminAccess,
+        superAdminRecovery: data.superAdminRecovery.copyWith(
+          lastUsedAt: nowIso,
+          lastResetAt: nowIso,
+        ),
+        auditLog: [
+          ...data.auditLog,
+          _log(
+            'access_codes_reset',
+            '',
+            data.mainFamilyCode,
+            actorRole: 'superAdminRecovery',
+          ),
+          _log(
+            'admin_code_reset',
+            '',
+            data.mainFamilyCode,
+            actorRole: 'superAdminRecovery',
+          ),
+          _log(
+            'modification_code_reset',
+            '',
+            data.mainFamilyCode,
+            actorRole: 'superAdminRecovery',
+          ),
+        ],
+      ),
+    );
+
+    return (
+      familyCode: nextFamilyCode,
+      adminCode: nextAdminCode,
+      modificationCode: nextModificationCode,
+    );
+  }
+
   Future<void> auditAccessCodeAction(
     String action,
     AccessCode code, {
@@ -1220,6 +1480,16 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
 
   String _encode(FamilyTreeData data) =>
       const JsonEncoder.withIndent('  ').convert(data.toJson());
+
+  bool _sameGenerations(FamilyTreeData first, FamilyTreeData second) {
+    final secondById = {for (final person in second.people) person.id: person};
+    for (final person in first.people) {
+      if (secondById[person.id]?.generation != person.generation) {
+        return false;
+      }
+    }
+    return first.people.length == second.people.length;
+  }
 
   AuditLog _log(
     String action,

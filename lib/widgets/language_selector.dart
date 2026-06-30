@@ -15,15 +15,16 @@ class LanguageSelector extends ConsumerWidget {
     return DropdownButtonFormField<String>(
       initialValue: value,
       decoration: InputDecoration(labelText: l10n.language),
-      items: const [
-        DropdownMenuItem(value: 'fr', child: Text('Français')),
-        DropdownMenuItem(value: 'en', child: Text('English')),
-        DropdownMenuItem(value: 'es', child: Text('Español')),
-        DropdownMenuItem(value: 'pt', child: Text('Português')),
-        DropdownMenuItem(value: 'de', child: Text('Deutsch')),
+      items: [
+        DropdownMenuItem(value: 'fr', child: Text(l10n.french)),
+        DropdownMenuItem(value: 'en', child: Text(l10n.english)),
+        DropdownMenuItem(value: 'es', child: Text(l10n.spanish)),
+        DropdownMenuItem(value: 'pt', child: Text(l10n.portuguese)),
+        DropdownMenuItem(value: 'de', child: Text(l10n.german)),
       ],
       onChanged: (language) {
         if (language != null) {
+          debugPrint('Language selected: $language');
           ref.read(localeProvider.notifier).setLocale(language);
         }
       },

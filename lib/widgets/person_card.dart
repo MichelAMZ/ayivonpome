@@ -29,6 +29,7 @@ class PersonCard extends ConsumerStatefulWidget {
     this.compact = false,
     this.width,
     this.height,
+    this.highlighted = false,
   });
 
   final Person person;
@@ -38,6 +39,7 @@ class PersonCard extends ConsumerStatefulWidget {
   final bool compact;
   final double? width;
   final double? height;
+  final bool highlighted;
 
   @override
   ConsumerState<PersonCard> createState() => _PersonCardState();
@@ -63,6 +65,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     final borderColor = _genderColor;
     final avatarBackground = _genderLightColor;
     final formerSpouses = _formerSpouses;
+    final showGenerationBadge =
+        widget.data.appSettings.treeSettings.showGenerationBadges &&
+        widget.person.generation > 0;
 
     return MouseRegion(
       onEnter: (_) {
@@ -91,10 +96,17 @@ class _PersonCardState extends ConsumerState<PersonCard> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderColor, width: 1.5),
+                border: Border.all(
+                  color: widget.highlighted
+                      ? const Color(0xFFD6AD42)
+                      : borderColor,
+                  width: widget.highlighted ? 2.4 : 1.5,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: isCurrentLeader
+                    color: widget.highlighted
+                        ? const Color(0x33D6AD42)
+                        : isCurrentLeader
                         ? const Color(0x30C59A2A)
                         : const Color(0x14000000),
                     blurRadius: _hovered ? 26 : 18,
@@ -117,6 +129,14 @@ class _PersonCardState extends ConsumerState<PersonCard> {
                         right: compact ? 76 : 88,
                         child: _LeaderPill(
                           label: AppLocalizations.of(context).currentChief,
+                        ),
+                      ),
+                    if (showGenerationBadge)
+                      Positioned(
+                        top: 8,
+                        right: 10,
+                        child: _GenerationBadge(
+                          generation: widget.person.generation,
                         ),
                       ),
                     Padding(
@@ -855,6 +875,42 @@ class _LeaderPill extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GenerationBadge extends StatelessWidget {
+  const _GenerationBadge({required this.generation});
+
+  final int generation;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8EC),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFD5C15C)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Text(
+          'G$generation',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: const Color(0xFF5E6F1E),
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+            height: 1,
+          ),
         ),
       ),
     );

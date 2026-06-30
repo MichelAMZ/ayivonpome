@@ -16,6 +16,11 @@ class Person {
     this.deathPlace = '',
     this.publicMapLocation = '',
     this.currentAddress = '',
+    this.currentCity = '',
+    this.currentRegion = '',
+    this.currentCountry = '',
+    this.birthCity = '',
+    this.birthCountry = '',
     this.burialPlace = '',
     this.latitude,
     this.longitude,
@@ -40,6 +45,7 @@ class Person {
     this.children = const [],
     this.history = const [],
     this.notes = '',
+    this.generation = 0,
   });
 
   final String id;
@@ -54,6 +60,11 @@ class Person {
   final String deathPlace;
   final String publicMapLocation;
   final String currentAddress;
+  final String currentCity;
+  final String currentRegion;
+  final String currentCountry;
+  final String birthCity;
+  final String birthCountry;
   final String burialPlace;
   final double? latitude;
   final double? longitude;
@@ -78,6 +89,7 @@ class Person {
   final List<String> children;
   final List<HistoryEvent> history;
   final String notes;
+  final int generation;
 
   String get fullName {
     final value = '$firstName $lastName'.trim();
@@ -115,6 +127,11 @@ class Person {
     deathPlace: json['deathPlace'] as String? ?? '',
     publicMapLocation: json['publicMapLocation'] as String? ?? '',
     currentAddress: json['currentAddress'] as String? ?? '',
+    currentCity: json['currentCity'] as String? ?? '',
+    currentRegion: json['currentRegion'] as String? ?? '',
+    currentCountry: json['currentCountry'] as String? ?? '',
+    birthCity: json['birthCity'] as String? ?? '',
+    birthCountry: json['birthCountry'] as String? ?? '',
     burialPlace: json['burialPlace'] as String? ?? '',
     latitude: (json['latitude'] as num?)?.toDouble(),
     longitude: (json['longitude'] as num?)?.toDouble(),
@@ -147,6 +164,7 @@ class Person {
         .map((item) => HistoryEvent.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
     notes: json['notes'] as String? ?? '',
+    generation: json['generation'] as int? ?? 0,
   );
 
   Map<String, dynamic> toJson() => {
@@ -162,6 +180,11 @@ class Person {
     'deathPlace': deathPlace,
     'publicMapLocation': publicMapLocation,
     'currentAddress': currentAddress,
+    'currentCity': currentCity,
+    'currentRegion': currentRegion,
+    'currentCountry': currentCountry,
+    'birthCity': birthCity,
+    'birthCountry': birthCountry,
     'burialPlace': burialPlace,
     'latitude': latitude,
     'longitude': longitude,
@@ -186,6 +209,7 @@ class Person {
     'children': children,
     'history': history.map((event) => event.toJson()).toList(),
     'notes': notes,
+    'generation': generation,
   };
 
   Person copyWith({
@@ -201,6 +225,11 @@ class Person {
     String? deathPlace,
     String? publicMapLocation,
     String? currentAddress,
+    String? currentCity,
+    String? currentRegion,
+    String? currentCountry,
+    String? birthCity,
+    String? birthCountry,
     String? burialPlace,
     double? latitude,
     double? longitude,
@@ -225,6 +254,7 @@ class Person {
     List<String>? children,
     List<HistoryEvent>? history,
     String? notes,
+    int? generation,
   }) {
     return Person(
       id: id ?? this.id,
@@ -239,6 +269,11 @@ class Person {
       deathPlace: deathPlace ?? this.deathPlace,
       publicMapLocation: publicMapLocation ?? this.publicMapLocation,
       currentAddress: currentAddress ?? this.currentAddress,
+      currentCity: currentCity ?? this.currentCity,
+      currentRegion: currentRegion ?? this.currentRegion,
+      currentCountry: currentCountry ?? this.currentCountry,
+      birthCity: birthCity ?? this.birthCity,
+      birthCountry: birthCountry ?? this.birthCountry,
       burialPlace: burialPlace ?? this.burialPlace,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
@@ -263,6 +298,7 @@ class Person {
       children: children ?? this.children,
       history: history ?? this.history,
       notes: notes ?? this.notes,
+      generation: generation ?? this.generation,
     );
   }
 }

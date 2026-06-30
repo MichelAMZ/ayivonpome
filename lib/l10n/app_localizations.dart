@@ -158,11 +158,251 @@ abstract class AppLocalizations {
   /// **'Mémoriser le dernier zoom'**
   String get rememberLastZoom;
 
+  /// No description provided for @membersCount.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{0 membre} =1{1 membre} other{{count} membres}}'**
+  String membersCount(int count);
+
+  /// No description provided for @totalMembers.
+  ///
+  /// In fr, this message translates to:
+  /// **'Total : {count}'**
+  String totalMembers(int count);
+
+  /// No description provided for @showMembersCounter.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le compteur dans la barre du bas'**
+  String get showMembersCounter;
+
+  /// No description provided for @tutorial.
+  ///
+  /// In fr, this message translates to:
+  /// **'Tutoriel'**
+  String get tutorial;
+
+  /// No description provided for @help.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aide'**
+  String get help;
+
+  /// No description provided for @helpAndTutorial.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aide et tutoriel'**
+  String get helpAndTutorial;
+
+  /// No description provided for @showTutorial.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le bouton tutoriel'**
+  String get showTutorial;
+
+  /// No description provided for @hideTutorial.
+  ///
+  /// In fr, this message translates to:
+  /// **'Masquer le tutoriel'**
+  String get hideTutorial;
+
+  /// No description provided for @nextStep.
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivant'**
+  String get nextStep;
+
+  /// No description provided for @previousStep.
+  ///
+  /// In fr, this message translates to:
+  /// **'Précédent'**
+  String get previousStep;
+
+  /// No description provided for @finishTutorial.
+  ///
+  /// In fr, this message translates to:
+  /// **'Terminer'**
+  String get finishTutorial;
+
+  /// No description provided for @skipTutorial.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ignorer'**
+  String get skipTutorial;
+
+  /// No description provided for @firstLaunchTutorial.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le tutoriel au premier lancement'**
+  String get firstLaunchTutorial;
+
+  /// No description provided for @treeLegend.
+  ///
+  /// In fr, this message translates to:
+  /// **'Légende'**
+  String get treeLegend;
+
+  /// No description provided for @howToUse.
+  ///
+  /// In fr, this message translates to:
+  /// **'Comment utiliser l\'arbre'**
+  String get howToUse;
+
+  /// No description provided for @tutorialWelcomeTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Bienvenue dans l\'arbre généalogique'**
+  String get tutorialWelcomeTitle;
+
+  /// No description provided for @tutorialMoveTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Déplacement'**
+  String get tutorialMoveTitle;
+
+  /// No description provided for @tutorialMoveBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Cliquer-glisser pour déplacer l\'arbre.'**
+  String get tutorialMoveBody;
+
+  /// No description provided for @tutorialZoomTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Zoom'**
+  String get tutorialZoomTitle;
+
+  /// No description provided for @tutorialZoomBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Utiliser les boutons + et -. Ctrl + molette permet aussi de zoomer.'**
+  String get tutorialZoomBody;
+
+  /// No description provided for @tutorialInfoTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Informations'**
+  String get tutorialInfoTitle;
+
+  /// No description provided for @tutorialInfoBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Survoler une personne pour voir ses informations.'**
+  String get tutorialInfoBody;
+
+  /// No description provided for @tutorialContextMenuTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Menu contextuel'**
+  String get tutorialContextMenuTitle;
+
+  /// No description provided for @tutorialContextMenuBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Faire un clic droit sur une personne pour ajouter, modifier, imprimer une branche ou voir l\'historique.'**
+  String get tutorialContextMenuBody;
+
+  /// No description provided for @tutorialAccessCodesTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Codes d\'accès'**
+  String get tutorialAccessCodesTitle;
+
+  /// No description provided for @tutorialAccessCodesBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Certaines actions nécessitent un code de modification.'**
+  String get tutorialAccessCodesBody;
+
+  /// No description provided for @tutorialMapTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Carte'**
+  String get tutorialMapTitle;
+
+  /// No description provided for @tutorialMapBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Cliquer sur l\'icône localisation pour ouvrir Google Maps.'**
+  String get tutorialMapBody;
+
+  /// No description provided for @tutorialNotificationsTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Notifications'**
+  String get tutorialNotificationsTitle;
+
+  /// No description provided for @tutorialNotificationsBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les nouvelles modifications apparaissent automatiquement.'**
+  String get tutorialNotificationsBody;
+
+  /// No description provided for @married.
+  ///
+  /// In fr, this message translates to:
+  /// **'Marié(e)'**
+  String get married;
+
+  /// No description provided for @knownPlace.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lieu connu'**
+  String get knownPlace;
+
   /// No description provided for @loginTitle.
   ///
   /// In fr, this message translates to:
   /// **'Connexion familiale'**
   String get loginTitle;
+
+  /// No description provided for @chooseLanguage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisir la langue'**
+  String get chooseLanguage;
+
+  /// No description provided for @autoLanguage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Langue automatique'**
+  String get autoLanguage;
+
+  /// No description provided for @detectedLanguage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Langue détectée'**
+  String get detectedLanguage;
+
+  /// No description provided for @french.
+  ///
+  /// In fr, this message translates to:
+  /// **'Français'**
+  String get french;
+
+  /// No description provided for @english.
+  ///
+  /// In fr, this message translates to:
+  /// **'Anglais'**
+  String get english;
+
+  /// No description provided for @spanish.
+  ///
+  /// In fr, this message translates to:
+  /// **'Espagnol'**
+  String get spanish;
+
+  /// No description provided for @portuguese.
+  ///
+  /// In fr, this message translates to:
+  /// **'Portugais'**
+  String get portuguese;
+
+  /// No description provided for @german.
+  ///
+  /// In fr, this message translates to:
+  /// **'Allemand'**
+  String get german;
 
   /// No description provided for @familyCode.
   ///
@@ -289,6 +529,18 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Historique familial'**
   String get familyHistory;
+
+  /// No description provided for @ourHistory.
+  ///
+  /// In fr, this message translates to:
+  /// **'Notre histoire'**
+  String get ourHistory;
+
+  /// No description provided for @historyOfFamily.
+  ///
+  /// In fr, this message translates to:
+  /// **'Histoire de la famille'**
+  String get historyOfFamily;
 
   /// No description provided for @generalFamilyHistory.
   ///
@@ -1039,6 +1291,90 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Adresse actuelle'**
   String get currentAddress;
+
+  /// No description provided for @locationFilter.
+  ///
+  /// In fr, this message translates to:
+  /// **'Filtre de localisation'**
+  String get locationFilter;
+
+  /// No description provided for @filterByLocation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Filtrer par localisation'**
+  String get filterByLocation;
+
+  /// No description provided for @country.
+  ///
+  /// In fr, this message translates to:
+  /// **'Pays'**
+  String get country;
+
+  /// No description provided for @city.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ville'**
+  String get city;
+
+  /// No description provided for @region.
+  ///
+  /// In fr, this message translates to:
+  /// **'Région / préfecture / département'**
+  String get region;
+
+  /// No description provided for @birthLocation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lieu de naissance'**
+  String get birthLocation;
+
+  /// No description provided for @deathLocation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lieu de décès'**
+  String get deathLocation;
+
+  /// No description provided for @burialLocation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lieu de sépulture'**
+  String get burialLocation;
+
+  /// No description provided for @radiusAroundAddress.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rayon autour d\'une adresse'**
+  String get radiusAroundAddress;
+
+  /// No description provided for @membersFound.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{0 membre trouvé} =1{1 membre trouvé} other{{count} membres trouvés}}'**
+  String membersFound(int count);
+
+  /// No description provided for @showOnlyResults.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher uniquement les résultats'**
+  String get showOnlyResults;
+
+  /// No description provided for @highlightResults.
+  ///
+  /// In fr, this message translates to:
+  /// **'Surligner les résultats'**
+  String get highlightResults;
+
+  /// No description provided for @clearFilters.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réinitialiser les filtres'**
+  String get clearFilters;
+
+  /// No description provided for @centerOnPerson.
+  ///
+  /// In fr, this message translates to:
+  /// **'Centrer sur la personne'**
+  String get centerOnPerson;
 
   /// No description provided for @burialPlace.
   ///
@@ -1958,6 +2294,66 @@ abstract class AppLocalizations {
   /// **'Code admin incorrect'**
   String get invalidAdminCode;
 
+  /// No description provided for @forgotCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code oublié ?'**
+  String get forgotCode;
+
+  /// No description provided for @superAdminRecovery.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réinitialisation Super Admin'**
+  String get superAdminRecovery;
+
+  /// No description provided for @enterSuperAdminRecoveryCode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Entrer le code secret Super Admin'**
+  String get enterSuperAdminRecoveryCode;
+
+  /// No description provided for @resetCodes.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réinitialiser les codes'**
+  String get resetCodes;
+
+  /// No description provided for @resetAllCodes.
+  ///
+  /// In fr, this message translates to:
+  /// **'Régénérer automatiquement tous les codes'**
+  String get resetAllCodes;
+
+  /// No description provided for @generateNewCodes.
+  ///
+  /// In fr, this message translates to:
+  /// **'Créer les nouveaux codes'**
+  String get generateNewCodes;
+
+  /// No description provided for @recoveryCodeInvalid.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code secret Super Admin incorrect'**
+  String get recoveryCodeInvalid;
+
+  /// No description provided for @recoveryCodeAccepted.
+  ///
+  /// In fr, this message translates to:
+  /// **'Code secret Super Admin accepté'**
+  String get recoveryCodeAccepted;
+
+  /// No description provided for @codesResetSuccess.
+  ///
+  /// In fr, this message translates to:
+  /// **'Codes réinitialisés avec succès'**
+  String get codesResetSuccess;
+
+  /// No description provided for @confirmResetCodes.
+  ///
+  /// In fr, this message translates to:
+  /// **'Confirmer la réinitialisation des codes ? Une sauvegarde JSON sera créée avant modification.'**
+  String get confirmResetCodes;
+
   /// No description provided for @adminKpiAccess.
   ///
   /// In fr, this message translates to:
@@ -2372,6 +2768,12 @@ abstract class AppLocalizations {
   /// **'Afficher le chef dans la TopBar'**
   String get showLeaderInTopBar;
 
+  /// No description provided for @showLeaderBanner.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher la bannière du chef de famille'**
+  String get showLeaderBanner;
+
   /// No description provided for @showLeaderPhoto.
   ///
   /// In fr, this message translates to:
@@ -2563,6 +2965,54 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'WhatsApp s’ouvrira avec un message prérempli. Chaque admin devra valider l’envoi.'**
   String get adminWhatsappNotification;
+
+  /// No description provided for @generation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Génération'**
+  String get generation;
+
+  /// No description provided for @generations.
+  ///
+  /// In fr, this message translates to:
+  /// **'Générations'**
+  String get generations;
+
+  /// No description provided for @generationNumber.
+  ///
+  /// In fr, this message translates to:
+  /// **'Numéro de génération'**
+  String get generationNumber;
+
+  /// No description provided for @rootAncestor.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ancêtre racine'**
+  String get rootAncestor;
+
+  /// No description provided for @firstAncestor.
+  ///
+  /// In fr, this message translates to:
+  /// **'Premier ancêtre'**
+  String get firstAncestor;
+
+  /// No description provided for @recalculateGenerations.
+  ///
+  /// In fr, this message translates to:
+  /// **'Recalculer toutes les générations'**
+  String get recalculateGenerations;
+
+  /// No description provided for @showGenerationBadges.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher les badges de génération'**
+  String get showGenerationBadges;
+
+  /// No description provided for @allGenerations.
+  ///
+  /// In fr, this message translates to:
+  /// **'Toutes les générations'**
+  String get allGenerations;
 }
 
 class _AppLocalizationsDelegate

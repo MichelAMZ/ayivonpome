@@ -21,6 +21,10 @@ class _EditApplicationTitleDialogState
   late final TextEditingController _initialZoomPercent;
   late bool _showSubtitle;
   late bool _rememberLastZoom;
+  late bool _showMembersCounter;
+  late bool _showGenerationBadges;
+  late bool _showTutorialOnFirstLaunch;
+  late bool _showFloatingHelpButton;
 
   @override
   void initState() {
@@ -37,6 +41,12 @@ class _EditApplicationTitleDialogState
     );
     _showSubtitle = widget.settings.showApplicationSubtitle;
     _rememberLastZoom = widget.settings.treeSettings.rememberLastZoom;
+    _showMembersCounter = widget.settings.treeSettings.showMembersCounter;
+    _showGenerationBadges = widget.settings.treeSettings.showGenerationBadges;
+    _showTutorialOnFirstLaunch =
+        widget.settings.tutorialSettings.showTutorialOnFirstLaunch;
+    _showFloatingHelpButton =
+        widget.settings.tutorialSettings.showFloatingHelpButton;
   }
 
   @override
@@ -96,6 +106,33 @@ class _EditApplicationTitleDialogState
               title: Text(l10n.rememberLastZoom),
               onChanged: (value) => setState(() => _rememberLastZoom = value),
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _showMembersCounter,
+              title: Text(l10n.showMembersCounter),
+              onChanged: (value) => setState(() => _showMembersCounter = value),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _showGenerationBadges,
+              title: Text(l10n.showGenerationBadges),
+              onChanged: (value) =>
+                  setState(() => _showGenerationBadges = value),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _showFloatingHelpButton,
+              title: Text(l10n.showTutorial),
+              onChanged: (value) =>
+                  setState(() => _showFloatingHelpButton = value),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _showTutorialOnFirstLaunch,
+              title: Text(l10n.firstLaunchTutorial),
+              onChanged: (value) =>
+                  setState(() => _showTutorialOnFirstLaunch = value),
+            ),
           ],
         ),
       ),
@@ -116,6 +153,13 @@ class _EditApplicationTitleDialogState
                 initialZoom:
                     (_parseZoomPercent(_initialZoomPercent.text) / 100),
                 rememberLastZoom: _rememberLastZoom,
+                showMembersCounter: _showMembersCounter,
+                showGenerationBadges: _showGenerationBadges,
+              ),
+              languageSettings: widget.settings.languageSettings,
+              tutorialSettings: widget.settings.tutorialSettings.copyWith(
+                showFloatingHelpButton: _showFloatingHelpButton,
+                showTutorialOnFirstLaunch: _showTutorialOnFirstLaunch,
               ),
             ),
           ),
@@ -127,6 +171,6 @@ class _EditApplicationTitleDialogState
 
   double _parseZoomPercent(String value) {
     final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
-    return parsed == null ? 60 : parsed.clamp(20, 300).toDouble();
+    return parsed == null ? 60 : parsed.clamp(40, 120).toDouble();
   }
 }

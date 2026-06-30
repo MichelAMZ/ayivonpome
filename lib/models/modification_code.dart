@@ -38,23 +38,31 @@ class ModificationCode {
       );
 
   Map<String, dynamic> toJson() => {
-        'code': code,
-        'label': label,
-        'createdByAdminId': createdByAdminId,
-        'expiresAt': expiresAt,
-        'maxUses': maxUses,
-        'usedCount': usedCount,
-        'enabled': enabled,
-      };
+    'code': code,
+    'label': label,
+    'createdByAdminId': createdByAdminId,
+    'expiresAt': expiresAt,
+    'maxUses': maxUses,
+    'usedCount': usedCount,
+    'enabled': enabled,
+  };
 
-  ModificationCode copyWith({int? usedCount, bool? enabled}) =>
-      ModificationCode(
-        code: code,
-        label: label,
-        createdByAdminId: createdByAdminId,
-        expiresAt: expiresAt,
-        maxUses: maxUses,
-        usedCount: usedCount ?? this.usedCount,
-        enabled: enabled ?? this.enabled,
-      );
+  ModificationCode copyWith({
+    String? code,
+    String? label,
+    String? createdByAdminId,
+    String? expiresAt,
+    int? maxUses,
+    bool clearMaxUses = false,
+    int? usedCount,
+    bool? enabled,
+  }) => ModificationCode(
+    code: code ?? this.code,
+    label: label ?? this.label,
+    createdByAdminId: createdByAdminId ?? this.createdByAdminId,
+    expiresAt: expiresAt ?? this.expiresAt,
+    maxUses: clearMaxUses ? null : maxUses ?? this.maxUses,
+    usedCount: usedCount ?? this.usedCount,
+    enabled: enabled ?? this.enabled,
+  );
 }

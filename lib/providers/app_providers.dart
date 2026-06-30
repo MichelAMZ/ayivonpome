@@ -15,11 +15,13 @@ import '../services/family_relation_service.dart';
 import '../services/family_council_service.dart';
 import '../services/family_announcement_service.dart';
 import '../services/genealogy_statistics_service.dart';
+import '../services/genealogy_generation_service.dart';
 import '../services/history_cleanup_service.dart';
 import '../services/import_export_service.dart';
 import '../services/info_news_service.dart';
 import '../services/json_storage_service.dart';
 import '../services/kpi_service.dart';
+import '../services/language_detection_service.dart';
 import '../services/map_service.dart';
 import '../services/marriage_service.dart';
 import '../services/modification_history_service.dart';
@@ -27,6 +29,7 @@ import '../services/modification_code_service.dart';
 import '../services/notification_service.dart';
 import '../services/push_notification_provider.dart';
 import '../services/tree_view_settings_service.dart';
+import '../services/super_admin_recovery_service.dart';
 
 final jsonStorageServiceProvider = Provider<JsonStorageService>(
   (ref) => JsonStorageService(),
@@ -68,6 +71,10 @@ final modificationCodeServiceProvider = Provider<ModificationCodeService>(
 
 final kpiServiceProvider = Provider<KpiService>((ref) => KpiService());
 
+final languageDetectionServiceProvider = Provider<LanguageDetectionService>(
+  (ref) => const LanguageDetectionService(),
+);
+
 final adminServiceProvider = Provider<AdminService>((ref) => AdminService());
 
 final adminAccessServiceProvider = Provider<AdminAccessService>(
@@ -86,6 +93,10 @@ final treeViewSettingsServiceProvider = Provider<TreeViewSettingsService>(
   (ref) => const TreeViewSettingsService(),
 );
 
+final superAdminRecoveryServiceProvider = Provider<SuperAdminRecoveryService>(
+  (ref) => const SuperAdminRecoveryService(),
+);
+
 final familyRelationServiceProvider = Provider<FamilyRelationService>(
   (ref) => FamilyRelationService(),
 );
@@ -102,6 +113,10 @@ final genealogyStatisticsServiceProvider =
     Provider.family<GenealogyStatisticsService, FamilyTreeData>(
       (ref, data) => GenealogyStatisticsService(data),
     );
+
+final genealogyGenerationServiceProvider = Provider<GenealogyGenerationService>(
+  (ref) => const GenealogyGenerationService(),
+);
 
 final notificationServiceProvider = Provider<NotificationService>(
   (ref) => NotificationService(),

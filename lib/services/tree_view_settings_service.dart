@@ -1,23 +1,18 @@
-import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_settings.dart';
-import '../widgets/responsive.dart';
 
 class TreeViewSettingsService {
   const TreeViewSettingsService();
 
   static const _lastZoomKey = 'family_tree_last_zoom';
+  static const _minReadableZoom = 0.40;
+  static const _maxReadableZoom = 1.20;
 
-  double getInitialZoom(BuildContext context, TreeViewSettings settings) {
-    final configured = settings.initialZoom;
-    if (ResponsiveBreakpoints.isMobile(context)) {
-      return configured < 0.80 ? 0.80 : configured;
-    }
-    if (ResponsiveBreakpoints.isTablet(context)) {
-      return configured < 0.70 ? 0.70 : configured;
-    }
-    return configured;
+  double getInitialZoom(TreeViewSettings settings) {
+    return settings.initialZoom
+        .clamp(_minReadableZoom, _maxReadableZoom)
+        .toDouble();
   }
 
   Future<void> saveLastZoom(double zoom) async {
@@ -30,6 +25,6 @@ class TreeViewSettingsService {
     final prefs = await SharedPreferences.getInstance();
     final zoom = prefs.getDouble(_lastZoomKey);
     if (zoom == null) return null;
-    return zoom.clamp(settings.minZoom, settings.maxZoom).toDouble();
+    return zoom.clamp(_minReadableZoom, _maxReadableZoom).toDouble();
   }
 }

@@ -36,6 +36,9 @@ class PersonPreviewPopup extends ConsumerWidget {
     final formerSpouses = ref
         .watch(marriageServiceProvider)
         .getFormerSpouses(data, person);
+    final rootAncestor = ref
+        .watch(genealogyGenerationServiceProvider)
+        .getRootAncestor(data);
     return Material(
       elevation: 10,
       borderRadius: BorderRadius.circular(8),
@@ -106,9 +109,16 @@ class PersonPreviewPopup extends ConsumerWidget {
                       label: l10n.totalDescendants,
                       value: statistics.totalDescendantsCount,
                     ),
+                    if (person.generation > 0)
+                      _StatBadge(
+                        icon: Icons.family_restroom_outlined,
+                        label: l10n.generation,
+                        value: person.generation,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 6),
+                _line(l10n.firstAncestor, rootAncestor?.fullName ?? ''),
                 _line(l10n.familyBranch, person.familyCode),
                 if (person.history.isNotEmpty)
                   _line(l10n.history, person.history.first.description),
@@ -118,6 +128,10 @@ class PersonPreviewPopup extends ConsumerWidget {
                   label: l10n.descendants,
                   value: statistics.totalDescendantsCount,
                 ),
+                if (person.generation > 0) ...[
+                  const SizedBox(height: 8),
+                  _line(l10n.generation, person.generation.toString()),
+                ],
                 if (person.privacy.showMapInPublicMode &&
                     person.publicMapLocation.isNotEmpty) ...[
                   const SizedBox(height: 8),

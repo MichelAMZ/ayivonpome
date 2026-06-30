@@ -19,6 +19,7 @@ class FamilyTreeApp extends ConsumerWidget {
     final applicationTitle = appSettings.applicationTitle.trim().isEmpty
         ? 'FamilyTreeApp'
         : appSettings.applicationTitle.trim();
+    debugPrint('MaterialApp locale: $locale');
 
     return MaterialApp(
       title: applicationTitle,

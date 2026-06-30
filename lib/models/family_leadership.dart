@@ -6,6 +6,7 @@ class FamilyLeadership {
     this.title = 'Chef actuel',
     this.subtitle = 'Patriarche de la famille',
     this.showLeaderInTopBar = true,
+    this.showLeaderBanner = false,
     this.showLeaderPhoto = true,
     this.showLeaderBadge = true,
     this.badgeStyle = 'premiumGreenGold',
@@ -19,6 +20,7 @@ class FamilyLeadership {
   final String title;
   final String subtitle;
   final bool showLeaderInTopBar;
+  final bool showLeaderBanner;
   final bool showLeaderPhoto;
   final bool showLeaderBadge;
   final String badgeStyle;
@@ -33,6 +35,7 @@ class FamilyLeadership {
         title: json['title'] as String? ?? 'Chef actuel',
         subtitle: json['subtitle'] as String? ?? 'Patriarche de la famille',
         showLeaderInTopBar: json['showLeaderInTopBar'] as bool? ?? true,
+        showLeaderBanner: json['showLeaderBanner'] as bool? ?? false,
         showLeaderPhoto: json['showLeaderPhoto'] as bool? ?? true,
         showLeaderBadge: json['showLeaderBadge'] as bool? ?? true,
         badgeStyle: json['badgeStyle'] as String? ?? 'royal',
@@ -47,6 +50,7 @@ class FamilyLeadership {
     'title': title,
     'subtitle': subtitle,
     'showLeaderInTopBar': showLeaderInTopBar,
+    'showLeaderBanner': showLeaderBanner,
     'showLeaderPhoto': showLeaderPhoto,
     'showLeaderBadge': showLeaderBadge,
     'badgeStyle': badgeStyle,
@@ -61,6 +65,7 @@ class FamilyLeadership {
     String? title,
     String? subtitle,
     bool? showLeaderInTopBar,
+    bool? showLeaderBanner,
     bool? showLeaderPhoto,
     bool? showLeaderBadge,
     String? badgeStyle,
@@ -75,6 +80,7 @@ class FamilyLeadership {
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
       showLeaderInTopBar: showLeaderInTopBar ?? this.showLeaderInTopBar,
+      showLeaderBanner: showLeaderBanner ?? this.showLeaderBanner,
       showLeaderPhoto: showLeaderPhoto ?? this.showLeaderPhoto,
       showLeaderBadge: showLeaderBadge ?? this.showLeaderBadge,
       badgeStyle: badgeStyle ?? this.badgeStyle,

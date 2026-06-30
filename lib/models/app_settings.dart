@@ -5,6 +5,8 @@ class AppSettings {
     this.showApplicationSubtitle = false,
     this.officialFamilyName = '',
     this.treeSettings = const TreeViewSettings(),
+    this.languageSettings = const LanguageSettings(),
+    this.tutorialSettings = const TutorialSettings(),
   });
 
   final String applicationTitle;
@@ -12,6 +14,8 @@ class AppSettings {
   final bool showApplicationSubtitle;
   final String officialFamilyName;
   final TreeViewSettings treeSettings;
+  final LanguageSettings languageSettings;
+  final TutorialSettings tutorialSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
     applicationTitle: json['applicationTitle'] as String? ?? 'FamilyTreeApp',
@@ -21,6 +25,12 @@ class AppSettings {
     treeSettings: TreeViewSettings.fromJson(
       Map<String, dynamic>.from(json['treeSettings'] as Map? ?? const {}),
     ),
+    languageSettings: LanguageSettings.fromJson(
+      Map<String, dynamic>.from(json['languageSettings'] as Map? ?? const {}),
+    ),
+    tutorialSettings: TutorialSettings.fromJson(
+      Map<String, dynamic>.from(json['tutorialSettings'] as Map? ?? const {}),
+    ),
   );
 
   Map<String, dynamic> toJson() => {
@@ -29,6 +39,8 @@ class AppSettings {
     'showApplicationSubtitle': showApplicationSubtitle,
     'officialFamilyName': officialFamilyName,
     'treeSettings': treeSettings.toJson(),
+    'languageSettings': languageSettings.toJson(),
+    'tutorialSettings': tutorialSettings.toJson(),
   };
 
   AppSettings copyWith({
@@ -37,6 +49,8 @@ class AppSettings {
     bool? showApplicationSubtitle,
     String? officialFamilyName,
     TreeViewSettings? treeSettings,
+    LanguageSettings? languageSettings,
+    TutorialSettings? tutorialSettings,
   }) {
     return AppSettings(
       applicationTitle: applicationTitle ?? this.applicationTitle,
@@ -45,6 +59,102 @@ class AppSettings {
           showApplicationSubtitle ?? this.showApplicationSubtitle,
       officialFamilyName: officialFamilyName ?? this.officialFamilyName,
       treeSettings: treeSettings ?? this.treeSettings,
+      languageSettings: languageSettings ?? this.languageSettings,
+      tutorialSettings: tutorialSettings ?? this.tutorialSettings,
+    );
+  }
+}
+
+class TutorialSettings {
+  const TutorialSettings({
+    this.showTutorialOnFirstLaunch = true,
+    this.tutorialAlreadySeen = false,
+    this.showFloatingHelpButton = true,
+    this.buttonPosition = 'bottomRight',
+  });
+
+  final bool showTutorialOnFirstLaunch;
+  final bool tutorialAlreadySeen;
+  final bool showFloatingHelpButton;
+  final String buttonPosition;
+
+  factory TutorialSettings.fromJson(Map<String, dynamic> json) =>
+      TutorialSettings(
+        showTutorialOnFirstLaunch:
+            json['showTutorialOnFirstLaunch'] as bool? ?? true,
+        tutorialAlreadySeen: json['tutorialAlreadySeen'] as bool? ?? false,
+        showFloatingHelpButton: json['showFloatingHelpButton'] as bool? ?? true,
+        buttonPosition: json['buttonPosition'] as String? ?? 'bottomRight',
+      );
+
+  Map<String, dynamic> toJson() => {
+    'showTutorialOnFirstLaunch': showTutorialOnFirstLaunch,
+    'tutorialAlreadySeen': tutorialAlreadySeen,
+    'showFloatingHelpButton': showFloatingHelpButton,
+    'buttonPosition': buttonPosition,
+  };
+
+  TutorialSettings copyWith({
+    bool? showTutorialOnFirstLaunch,
+    bool? tutorialAlreadySeen,
+    bool? showFloatingHelpButton,
+    String? buttonPosition,
+  }) {
+    return TutorialSettings(
+      showTutorialOnFirstLaunch:
+          showTutorialOnFirstLaunch ?? this.showTutorialOnFirstLaunch,
+      tutorialAlreadySeen: tutorialAlreadySeen ?? this.tutorialAlreadySeen,
+      showFloatingHelpButton:
+          showFloatingHelpButton ?? this.showFloatingHelpButton,
+      buttonPosition: buttonPosition ?? this.buttonPosition,
+    );
+  }
+}
+
+class LanguageSettings {
+  const LanguageSettings({
+    this.autoDetectByCountry = true,
+    this.manualLocale = '',
+    this.currentLocale = '',
+    this.supportedLocales = const ['fr', 'en', 'es', 'pt', 'de'],
+  });
+
+  final bool autoDetectByCountry;
+  final String manualLocale;
+  final String currentLocale;
+  final List<String> supportedLocales;
+
+  factory LanguageSettings.fromJson(Map<String, dynamic> json) =>
+      LanguageSettings(
+        autoDetectByCountry: json['autoDetectByCountry'] as bool? ?? true,
+        manualLocale: json['manualLocale'] as String? ?? '',
+        currentLocale: json['currentLocale'] as String? ?? '',
+        supportedLocales:
+            (json['supportedLocales'] as List?)
+                ?.map((item) => item.toString())
+                .where((item) => item.isNotEmpty)
+                .toList() ??
+            const ['fr', 'en', 'es', 'pt', 'de'],
+      );
+
+  Map<String, dynamic> toJson() => {
+    'autoDetectByCountry': autoDetectByCountry,
+    'manualLocale': manualLocale,
+    'currentLocale': currentLocale,
+    'supportedLocales': supportedLocales,
+  };
+
+  LanguageSettings copyWith({
+    bool? autoDetectByCountry,
+    String? manualLocale,
+    String? currentLocale,
+    List<String>? supportedLocales,
+  }) {
+    return LanguageSettings(
+      autoDetectByCountry: autoDetectByCountry ?? this.autoDetectByCountry,
+      manualLocale: manualLocale ?? this.manualLocale,
+      currentLocale: currentLocale ?? this.currentLocale,
+      supportedLocales: supportedLocales ?? this.supportedLocales,
     );
   }
 }
@@ -52,22 +162,28 @@ class AppSettings {
 class TreeViewSettings {
   const TreeViewSettings({
     this.initialZoom = 0.60,
-    this.minZoom = 0.20,
-    this.maxZoom = 3.00,
+    this.minZoom = 0.40,
+    this.maxZoom = 1.20,
     this.rememberLastZoom = true,
+    this.showMembersCounter = true,
+    this.showGenerationBadges = true,
   });
 
   final double initialZoom;
   final double minZoom;
   final double maxZoom;
   final bool rememberLastZoom;
+  final bool showMembersCounter;
+  final bool showGenerationBadges;
 
   factory TreeViewSettings.fromJson(Map<String, dynamic> json) =>
       TreeViewSettings(
         initialZoom: (json['initialZoom'] as num?)?.toDouble() ?? 0.60,
-        minZoom: (json['minZoom'] as num?)?.toDouble() ?? 0.20,
-        maxZoom: (json['maxZoom'] as num?)?.toDouble() ?? 3.00,
+        minZoom: (json['minZoom'] as num?)?.toDouble() ?? 0.40,
+        maxZoom: (json['maxZoom'] as num?)?.toDouble() ?? 1.20,
         rememberLastZoom: json['rememberLastZoom'] as bool? ?? true,
+        showMembersCounter: json['showMembersCounter'] as bool? ?? true,
+        showGenerationBadges: json['showGenerationBadges'] as bool? ?? true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -75,6 +191,8 @@ class TreeViewSettings {
     'minZoom': minZoom,
     'maxZoom': maxZoom,
     'rememberLastZoom': rememberLastZoom,
+    'showMembersCounter': showMembersCounter,
+    'showGenerationBadges': showGenerationBadges,
   };
 
   TreeViewSettings copyWith({
@@ -82,12 +200,16 @@ class TreeViewSettings {
     double? minZoom,
     double? maxZoom,
     bool? rememberLastZoom,
+    bool? showMembersCounter,
+    bool? showGenerationBadges,
   }) {
     return TreeViewSettings(
       initialZoom: initialZoom ?? this.initialZoom,
       minZoom: minZoom ?? this.minZoom,
       maxZoom: maxZoom ?? this.maxZoom,
       rememberLastZoom: rememberLastZoom ?? this.rememberLastZoom,
+      showMembersCounter: showMembersCounter ?? this.showMembersCounter,
+      showGenerationBadges: showGenerationBadges ?? this.showGenerationBadges,
     );
   }
 }

@@ -36,7 +36,146 @@ class AppLocalizationsDe extends AppLocalizations {
   String get rememberLastZoom => 'Letzten Zoom merken';
 
   @override
+  String membersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Mitglieder',
+      one: '1 Mitglied',
+      zero: '0 Mitglieder',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String totalMembers(int count) {
+    return 'Gesamt: $count';
+  }
+
+  @override
+  String get showMembersCounter =>
+      'Mitgliederzähler in der unteren Leiste anzeigen';
+
+  @override
+  String get tutorial => 'Tutorial';
+
+  @override
+  String get help => 'Hilfe';
+
+  @override
+  String get helpAndTutorial => 'Hilfe und Tutorial';
+
+  @override
+  String get showTutorial => 'Tutorial-Schaltfläche anzeigen';
+
+  @override
+  String get hideTutorial => 'Tutorial ausblenden';
+
+  @override
+  String get nextStep => 'Weiter';
+
+  @override
+  String get previousStep => 'Zurück';
+
+  @override
+  String get finishTutorial => 'Fertigstellen';
+
+  @override
+  String get skipTutorial => 'Überspringen';
+
+  @override
+  String get firstLaunchTutorial => 'Tutorial beim ersten Start anzeigen';
+
+  @override
+  String get treeLegend => 'Legende';
+
+  @override
+  String get howToUse => 'So verwenden Sie den Baum';
+
+  @override
+  String get tutorialWelcomeTitle => 'Willkommen im Stammbaum';
+
+  @override
+  String get tutorialMoveTitle => 'Verschieben';
+
+  @override
+  String get tutorialMoveBody =>
+      'Klicken und ziehen, um den Baum zu verschieben.';
+
+  @override
+  String get tutorialZoomTitle => 'Zoom';
+
+  @override
+  String get tutorialZoomBody =>
+      'Verwenden Sie die Schaltflächen + und -. Strg + Mausrad kann ebenfalls zoomen.';
+
+  @override
+  String get tutorialInfoTitle => 'Informationen';
+
+  @override
+  String get tutorialInfoBody =>
+      'Bewegen Sie den Mauszeiger über eine Person, um Informationen anzuzeigen.';
+
+  @override
+  String get tutorialContextMenuTitle => 'Kontextmenü';
+
+  @override
+  String get tutorialContextMenuBody =>
+      'Klicken Sie mit der rechten Maustaste auf eine Person, um hinzuzufügen, zu bearbeiten, einen Zweig zu drucken oder den Verlauf zu sehen.';
+
+  @override
+  String get tutorialAccessCodesTitle => 'Zugangscodes';
+
+  @override
+  String get tutorialAccessCodesBody =>
+      'Einige Aktionen erfordern einen Änderungscode.';
+
+  @override
+  String get tutorialMapTitle => 'Karte';
+
+  @override
+  String get tutorialMapBody =>
+      'Klicken Sie auf das Standort-Symbol, um Google Maps zu öffnen.';
+
+  @override
+  String get tutorialNotificationsTitle => 'Benachrichtigungen';
+
+  @override
+  String get tutorialNotificationsBody =>
+      'Neue Änderungen werden automatisch angezeigt.';
+
+  @override
+  String get married => 'Verheiratet';
+
+  @override
+  String get knownPlace => 'Bekannter Ort';
+
+  @override
   String get loginTitle => 'Familienanmeldung';
+
+  @override
+  String get chooseLanguage => 'Sprache wählen';
+
+  @override
+  String get autoLanguage => 'Automatische Sprache';
+
+  @override
+  String get detectedLanguage => 'Erkannte Sprache';
+
+  @override
+  String get french => 'Französisch';
+
+  @override
+  String get english => 'Englisch';
+
+  @override
+  String get spanish => 'Spanisch';
+
+  @override
+  String get portuguese => 'Portugiesisch';
+
+  @override
+  String get german => 'Deutsch';
 
   @override
   String get familyCode => 'Familiencode';
@@ -100,6 +239,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get familyHistory => 'Familiengeschichte';
+
+  @override
+  String get ourHistory => 'Unsere Geschichte';
+
+  @override
+  String get historyOfFamily => 'Geschichte der Familie';
 
   @override
   String get generalFamilyHistory => 'Allgemeine Familiengeschichte';
@@ -484,6 +629,57 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get currentAddress => 'Aktuelle Adresse';
+
+  @override
+  String get locationFilter => 'Standortfilter';
+
+  @override
+  String get filterByLocation => 'Nach Standort filtern';
+
+  @override
+  String get country => 'Land';
+
+  @override
+  String get city => 'Stadt';
+
+  @override
+  String get region => 'Region / Präfektur / Landkreis';
+
+  @override
+  String get birthLocation => 'Geburtsort';
+
+  @override
+  String get deathLocation => 'Sterbeort';
+
+  @override
+  String get burialLocation => 'Bestattungsort';
+
+  @override
+  String get radiusAroundAddress => 'Radius um eine Adresse';
+
+  @override
+  String membersFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Mitglieder gefunden',
+      one: '1 Mitglied gefunden',
+      zero: '0 Mitglieder gefunden',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get showOnlyResults => 'Nur Ergebnisse anzeigen';
+
+  @override
+  String get highlightResults => 'Ergebnisse hervorheben';
+
+  @override
+  String get clearFilters => 'Filter zurücksetzen';
+
+  @override
+  String get centerOnPerson => 'Auf Person zentrieren';
 
   @override
   String get burialPlace => 'Bestattungsort';
@@ -955,6 +1151,38 @@ class AppLocalizationsDe extends AppLocalizations {
   String get invalidAdminCode => 'Ungültiger Admin-Code';
 
   @override
+  String get forgotCode => 'Code vergessen?';
+
+  @override
+  String get superAdminRecovery => 'Super-Admin-Zurücksetzung';
+
+  @override
+  String get enterSuperAdminRecoveryCode =>
+      'Geheimen Super-Admin-Code eingeben';
+
+  @override
+  String get resetCodes => 'Codes zurücksetzen';
+
+  @override
+  String get resetAllCodes => 'Alle Codes automatisch neu generieren';
+
+  @override
+  String get generateNewCodes => 'Neue Codes erstellen';
+
+  @override
+  String get recoveryCodeInvalid => 'Ungültiger geheimer Super-Admin-Code';
+
+  @override
+  String get recoveryCodeAccepted => 'Geheimer Super-Admin-Code akzeptiert';
+
+  @override
+  String get codesResetSuccess => 'Codes erfolgreich zurückgesetzt';
+
+  @override
+  String get confirmResetCodes =>
+      'Zurücksetzen der Codes bestätigen? Vor der Änderung wird ein JSON-Backup erstellt.';
+
+  @override
   String get adminKpiAccess => 'Admin-/KPI-Zugriff';
 
   @override
@@ -1163,6 +1391,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get showLeaderInTopBar => 'Oberhaupt in der TopBar anzeigen';
 
   @override
+  String get showLeaderBanner => 'Banner des Familienoberhaupts anzeigen';
+
+  @override
   String get showLeaderPhoto => 'Foto / Avatar anzeigen';
 
   @override
@@ -1259,4 +1490,28 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get adminWhatsappNotification =>
       'WhatsApp wird mit einer vorbereiteten Nachricht geöffnet. Jeder Admin muss den Versand bestätigen.';
+
+  @override
+  String get generation => 'Generation';
+
+  @override
+  String get generations => 'Generationen';
+
+  @override
+  String get generationNumber => 'Generationsnummer';
+
+  @override
+  String get rootAncestor => 'Stammvorfahr';
+
+  @override
+  String get firstAncestor => 'Erster Vorfahr';
+
+  @override
+  String get recalculateGenerations => 'Alle Generationen neu berechnen';
+
+  @override
+  String get showGenerationBadges => 'Generationsbadges anzeigen';
+
+  @override
+  String get allGenerations => 'Alle Generationen';
 }

@@ -368,6 +368,14 @@ class _ApplicationSettingsSection extends ConsumerWidget {
               icon: const Icon(Icons.edit_outlined),
               label: Text(l10n.editApplicationTitle),
             ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: canEdit
+                  ? () => _recalculateGenerations(context, ref)
+                  : null,
+              icon: const Icon(Icons.family_restroom_outlined),
+              label: Text(l10n.recalculateGenerations),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -414,6 +422,34 @@ class _ApplicationSettingsSection extends ConsumerWidget {
                   onChanged: null,
                   title: Text(l10n.rememberLastZoom),
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.groups_2_outlined),
+                  value: settings.treeSettings.showMembersCounter,
+                  onChanged: null,
+                  title: Text(l10n.showMembersCounter),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.family_restroom_outlined),
+                  value: settings.treeSettings.showGenerationBadges,
+                  onChanged: null,
+                  title: Text(l10n.showGenerationBadges),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.school_outlined),
+                  value: settings.tutorialSettings.showFloatingHelpButton,
+                  onChanged: null,
+                  title: Text(l10n.showTutorial),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.auto_stories_outlined),
+                  value: settings.tutorialSettings.showTutorialOnFirstLaunch,
+                  onChanged: null,
+                  title: Text(l10n.firstLaunchTutorial),
+                ),
               ],
             ),
           ),
@@ -442,6 +478,24 @@ class _ApplicationSettingsSection extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(l10n.applicationSettings)));
+  }
+
+  Future<void> _recalculateGenerations(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .recalculateGenerations(
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.recalculateGenerations)));
   }
 }
 
@@ -1954,6 +2008,16 @@ class _FamilyHonorSection extends ConsumerWidget {
                     ref,
                     auth,
                     leadership.copyWith(showLeaderInTopBar: value),
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.showLeaderBanner),
+                  value: leadership.showLeaderBanner,
+                  onChanged: (value) => _saveLeadership(
+                    ref,
+                    auth,
+                    leadership.copyWith(showLeaderBanner: value),
                   ),
                 ),
                 SwitchListTile(

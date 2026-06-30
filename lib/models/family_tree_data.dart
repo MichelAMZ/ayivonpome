@@ -22,6 +22,7 @@ import 'modification_history.dart';
 import 'person.dart';
 import 'public_mode_config.dart';
 import 'modification_code.dart';
+import 'super_admin_recovery.dart';
 
 class FamilyTreeData {
   const FamilyTreeData({
@@ -45,6 +46,7 @@ class FamilyTreeData {
     this.modificationCodes = const [],
     this.admins = const [],
     this.adminAccess = const AdminAccess(),
+    this.superAdminRecovery = const SuperAdminRecovery(),
     this.people = const [],
     this.familyLinks = const [],
     this.marriageRelations = const [],
@@ -80,6 +82,7 @@ class FamilyTreeData {
   final List<ModificationCode> modificationCodes;
   final List<AdminUser> admins;
   final AdminAccess adminAccess;
+  final SuperAdminRecovery superAdminRecovery;
   final List<Person> people;
   final List<FamilyLink> familyLinks;
   final List<MarriageRelation> marriageRelations;
@@ -165,6 +168,9 @@ class FamilyTreeData {
         .toList(),
     adminAccess: AdminAccess.fromJson(
       Map<String, dynamic>.from(json['adminAccess'] as Map? ?? const {}),
+    ),
+    superAdminRecovery: SuperAdminRecovery.fromJson(
+      Map<String, dynamic>.from(json['superAdminRecovery'] as Map? ?? const {}),
     ),
     people: (json['people'] as List? ?? const [])
         .whereType<Map>()
@@ -544,6 +550,7 @@ class FamilyTreeData {
         .toList(),
     'admins': admins.map((item) => item.toJson()).toList(),
     'adminAccess': adminAccess.toJson(),
+    'superAdminRecovery': superAdminRecovery.toJson(),
     'people': people.map((item) => item.toJson()).toList(),
     'familyLinks': familyLinks.map((item) => item.toJson()).toList(),
     'marriageRelations': marriageRelations
@@ -586,6 +593,7 @@ class FamilyTreeData {
     List<ModificationCode>? modificationCodes,
     List<AdminUser>? admins,
     AdminAccess? adminAccess,
+    SuperAdminRecovery? superAdminRecovery,
     List<Person>? people,
     List<FamilyLink>? familyLinks,
     List<MarriageRelation>? marriageRelations,
@@ -624,6 +632,7 @@ class FamilyTreeData {
       modificationCodes: modificationCodes ?? this.modificationCodes,
       admins: admins ?? this.admins,
       adminAccess: adminAccess ?? this.adminAccess,
+      superAdminRecovery: superAdminRecovery ?? this.superAdminRecovery,
       people: people ?? this.people,
       familyLinks: familyLinks ?? this.familyLinks,
       marriageRelations: marriageRelations ?? this.marriageRelations,

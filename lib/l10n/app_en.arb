@@ -9,7 +9,61 @@
   "officialFamilyName": "Official family name",
   "treeInitialZoom": "Initial tree zoom",
   "rememberLastZoom": "Remember last zoom",
+  "membersCount": "{count, plural, =0{0 members} =1{1 member} other{{count} members}}",
+  "@membersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "totalMembers": "Total: {count}",
+  "@totalMembers": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "showMembersCounter": "Show members counter in the bottom bar",
+  "tutorial": "Tutorial",
+  "help": "Help",
+  "helpAndTutorial": "Help and tutorial",
+  "showTutorial": "Show tutorial button",
+  "hideTutorial": "Hide tutorial",
+  "nextStep": "Next",
+  "previousStep": "Previous",
+  "finishTutorial": "Finish",
+  "skipTutorial": "Skip",
+  "firstLaunchTutorial": "Show tutorial on first launch",
+  "treeLegend": "Legend",
+  "howToUse": "How to use the tree",
+  "tutorialWelcomeTitle": "Welcome to the family tree",
+  "tutorialMoveTitle": "Move",
+  "tutorialMoveBody": "Click and drag to move the tree.",
+  "tutorialZoomTitle": "Zoom",
+  "tutorialZoomBody": "Use the + and - buttons. Ctrl + mouse wheel can also zoom.",
+  "tutorialInfoTitle": "Information",
+  "tutorialInfoBody": "Hover over a person to view their information.",
+  "tutorialContextMenuTitle": "Context menu",
+  "tutorialContextMenuBody": "Right-click a person to add, edit, print a branch, or view history.",
+  "tutorialAccessCodesTitle": "Access codes",
+  "tutorialAccessCodesBody": "Some actions require a modification code.",
+  "tutorialMapTitle": "Map",
+  "tutorialMapBody": "Click the location icon to open Google Maps.",
+  "tutorialNotificationsTitle": "Notifications",
+  "tutorialNotificationsBody": "New changes appear automatically.",
+  "married": "Married",
+  "knownPlace": "Known place",
   "loginTitle": "Family sign in",
+  "chooseLanguage": "Choose language",
+  "autoLanguage": "Automatic language",
+  "detectedLanguage": "Detected language",
+  "french": "French",
+  "english": "English",
+  "spanish": "Spanish",
+  "portuguese": "Portuguese",
+  "german": "German",
   "familyCode": "Family code",
   "enter": "Enter",
   "invalidCode": "Invalid code",
@@ -31,6 +85,8 @@
   "descendants": "Descendants",
   "childrenCount": "Children count",
   "familyHistory": "Family history",
+  "ourHistory": "Our Story",
+  "historyOfFamily": "History of the family",
   "generalFamilyHistory": "General family history",
   "viewFamilyHistory": "View the general family history",
   "editFamilyHistory": "Edit family history",
@@ -156,6 +212,27 @@
   "requiredField": "Required field",
   "unknown": "Unknown",
   "currentAddress": "Current address",
+  "locationFilter": "Location filter",
+  "filterByLocation": "Filter by location",
+  "country": "Country",
+  "city": "City",
+  "region": "Region / prefecture / department",
+  "birthLocation": "Birth location",
+  "deathLocation": "Death location",
+  "burialLocation": "Burial location",
+  "radiusAroundAddress": "Radius around an address",
+  "membersFound": "{count, plural, =0{0 members found} =1{1 member found} other{{count} members found}}",
+  "@membersFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "showOnlyResults": "Show only results",
+  "highlightResults": "Highlight results",
+  "clearFilters": "Reset filters",
+  "centerOnPerson": "Center on person",
   "burialPlace": "Burial place",
   "importantPlaces": "Important places",
   "viewOnMap": "View on map",
@@ -309,6 +386,16 @@
   "adminAccessCode": "Admin code",
   "enterAdminCode": "Enter admin code",
   "invalidAdminCode": "Invalid admin code",
+  "forgotCode": "Forgot code?",
+  "superAdminRecovery": "Super Admin reset",
+  "enterSuperAdminRecoveryCode": "Enter Super Admin secret code",
+  "resetCodes": "Reset codes",
+  "resetAllCodes": "Automatically regenerate all codes",
+  "generateNewCodes": "Create new codes",
+  "recoveryCodeInvalid": "Invalid Super Admin secret code",
+  "recoveryCodeAccepted": "Super Admin secret code accepted",
+  "codesResetSuccess": "Codes reset successfully",
+  "confirmResetCodes": "Confirm code reset? A JSON backup will be created before changes.",
   "adminKpiAccess": "Admin / KPI access",
   "adminSecurity": "Admin security",
   "changeAdminCode": "Change admin code",
@@ -378,6 +465,7 @@
   "viewLeaderProfile": "View current leader profile",
   "chiefTitle": "Leader title",
   "showLeaderInTopBar": "Show leader in TopBar",
+  "showLeaderBanner": "Show family leader banner",
   "showLeaderPhoto": "Show photo / avatar",
   "topBarLogoMode": "TopBar logo mode",
   "classicLogo": "Classic logo",
@@ -409,5 +497,13 @@
   "deleteBugReport": "Delete bug report",
   "confirmDeleteBugReport": "Do you want to delete this bug report?",
   "bugReportCreated": "Bug report created.",
-  "adminWhatsappNotification": "WhatsApp will open with a prefilled message. Each admin must confirm sending."
+  "adminWhatsappNotification": "WhatsApp will open with a prefilled message. Each admin must confirm sending.",
+  "generation": "Generation",
+  "generations": "Generations",
+  "generationNumber": "Generation number",
+  "rootAncestor": "Root ancestor",
+  "firstAncestor": "First ancestor",
+  "recalculateGenerations": "Recalculate all generations",
+  "showGenerationBadges": "Show generation badges",
+  "allGenerations": "All generations"
 }

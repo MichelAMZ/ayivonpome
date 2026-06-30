@@ -11,7 +11,13 @@ import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
+import '../providers/tree_filter_provider.dart';
+import 'members_counter_badge.dart';
+import '../services/location_filter_service.dart';
+import '../services/genealogy_layout_service.dart';
+import 'location_filter_panel.dart';
 import 'person_card.dart';
+import 'tutorial_floating_button.dart';
 
 class FamilyTreeCanvas extends ConsumerStatefulWidget {
   const FamilyTreeCanvas({
@@ -20,12 +26,16 @@ class FamilyTreeCanvas extends ConsumerStatefulWidget {
     required this.onOpenPerson,
     required this.authMode,
     this.topReservedSpace = 0,
+    this.membersCount,
+    this.showMembersCounter = true,
   });
 
   final FamilyTreeData data;
   final ValueChanged<Person> onOpenPerson;
   final AuthMode authMode;
   final double topReservedSpace;
+  final int? membersCount;
+  final bool showMembersCounter;
 
   @override
   ConsumerState<FamilyTreeCanvas> createState() => _FamilyTreeCanvasState();
@@ -41,6 +51,8 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   Size? _lastViewport;
   Size? _lastTreeSize;
   Size? _lastLayoutSize;
+  Offset? _lastCanvasOffset;
+  Map<String, Rect> _lastPersonRects = const {};
 
   @override
   void dispose() {
@@ -50,21 +62,36 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    final people = widget.data.people;
-    if (people.isEmpty) {
+    final sourcePeople = widget.data.people;
+    if (sourcePeople.isEmpty) {
       return const Center(child: Icon(Icons.account_tree_outlined, size: 64));
     }
+    final filter = ref.watch(treeFilterProvider);
+    const filterService = LocationFilterService();
+    final filteredPeople = filterService.filterPeopleByLocation(
+      sourcePeople,
+      filter,
+    );
+    final highlightedIds = filter.isActive && filter.highlightResults
+        ? filteredPeople.map((person) => person.id).toSet()
+        : <String>{};
+    final displayData = filter.isActive && filter.showOnlyResults
+        ? widget.data.copyWith(people: filteredPeople)
+        : widget.data;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = _TreeMetrics.fromWidth(constraints.maxWidth);
         final treeSettings = widget.data.appSettings.treeSettings;
-        final layout = _TreeLayout.build(
-          data: widget.data,
-          metrics: metrics,
-          topReservedSpace: widget.topReservedSpace,
-        );
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+        final hasDisplayPeople = displayData.people.isNotEmpty;
+        final layout = hasDisplayPeople
+            ? _TreeLayout.build(
+                data: displayData,
+                metrics: metrics,
+                topReservedSpace: widget.topReservedSpace,
+              )
+            : _TreeLayout.empty();
         final treeSize = Size(
           math.max(
             viewport.width,
@@ -83,6 +110,10 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
           math.max((treeSize.width - layout.size.width) / 2, 0),
           math.max((treeSize.height - layout.size.height) / 2, 0),
         );
+        _lastCanvasOffset = offset;
+        _lastPersonRects = {
+          for (final entry in layout.nodes.entries) entry.key.id: entry.value,
+        };
 
         return Container(
           color: const Color(0xFFFBFCF7),
@@ -139,8 +170,18 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                                 width: metrics.cardWidth,
                                 height: metrics.cardHeight,
                                 compact: constraints.maxWidth < 700,
+                                highlighted: highlightedIds.contains(
+                                  entry.key.id,
+                                ),
                                 onOpen: () => widget.onOpenPerson(entry.key),
                               ),
+                            ),
+                          ),
+                        if (!hasDisplayPeople)
+                          Center(
+                            child: Text(
+                              AppLocalizations.of(context).noResults,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
                       ],
@@ -162,26 +203,41 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                       onFullscreen: _openFullscreenCanvas,
                       onFilters: _showFiltersSheet,
                       onOptions: _showOptionsMenu,
+                      filterActive: filter.isActive,
+                      filterCount: filteredPeople.length,
                     ),
                   ),
                 ),
               ),
               Positioned(
                 right: metrics.canvasPadding + 2,
-                bottom: metrics.canvasPadding + 92,
-                child: TreeZoomControls(
+                bottom: math.max(metrics.canvasPadding, 24),
+                child: TreeFloatingActionsColumn(
                   scale: _scale,
                   onZoomIn: () => _applyScale(1.15),
                   onZoomOut: () => _applyScale(0.87),
                   onReset: _resetView,
                   onFit: _fitTreeView,
+                  tutorialButton:
+                      widget
+                          .data
+                          .appSettings
+                          .tutorialSettings
+                          .showFloatingHelpButton
+                      ? TutorialFloatingButton(
+                          settings: widget.data.appSettings.tutorialSettings,
+                        )
+                      : null,
                 ),
               ),
               Positioned(
                 left: metrics.canvasPadding,
                 right: metrics.canvasPadding,
                 bottom: metrics.canvasPadding,
-                child: const TreeLegend(),
+                child: TreeLegend(
+                  membersCount: widget.membersCount,
+                  showMembersCounter: widget.showMembersCounter,
+                ),
               ),
             ],
           ),
@@ -201,7 +257,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   void _resetView() {
     final zoom = ref
         .read(treeViewSettingsServiceProvider)
-        .getInitialZoom(context, widget.data.appSettings.treeSettings);
+        .getInitialZoom(widget.data.appSettings.treeSettings);
     setState(() => _scale = zoom);
     _controller.value = _centeredMatrix(zoom);
     _saveLastZoom();
@@ -239,7 +295,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
       if (!mounted) return;
       final settings = widget.data.appSettings.treeSettings;
       final service = ref.read(treeViewSettingsServiceProvider);
-      final fallbackZoom = service.getInitialZoom(context, settings);
+      final fallbackZoom = service.getInitialZoom(settings);
       final restoredZoom = await service.restoreLastZoom(settings);
       if (!mounted) return;
       final zoom = restoredZoom ?? fallbackZoom;
@@ -301,6 +357,8 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
             data: widget.data,
             onOpenPerson: widget.onOpenPerson,
             authMode: widget.authMode,
+            membersCount: widget.membersCount,
+            showMembersCounter: widget.showMembersCounter,
           ),
         ),
       ),
@@ -319,60 +377,35 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
 
   Future<void> _showFiltersSheet() async {
     final people = widget.data.people;
-    final men = people.where((person) => _isMale(person.gender)).length;
-    final women = people.where((person) => _isFemale(person.gender)).length;
-    final places = people.where((person) => _hasKnownPlace(person)).length;
+    final filter = ref.read(treeFilterProvider);
+    const filterService = LocationFilterService();
+    final results = filterService.filterPeopleByLocation(people, filter);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Filtres de l’arbre',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 12),
-            SwitchListTile(
-              value: true,
-              onChanged: null,
-              title: Text('Afficher toutes les personnes (${people.length})'),
-            ),
-            CheckboxListTile(
-              value: true,
-              onChanged: null,
-              title: Text('Hommes ($men)'),
-              secondary: const Text('♂'),
-            ),
-            CheckboxListTile(
-              value: true,
-              onChanged: null,
-              title: Text('Femmes ($women)'),
-              secondary: const Text('♀'),
-            ),
-            CheckboxListTile(
-              value: true,
-              onChanged: null,
-              title: Text('Lieux connus ($places)'),
-              secondary: const Icon(Icons.location_on_outlined),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Appliquer'),
-              ),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      builder: (context) => LocationFilterPanel(
+        people: people,
+        results: results,
+        onCenterOnPerson: centerTreeOnPerson,
       ),
     );
+  }
+
+  void centerTreeOnPerson(Person person) {
+    final viewport = _lastViewport;
+    final offset = _lastCanvasOffset;
+    final rect = _lastPersonRects[person.id];
+    if (viewport == null || offset == null || rect == null) return;
+    final scale = _scale;
+    final viewportCenter = Offset(viewport.width / 2, viewport.height / 2);
+    final personCenter = offset + rect.center;
+    final translation = viewportCenter - personCenter * scale;
+    setState(() {
+      _controller.value = Matrix4.identity()
+        ..translateByDouble(translation.dx, translation.dy, 0, 1)
+        ..scaleByDouble(scale, scale, 1, 1);
+    });
   }
 
   Future<void> _showOptionsMenu() async {
@@ -428,24 +461,6 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
-  }
-
-  bool _isMale(String gender) {
-    final value = gender.toLowerCase();
-    return value == 'male' || value == 'm' || value == 'homme';
-  }
-
-  bool _isFemale(String gender) {
-    final value = gender.toLowerCase();
-    return value == 'female' || value == 'f' || value == 'femme';
-  }
-
-  bool _hasKnownPlace(Person person) {
-    return person.publicMapLocation.isNotEmpty ||
-        person.currentAddress.isNotEmpty ||
-        person.birthPlace.isNotEmpty ||
-        person.deathPlace.isNotEmpty ||
-        person.burialPlace.isNotEmpty;
   }
 }
 
@@ -511,15 +526,28 @@ class _TreeLayout {
   final List<_ParentLink> parentLinks;
   final Size size;
 
+  factory _TreeLayout.empty() => const _TreeLayout(
+    nodes: {},
+    marriageMarkers: [],
+    size: Size(1, 1),
+    parentLinks: [],
+  );
+
   static _TreeLayout build({
     required FamilyTreeData data,
     required _TreeMetrics metrics,
     required double topReservedSpace,
   }) {
     final peopleById = {for (final person in data.people) person.id: person};
+    final generations = const GenealogyLayoutService().computeGenerations(data);
+    final relationshipErrors = const GenealogyLayoutService()
+        .validateRelationshipGraph(data);
+    for (final error in relationshipErrors) {
+      debugPrint('Genealogy relationship error: $error');
+    }
     final levels = <int, List<Person>>{};
     for (final person in data.people) {
-      final level = _generationOf(person, peopleById, <String>{});
+      final level = generations[person.id] ?? 0;
       levels.putIfAbsent(level, () => []).add(person);
     }
 
@@ -609,20 +637,6 @@ class _TreeLayout {
       parentLinks: links,
       size: Size(maxWidth + metrics.canvasPadding * 2, height),
     );
-  }
-
-  static int _generationOf(
-    Person person,
-    Map<String, Person> peopleById,
-    Set<String> seen,
-  ) {
-    if (!seen.add(person.id)) return 0;
-    final parents = _parentIds(person).map(peopleById.get).whereType<Person>();
-    if (parents.isEmpty) return 0;
-    return 1 +
-        parents
-            .map((parent) => _generationOf(parent, peopleById, {...seen}))
-            .fold<int>(0, math.max);
   }
 
   static List<_TreeUnit> _unitsForLevel(
@@ -818,12 +832,16 @@ class TreeToolbar extends StatelessWidget {
     required this.onFullscreen,
     required this.onFilters,
     required this.onOptions,
+    this.filterActive = false,
+    this.filterCount = 0,
   });
 
   final VoidCallback onSearch;
   final VoidCallback onFullscreen;
   final VoidCallback onFilters;
   final VoidCallback onOptions;
+  final bool filterActive;
+  final int filterCount;
 
   @override
   Widget build(BuildContext context) {
@@ -855,10 +873,38 @@ class TreeToolbar extends StatelessWidget {
             onPressed: onFullscreen,
           ),
           _Divider(),
-          _ToolbarButton(
-            icon: Icons.tune,
-            tooltip: 'Filtres',
-            onPressed: onFilters,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _ToolbarButton(
+                icon: Icons.tune,
+                tooltip: 'Filtres',
+                onPressed: onFilters,
+              ),
+              if (filterActive)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD6AD42),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      filterCount.toString(),
+                      style: const TextStyle(
+                        color: Color(0xFF2F3A13),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           _ToolbarButton(
             icon: Icons.more_vert,
@@ -961,14 +1007,15 @@ class _PersonSearchDialogState extends State<_PersonSearchDialog> {
   }
 }
 
-class TreeZoomControls extends StatelessWidget {
-  const TreeZoomControls({
+class TreeFloatingActionsColumn extends StatelessWidget {
+  const TreeFloatingActionsColumn({
     super.key,
     required this.scale,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onReset,
     required this.onFit,
+    this.tutorialButton,
   });
 
   final double scale;
@@ -976,55 +1023,19 @@ class TreeZoomControls extends StatelessWidget {
   final VoidCallback onZoomOut;
   final VoidCallback onReset;
   final VoidCallback onFit;
+  final Widget? tutorialButton;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E7DC)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _ToolbarButton(
-                icon: Icons.add,
-                tooltip: 'Zoom +',
-                onPressed: onZoomIn,
-              ),
-              SizedBox(
-                width: 54,
-                height: 36,
-                child: Center(
-                  child: Text(
-                    '${(scale * 100).round()}%',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: const Color(0xFF3F433A),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              _ToolbarButton(
-                icon: Icons.remove,
-                tooltip: 'Zoom -',
-                onPressed: onZoomOut,
-              ),
-            ],
-          ),
+        TreeZoomControls(
+          scale: scale,
+          onZoomIn: onZoomIn,
+          onZoomOut: onZoomOut,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.95),
@@ -1044,7 +1055,11 @@ class TreeZoomControls extends StatelessWidget {
             onPressed: onReset,
           ),
         ),
-        const SizedBox(height: 10),
+        if (tutorialButton != null) ...[
+          const SizedBox(height: 16),
+          SizedBox(width: 54, height: 54, child: Center(child: tutorialButton)),
+        ],
+        const SizedBox(height: 16),
         DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.95),
@@ -1065,6 +1080,65 @@ class TreeZoomControls extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class TreeZoomControls extends StatelessWidget {
+  const TreeZoomControls({
+    super.key,
+    required this.scale,
+    required this.onZoomIn,
+    required this.onZoomOut,
+  });
+
+  final double scale;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E7DC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ToolbarButton(
+            icon: Icons.add,
+            tooltip: 'Zoom +',
+            onPressed: onZoomIn,
+          ),
+          SizedBox(
+            width: 54,
+            height: 36,
+            child: Center(
+              child: Text(
+                '${(scale * 100).round()}%',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: const Color(0xFF3F433A),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          _ToolbarButton(
+            icon: Icons.remove,
+            tooltip: 'Zoom -',
+            onPressed: onZoomOut,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1099,10 +1173,18 @@ class _Divider extends StatelessWidget {
 }
 
 class TreeLegend extends StatelessWidget {
-  const TreeLegend({super.key});
+  const TreeLegend({
+    super.key,
+    this.membersCount,
+    this.showMembersCounter = true,
+  });
+
+  final int? membersCount;
+  final bool showMembersCounter;
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 620;
     return Center(
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -1123,24 +1205,35 @@ class TreeLegend extends StatelessWidget {
             spacing: 18,
             runSpacing: 8,
             alignment: WrapAlignment.center,
-            children: const [
-              _LegendItem(icon: '♂', label: 'Homme', color: Color(0xFF2D7DD2)),
-              _LegendItem(icon: '♀', label: 'Femme', color: Color(0xFFE53964)),
-              _LegendItem(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const _LegendItem(
+                icon: '♂',
+                label: 'Homme',
+                color: Color(0xFF2D7DD2),
+              ),
+              const _LegendItem(
+                icon: '♀',
+                label: 'Femme',
+                color: Color(0xFFE53964),
+              ),
+              const _LegendItem(
                 icon: '💍',
                 label: 'Marié(e)',
                 color: Color(0xFFE6A400),
               ),
-              _LegendItem(
+              const _LegendItem(
                 icon: '💔',
                 label: 'Divorcé(e)',
                 color: Color(0xFFD64D61),
               ),
-              _LegendItem(
+              const _LegendItem(
                 icon: '📍',
                 label: 'Lieu connu',
                 color: Color(0xFF4C7A2E),
               ),
+              if (showMembersCounter && membersCount != null)
+                MembersCounterBadge(count: membersCount!, compact: compact),
             ],
           ),
         ),

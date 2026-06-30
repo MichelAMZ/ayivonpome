@@ -2,9 +2,16 @@ import '../models/audit_log.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
+import 'genealogy_layout_service.dart';
 
 class FamilyRelationService {
-  FamilyTreeData addFather(FamilyTreeData data, Person child, {String actorRole = ''}) {
+  const FamilyRelationService();
+
+  FamilyTreeData addFather(
+    FamilyTreeData data,
+    Person child, {
+    String actorRole = '',
+  }) {
     final father = Person(
       id: _id('p'),
       firstName: 'Nouveau',
@@ -18,6 +25,7 @@ class FamilyRelationService {
       fatherId: father.id,
       parents: {...child.parents, father.id}.toList(),
     );
+    _assertCanBeParent(data, father.id, child.id);
     return _withPeople(
       data,
       [father, updatedChild],
@@ -27,7 +35,11 @@ class FamilyRelationService {
     );
   }
 
-  FamilyTreeData addMother(FamilyTreeData data, Person child, {String actorRole = ''}) {
+  FamilyTreeData addMother(
+    FamilyTreeData data,
+    Person child, {
+    String actorRole = '',
+  }) {
     final mother = Person(
       id: _id('p'),
       firstName: 'Nouvelle',
@@ -41,6 +53,7 @@ class FamilyRelationService {
       motherId: mother.id,
       parents: {...child.parents, mother.id}.toList(),
     );
+    _assertCanBeParent(data, mother.id, child.id);
     return _withPeople(
       data,
       [mother, updatedChild],
@@ -50,13 +63,21 @@ class FamilyRelationService {
     );
   }
 
-  FamilyTreeData addParents(FamilyTreeData data, Person child, {String actorRole = ''}) {
+  FamilyTreeData addParents(
+    FamilyTreeData data,
+    Person child, {
+    String actorRole = '',
+  }) {
     final withFather = addFather(data, child, actorRole: actorRole);
     final updatedChild = _byId(withFather, child.id) ?? child;
     return addMother(withFather, updatedChild, actorRole: actorRole);
   }
 
-  FamilyTreeData addChild(FamilyTreeData data, Person parent, {String actorRole = ''}) {
+  FamilyTreeData addChild(
+    FamilyTreeData data,
+    Person parent, {
+    String actorRole = '',
+  }) {
     final child = Person(
       id: _id('p'),
       firstName: 'Nouvel',
@@ -71,6 +92,7 @@ class FamilyRelationService {
       childrenIds: {...parent.childrenIds, child.id}.toList(),
       children: {...parent.children, child.id}.toList(),
     );
+    _assertCanBeParent(data, parent.id, child.id);
     return _withPeople(
       data,
       [child, updatedParent],
@@ -105,7 +127,11 @@ class FamilyRelationService {
     );
   }
 
-  FamilyTreeData addSpouse(FamilyTreeData data, Person person, {String actorRole = ''}) {
+  FamilyTreeData addSpouse(
+    FamilyTreeData data,
+    Person person, {
+    String actorRole = '',
+  }) {
     final spouse = Person(
       id: _id('p'),
       firstName: 'Nouveau',
@@ -146,56 +172,68 @@ class FamilyRelationService {
     if (base.id == existing.id) {
       throw StateError('invalid_relationship');
     }
+    if ((relationship == 'father' || relationship == 'mother') &&
+        _isDescendant(data, base.id, existing.id)) {
+      throw StateError('invalid_relationship_cycle');
+    }
+    if (relationship == 'child' && _isDescendant(data, existing.id, base.id)) {
+      throw StateError('invalid_relationship_cycle');
+    }
+    if (relationship == 'spouse' &&
+        (_isDescendant(data, base.id, existing.id) ||
+            _isDescendant(data, existing.id, base.id))) {
+      throw StateError('invalid_spouse_descendant_relationship');
+    }
     return switch (relationship) {
       'father' => _withPeople(
-          data,
-          [
-            base.copyWith(
-              fatherId: existing.id,
-              parents: {...base.parents, existing.id}.toList(),
-            ),
-            existing.copyWith(
-              childrenIds: {...existing.childrenIds, base.id}.toList(),
-              children: {...existing.children, base.id}.toList(),
-            ),
-          ],
-          'link_father',
-          actorRole,
-          base.id,
-        ),
+        data,
+        [
+          base.copyWith(
+            fatherId: existing.id,
+            parents: {...base.parents, existing.id}.toList(),
+          ),
+          existing.copyWith(
+            childrenIds: {...existing.childrenIds, base.id}.toList(),
+            children: {...existing.children, base.id}.toList(),
+          ),
+        ],
+        'link_father',
+        actorRole,
+        base.id,
+      ),
       'mother' => _withPeople(
-          data,
-          [
-            base.copyWith(
-              motherId: existing.id,
-              parents: {...base.parents, existing.id}.toList(),
-            ),
-            existing.copyWith(
-              childrenIds: {...existing.childrenIds, base.id}.toList(),
-              children: {...existing.children, base.id}.toList(),
-            ),
-          ],
-          'link_mother',
-          actorRole,
-          base.id,
-        ),
+        data,
+        [
+          base.copyWith(
+            motherId: existing.id,
+            parents: {...base.parents, existing.id}.toList(),
+          ),
+          existing.copyWith(
+            childrenIds: {...existing.childrenIds, base.id}.toList(),
+            children: {...existing.children, base.id}.toList(),
+          ),
+        ],
+        'link_mother',
+        actorRole,
+        base.id,
+      ),
       'child' => _withPeople(
-          data,
-          [
-            base.copyWith(
-              childrenIds: {...base.childrenIds, existing.id}.toList(),
-              children: {...base.children, existing.id}.toList(),
-            ),
-            existing.copyWith(
-              fatherId: _isMale(base) ? base.id : existing.fatherId,
-              motherId: _isFemale(base) ? base.id : existing.motherId,
-              parents: {...existing.parents, base.id}.toList(),
-            ),
-          ],
-          'link_child',
-          actorRole,
-          base.id,
-        ),
+        data,
+        [
+          base.copyWith(
+            childrenIds: {...base.childrenIds, existing.id}.toList(),
+            children: {...base.children, existing.id}.toList(),
+          ),
+          existing.copyWith(
+            fatherId: _isMale(base) ? base.id : existing.fatherId,
+            motherId: _isFemale(base) ? base.id : existing.motherId,
+            parents: {...existing.parents, base.id}.toList(),
+          ),
+        ],
+        'link_child',
+        actorRole,
+        base.id,
+      ),
       'spouse' => _linkSpouse(data, base, existing, actorRole),
       _ => data,
     };
@@ -216,10 +254,15 @@ class FamilyRelationService {
   }
 
   List<Person> spousesOf(FamilyTreeData data, Person person) {
-    final relationIds = data.marriageRelations
-        .where((relation) => relation.personId == person.id || relation.spouseId == person.id)
-        .toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+    final relationIds =
+        data.marriageRelations
+            .where(
+              (relation) =>
+                  relation.personId == person.id ||
+                  relation.spouseId == person.id,
+            )
+            .toList()
+          ..sort((a, b) => a.order.compareTo(b.order));
     final ids = [
       ...person.spouseIds,
       ...person.spouses,
@@ -236,12 +279,95 @@ class FamilyRelationService {
     final ids = [
       ...person.childrenIds,
       ...person.children,
-      ...data.people.where((candidate) =>
-          candidate.fatherId == person.id ||
-          candidate.motherId == person.id ||
-          candidate.parents.contains(person.id)).map((candidate) => candidate.id),
+      ...data.people
+          .where(
+            (candidate) =>
+                candidate.fatherId == person.id ||
+                candidate.motherId == person.id ||
+                candidate.parents.contains(person.id),
+          )
+          .map((candidate) => candidate.id),
     ];
     return _uniquePeople(data, ids);
+  }
+
+  FamilyTreeData normalizeRelationships(FamilyTreeData data) {
+    final normalized = <String, Person>{};
+
+    for (final person in data.people) {
+      final spouseIds = _validIds(
+        data,
+        {...person.spouseIds, ...person.spouses}..remove(person.id),
+      );
+      final parentIds = _validIds(
+        data,
+        {
+          if (person.fatherId.isNotEmpty) person.fatherId,
+          if (person.motherId.isNotEmpty) person.motherId,
+          ...person.parents,
+        }..remove(person.id),
+      );
+      final childrenIds = _validIds(
+        data,
+        {...person.childrenIds, ...person.children}
+          ..removeAll({person.id, ...spouseIds}),
+      );
+
+      normalized[person.id] = person.copyWith(
+        parents: parentIds,
+        spouseIds: spouseIds,
+        spouses: spouseIds,
+        childrenIds: childrenIds,
+        children: childrenIds,
+      );
+    }
+
+    for (final relation in data.marriageRelations) {
+      if (relation.personId == relation.spouseId) continue;
+      final first = normalized[relation.personId];
+      final second = normalized[relation.spouseId];
+      if (first == null || second == null) continue;
+      normalized[first.id] = first.copyWith(
+        spouseIds: {...first.spouseIds, second.id}.toList(),
+        spouses: {...first.spouses, second.id}.toList(),
+        childrenIds: first.childrenIds.where((id) => id != second.id).toList(),
+        children: first.children.where((id) => id != second.id).toList(),
+      );
+      normalized[second.id] = second.copyWith(
+        spouseIds: {...second.spouseIds, first.id}.toList(),
+        spouses: {...second.spouses, first.id}.toList(),
+        childrenIds: second.childrenIds.where((id) => id != first.id).toList(),
+        children: second.children.where((id) => id != first.id).toList(),
+      );
+    }
+
+    for (final child in normalized.values.toList()) {
+      final parentIds = {
+        if (child.fatherId.isNotEmpty) child.fatherId,
+        if (child.motherId.isNotEmpty) child.motherId,
+        ...child.parents,
+      }..remove(child.id);
+      normalized[child.id] = child.copyWith(parents: parentIds.toList());
+      for (final parentId in parentIds) {
+        final parent = normalized[parentId];
+        if (parent == null) continue;
+        normalized[parentId] = parent.copyWith(
+          childrenIds: {...parent.childrenIds, child.id}.toList(),
+          children: {...parent.children, child.id}.toList(),
+        );
+      }
+    }
+
+    final next = data.copyWith(
+      people: data.people.map((person) => normalized[person.id]!).toList(),
+    );
+    final errors = const GenealogyLayoutService().validateRelationshipGraph(
+      next,
+    );
+    if (errors.isNotEmpty) {
+      throw StateError('invalid_relationship_graph: ${errors.join(', ')}');
+    }
+    return next;
   }
 
   List<Person> siblingsOf(FamilyTreeData data, Person person) {
@@ -252,13 +378,15 @@ class FamilyRelationService {
     };
     if (parentIds.isEmpty) return const [];
     return data.people
-        .where((candidate) =>
-            candidate.id != person.id &&
-            ({
-              if (candidate.fatherId.isNotEmpty) candidate.fatherId,
-              if (candidate.motherId.isNotEmpty) candidate.motherId,
-              ...candidate.parents,
-            }).intersection(parentIds).isNotEmpty)
+        .where(
+          (candidate) =>
+              candidate.id != person.id &&
+              ({
+                if (candidate.fatherId.isNotEmpty) candidate.fatherId,
+                if (candidate.motherId.isNotEmpty) candidate.motherId,
+                ...candidate.parents,
+              }).intersection(parentIds).isNotEmpty,
+        )
         .toList();
   }
 
@@ -270,7 +398,11 @@ class FamilyRelationService {
     return null;
   }
 
-  String _parentFallback(FamilyTreeData data, Person person, {required bool male}) {
+  String _parentFallback(
+    FamilyTreeData data,
+    Person person, {
+    required bool male,
+  }) {
     for (final id in person.parents) {
       final parent = _byId(data, id);
       final gender = parent?.gender.toLowerCase();
@@ -302,6 +434,11 @@ class FamilyRelationService {
     Person existing,
     String actorRole,
   ) {
+    if (base.id == existing.id ||
+        _isDescendant(data, base.id, existing.id) ||
+        _isDescendant(data, existing.id, base.id)) {
+      throw StateError('invalid_spouse_descendant_relationship');
+    }
     final relation = MarriageRelation(
       id: _id('marriage'),
       personId: base.id,
@@ -338,7 +475,7 @@ class FamilyRelationService {
     for (final person in changed) {
       byId[person.id] = person;
     }
-    return data.copyWith(
+    final next = data.copyWith(
       people: byId.values.toList(),
       auditLog: [
         ...data.auditLog,
@@ -352,6 +489,42 @@ class FamilyRelationService {
         ),
       ],
     );
+    return normalizeRelationships(next);
+  }
+
+  void _assertCanBeParent(
+    FamilyTreeData data,
+    String parentId,
+    String childId,
+  ) {
+    if (parentId == childId || _isDescendant(data, childId, parentId)) {
+      throw StateError('invalid_relationship_cycle');
+    }
+  }
+
+  bool _isDescendant(
+    FamilyTreeData data,
+    String ancestorId,
+    String descendantId, [
+    Set<String>? visited,
+  ]) {
+    if (ancestorId == descendantId) return true;
+    final seen = visited ?? <String>{};
+    if (!seen.add(ancestorId)) return false;
+    final ancestor = _byId(data, ancestorId);
+    if (ancestor == null) return false;
+    for (final child in childrenOf(data, ancestor)) {
+      if (child.id == descendantId ||
+          _isDescendant(data, child.id, descendantId, seen)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<String> _validIds(FamilyTreeData data, Iterable<String> ids) {
+    final byId = {for (final person in data.people) person.id};
+    return ids.where(byId.contains).toSet().toList();
   }
 
   bool _isMale(Person person) {
@@ -364,5 +537,6 @@ class FamilyRelationService {
     return gender == 'female' || gender == 'f' || gender == 'femme';
   }
 
-  String _id(String prefix) => '$prefix${DateTime.now().microsecondsSinceEpoch}';
+  String _id(String prefix) =>
+      '$prefix${DateTime.now().microsecondsSinceEpoch}';
 }

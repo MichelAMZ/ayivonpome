@@ -12,16 +12,16 @@ class FamilyHistoryButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final compact = MediaQuery.sizeOf(context).width < 760;
     return Tooltip(
-      message: l10n.viewFamilyHistory,
+      message: l10n.ourHistory,
       child: compact
           ? IconButton(
               onPressed: onPressed,
-              icon: const Icon(Icons.history_edu_outlined),
+              icon: const Icon(Icons.menu_book_outlined),
             )
           : OutlinedButton.icon(
               onPressed: onPressed,
-              icon: const Icon(Icons.history_edu_outlined),
-              label: const Text('About'),
+              icon: const Icon(Icons.menu_book_outlined),
+              label: Text(l10n.ourHistory),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,

@@ -36,7 +36,144 @@ class AppLocalizationsEs extends AppLocalizations {
   String get rememberLastZoom => 'Recordar el último zoom';
 
   @override
+  String membersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count miembros',
+      one: '1 miembro',
+      zero: '0 miembros',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String totalMembers(int count) {
+    return 'Total: $count';
+  }
+
+  @override
+  String get showMembersCounter => 'Mostrar el contador en la barra inferior';
+
+  @override
+  String get tutorial => 'Tutorial';
+
+  @override
+  String get help => 'Ayuda';
+
+  @override
+  String get helpAndTutorial => 'Ayuda y tutorial';
+
+  @override
+  String get showTutorial => 'Mostrar el botón de tutorial';
+
+  @override
+  String get hideTutorial => 'Ocultar tutorial';
+
+  @override
+  String get nextStep => 'Siguiente';
+
+  @override
+  String get previousStep => 'Anterior';
+
+  @override
+  String get finishTutorial => 'Finalizar';
+
+  @override
+  String get skipTutorial => 'Omitir';
+
+  @override
+  String get firstLaunchTutorial => 'Mostrar el tutorial en el primer inicio';
+
+  @override
+  String get treeLegend => 'Leyenda';
+
+  @override
+  String get howToUse => 'Cómo usar el árbol';
+
+  @override
+  String get tutorialWelcomeTitle => 'Bienvenido al árbol genealógico';
+
+  @override
+  String get tutorialMoveTitle => 'Desplazamiento';
+
+  @override
+  String get tutorialMoveBody => 'Haz clic y arrastra para mover el árbol.';
+
+  @override
+  String get tutorialZoomTitle => 'Zoom';
+
+  @override
+  String get tutorialZoomBody =>
+      'Usa los botones + y -. Ctrl + rueda también permite hacer zoom.';
+
+  @override
+  String get tutorialInfoTitle => 'Información';
+
+  @override
+  String get tutorialInfoBody =>
+      'Pasa el cursor sobre una persona para ver su información.';
+
+  @override
+  String get tutorialContextMenuTitle => 'Menú contextual';
+
+  @override
+  String get tutorialContextMenuBody =>
+      'Haz clic derecho sobre una persona para añadir, editar, imprimir una rama o ver el historial.';
+
+  @override
+  String get tutorialAccessCodesTitle => 'Códigos de acceso';
+
+  @override
+  String get tutorialAccessCodesBody =>
+      'Algunas acciones requieren un código de modificación.';
+
+  @override
+  String get tutorialMapTitle => 'Mapa';
+
+  @override
+  String get tutorialMapBody =>
+      'Haz clic en el icono de ubicación para abrir Google Maps.';
+
+  @override
+  String get tutorialNotificationsTitle => 'Notificaciones';
+
+  @override
+  String get tutorialNotificationsBody =>
+      'Los nuevos cambios aparecen automáticamente.';
+
+  @override
+  String get married => 'Casado/a';
+
+  @override
+  String get knownPlace => 'Lugar conocido';
+
+  @override
   String get loginTitle => 'Acceso familiar';
+
+  @override
+  String get chooseLanguage => 'Elegir idioma';
+
+  @override
+  String get autoLanguage => 'Idioma automático';
+
+  @override
+  String get detectedLanguage => 'Idioma detectado';
+
+  @override
+  String get french => 'Francés';
+
+  @override
+  String get english => 'Inglés';
+
+  @override
+  String get spanish => 'Español';
+
+  @override
+  String get portuguese => 'Portugués';
+
+  @override
+  String get german => 'Alemán';
 
   @override
   String get familyCode => 'Código familiar';
@@ -100,6 +237,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get familyHistory => 'Historia familiar';
+
+  @override
+  String get ourHistory => 'Nuestra historia';
+
+  @override
+  String get historyOfFamily => 'Historia de la familia';
 
   @override
   String get generalFamilyHistory => 'Historia general de la familia';
@@ -484,6 +627,57 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get currentAddress => 'Dirección actual';
+
+  @override
+  String get locationFilter => 'Filtro de ubicación';
+
+  @override
+  String get filterByLocation => 'Filtrar por ubicación';
+
+  @override
+  String get country => 'País';
+
+  @override
+  String get city => 'Ciudad';
+
+  @override
+  String get region => 'Región / prefectura / departamento';
+
+  @override
+  String get birthLocation => 'Lugar de nacimiento';
+
+  @override
+  String get deathLocation => 'Lugar de fallecimiento';
+
+  @override
+  String get burialLocation => 'Lugar de sepultura';
+
+  @override
+  String get radiusAroundAddress => 'Radio alrededor de una dirección';
+
+  @override
+  String membersFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count miembros encontrados',
+      one: '1 miembro encontrado',
+      zero: '0 miembros encontrados',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get showOnlyResults => 'Mostrar solo resultados';
+
+  @override
+  String get highlightResults => 'Resaltar resultados';
+
+  @override
+  String get clearFilters => 'Restablecer filtros';
+
+  @override
+  String get centerOnPerson => 'Centrar en la persona';
 
   @override
   String get burialPlace => 'Lugar de sepultura';
@@ -956,6 +1150,38 @@ class AppLocalizationsEs extends AppLocalizations {
   String get invalidAdminCode => 'Código admin incorrecto';
 
   @override
+  String get forgotCode => '¿Código olvidado?';
+
+  @override
+  String get superAdminRecovery => 'Restablecimiento Super Admin';
+
+  @override
+  String get enterSuperAdminRecoveryCode =>
+      'Introducir el código secreto Super Admin';
+
+  @override
+  String get resetCodes => 'Restablecer códigos';
+
+  @override
+  String get resetAllCodes => 'Regenerar automáticamente todos los códigos';
+
+  @override
+  String get generateNewCodes => 'Crear nuevos códigos';
+
+  @override
+  String get recoveryCodeInvalid => 'Código secreto Super Admin incorrecto';
+
+  @override
+  String get recoveryCodeAccepted => 'Código secreto Super Admin aceptado';
+
+  @override
+  String get codesResetSuccess => 'Códigos restablecidos correctamente';
+
+  @override
+  String get confirmResetCodes =>
+      '¿Confirmar el restablecimiento de códigos? Se creará una copia JSON antes de modificar.';
+
+  @override
   String get adminKpiAccess => 'Acceso Admin / KPI';
 
   @override
@@ -1164,6 +1390,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get showLeaderInTopBar => 'Mostrar líder en la TopBar';
 
   @override
+  String get showLeaderBanner => 'Mostrar el banner del jefe de familia';
+
+  @override
   String get showLeaderPhoto => 'Mostrar foto / avatar';
 
   @override
@@ -1260,4 +1489,28 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get adminWhatsappNotification =>
       'WhatsApp se abrirá con un mensaje preparado. Cada admin deberá confirmar el envío.';
+
+  @override
+  String get generation => 'Generación';
+
+  @override
+  String get generations => 'Generaciones';
+
+  @override
+  String get generationNumber => 'Número de generación';
+
+  @override
+  String get rootAncestor => 'Ancestro raíz';
+
+  @override
+  String get firstAncestor => 'Primer ancestro';
+
+  @override
+  String get recalculateGenerations => 'Recalcular todas las generaciones';
+
+  @override
+  String get showGenerationBadges => 'Mostrar insignias de generación';
+
+  @override
+  String get allGenerations => 'Todas las generaciones';
 }

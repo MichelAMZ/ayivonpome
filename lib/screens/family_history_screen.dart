@@ -15,7 +15,7 @@ class FamilyHistoryScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBFCF7),
-      appBar: AppBar(title: const Text('About')),
+      appBar: AppBar(title: Text(l10n.ourHistory)),
       body: history == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(

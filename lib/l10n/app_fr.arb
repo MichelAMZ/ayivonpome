@@ -9,7 +9,61 @@
   "officialFamilyName": "Nom officiel de la famille",
   "treeInitialZoom": "Zoom initial de l'arbre",
   "rememberLastZoom": "Mémoriser le dernier zoom",
+  "membersCount": "{count, plural, =0{0 membre} =1{1 membre} other{{count} membres}}",
+  "@membersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "totalMembers": "Total : {count}",
+  "@totalMembers": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "showMembersCounter": "Afficher le compteur dans la barre du bas",
+  "tutorial": "Tutoriel",
+  "help": "Aide",
+  "helpAndTutorial": "Aide et tutoriel",
+  "showTutorial": "Afficher le bouton tutoriel",
+  "hideTutorial": "Masquer le tutoriel",
+  "nextStep": "Suivant",
+  "previousStep": "Précédent",
+  "finishTutorial": "Terminer",
+  "skipTutorial": "Ignorer",
+  "firstLaunchTutorial": "Afficher le tutoriel au premier lancement",
+  "treeLegend": "Légende",
+  "howToUse": "Comment utiliser l'arbre",
+  "tutorialWelcomeTitle": "Bienvenue dans l'arbre généalogique",
+  "tutorialMoveTitle": "Déplacement",
+  "tutorialMoveBody": "Cliquer-glisser pour déplacer l'arbre.",
+  "tutorialZoomTitle": "Zoom",
+  "tutorialZoomBody": "Utiliser les boutons + et -. Ctrl + molette permet aussi de zoomer.",
+  "tutorialInfoTitle": "Informations",
+  "tutorialInfoBody": "Survoler une personne pour voir ses informations.",
+  "tutorialContextMenuTitle": "Menu contextuel",
+  "tutorialContextMenuBody": "Faire un clic droit sur une personne pour ajouter, modifier, imprimer une branche ou voir l'historique.",
+  "tutorialAccessCodesTitle": "Codes d'accès",
+  "tutorialAccessCodesBody": "Certaines actions nécessitent un code de modification.",
+  "tutorialMapTitle": "Carte",
+  "tutorialMapBody": "Cliquer sur l'icône localisation pour ouvrir Google Maps.",
+  "tutorialNotificationsTitle": "Notifications",
+  "tutorialNotificationsBody": "Les nouvelles modifications apparaissent automatiquement.",
+  "married": "Marié(e)",
+  "knownPlace": "Lieu connu",
   "loginTitle": "Connexion familiale",
+  "chooseLanguage": "Choisir la langue",
+  "autoLanguage": "Langue automatique",
+  "detectedLanguage": "Langue détectée",
+  "french": "Français",
+  "english": "Anglais",
+  "spanish": "Espagnol",
+  "portuguese": "Portugais",
+  "german": "Allemand",
   "familyCode": "Code familial",
   "enter": "Entrer",
   "invalidCode": "Code incorrect",
@@ -31,6 +85,8 @@
   "descendants": "Descendants",
   "childrenCount": "Nombre d’enfants",
   "familyHistory": "Historique familial",
+  "ourHistory": "Notre histoire",
+  "historyOfFamily": "Histoire de la famille",
   "generalFamilyHistory": "Historique général de la famille",
   "viewFamilyHistory": "Voir l’histoire générale de la famille",
   "editFamilyHistory": "Modifier l’historique familial",
@@ -156,6 +212,27 @@
   "requiredField": "Champ obligatoire",
   "unknown": "Inconnu",
   "currentAddress": "Adresse actuelle",
+  "locationFilter": "Filtre de localisation",
+  "filterByLocation": "Filtrer par localisation",
+  "country": "Pays",
+  "city": "Ville",
+  "region": "Région / préfecture / département",
+  "birthLocation": "Lieu de naissance",
+  "deathLocation": "Lieu de décès",
+  "burialLocation": "Lieu de sépulture",
+  "radiusAroundAddress": "Rayon autour d'une adresse",
+  "membersFound": "{count, plural, =0{0 membre trouvé} =1{1 membre trouvé} other{{count} membres trouvés}}",
+  "@membersFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "showOnlyResults": "Afficher uniquement les résultats",
+  "highlightResults": "Surligner les résultats",
+  "clearFilters": "Réinitialiser les filtres",
+  "centerOnPerson": "Centrer sur la personne",
   "burialPlace": "Lieu de sépulture",
   "importantPlaces": "Lieux importants",
   "viewOnMap": "Voir sur la carte",
@@ -309,6 +386,16 @@
   "adminAccessCode": "Code admin",
   "enterAdminCode": "Entrer le code admin",
   "invalidAdminCode": "Code admin incorrect",
+  "forgotCode": "Code oublié ?",
+  "superAdminRecovery": "Réinitialisation Super Admin",
+  "enterSuperAdminRecoveryCode": "Entrer le code secret Super Admin",
+  "resetCodes": "Réinitialiser les codes",
+  "resetAllCodes": "Régénérer automatiquement tous les codes",
+  "generateNewCodes": "Créer les nouveaux codes",
+  "recoveryCodeInvalid": "Code secret Super Admin incorrect",
+  "recoveryCodeAccepted": "Code secret Super Admin accepté",
+  "codesResetSuccess": "Codes réinitialisés avec succès",
+  "confirmResetCodes": "Confirmer la réinitialisation des codes ? Une sauvegarde JSON sera créée avant modification.",
   "adminKpiAccess": "Accès Admin / KPI",
   "adminSecurity": "Sécurité admin",
   "changeAdminCode": "Modifier le code admin",
@@ -378,6 +465,7 @@
   "viewLeaderProfile": "Voir la fiche du chef actuel",
   "chiefTitle": "Titre du chef",
   "showLeaderInTopBar": "Afficher le chef dans la TopBar",
+  "showLeaderBanner": "Afficher la bannière du chef de famille",
   "showLeaderPhoto": "Afficher la photo / avatar",
   "topBarLogoMode": "Mode logo TopBar",
   "classicLogo": "Logo classique",
@@ -409,5 +497,13 @@
   "deleteBugReport": "Supprimer le bug",
   "confirmDeleteBugReport": "Voulez-vous supprimer ce bug ?",
   "bugReportCreated": "Bug signalé.",
-  "adminWhatsappNotification": "WhatsApp s’ouvrira avec un message prérempli. Chaque admin devra valider l’envoi."
+  "adminWhatsappNotification": "WhatsApp s’ouvrira avec un message prérempli. Chaque admin devra valider l’envoi.",
+  "generation": "Génération",
+  "generations": "Générations",
+  "generationNumber": "Numéro de génération",
+  "rootAncestor": "Ancêtre racine",
+  "firstAncestor": "Premier ancêtre",
+  "recalculateGenerations": "Recalculer toutes les générations",
+  "showGenerationBadges": "Afficher les badges de génération",
+  "allGenerations": "Toutes les générations"
 }

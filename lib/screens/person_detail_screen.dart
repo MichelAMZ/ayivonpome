@@ -32,6 +32,9 @@ class PersonDetailScreen extends ConsumerWidget {
     final spouses = relationService.spousesOf(data, person);
     final children = relationService.childrenOf(data, person);
     final siblings = relationService.siblingsOf(data, person);
+    final rootAncestor = ref
+        .watch(genealogyGenerationServiceProvider)
+        .getRootAncestor(data);
 
     return Scaffold(
       appBar: AppBar(
@@ -131,6 +134,15 @@ class PersonDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             _Tile(label: l10n.gender, value: person.gender),
+            if (person.generation > 0)
+              _Tile(
+                label: l10n.generation,
+                value: person.generation.toString(),
+              ),
+            _Tile(
+              label: l10n.firstAncestor,
+              value: rootAncestor?.fullName ?? '',
+            ),
             if (person.shouldShowOriginLastName)
               _Tile(label: l10n.bornLastName, value: person.originLastName),
             _Tile(label: l10n.birthDate, value: person.birthDate),
