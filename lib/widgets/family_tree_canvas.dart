@@ -530,6 +530,14 @@ class _TreeMetrics {
 }
 
 class _TreeLayout {
+  static const _branchConnectorColors = [
+    Color(0xFF6BA368),
+    Color(0xFF5B8DEF),
+    Color(0xFF9B7EDE),
+    Color(0xFFE0A64B),
+    Color(0xFF8AA0A8),
+  ];
+
   const _TreeLayout({
     required this.nodes,
     required this.marriageMarkers,
@@ -571,6 +579,7 @@ class _TreeLayout {
     final markers = <_MarriageMarkerData>[];
     final levelUnits = <int, List<_TreeUnit>>{};
     final levelWidths = <int, double>{};
+    final parentRank = <String, double>{};
     var maxWidth = 0.0;
 
     for (final level in levels.keys.toList()..sort()) {
@@ -587,7 +596,10 @@ class _TreeLayout {
     }
 
     for (final level in levels.keys.toList()..sort()) {
-      final units = levelUnits[level]!;
+      final units = [...levelUnits[level]!]
+        ..sort(
+          (a, b) => _compareUnitsByParentRank(a, b, parentRank, peopleById),
+        );
       final totalWidth = levelWidths[level]!;
       var x = metrics.canvasPadding + (maxWidth - totalWidth) / 2;
       final y =
@@ -604,6 +616,14 @@ class _TreeLayout {
             metrics.cardHeight,
           );
           personX += metrics.cardWidth + metrics.spouseGap;
+        }
+        final unitRect = _boundsForRects(
+          unit.people.map(nodes.get).whereType<Rect>().toList(),
+        );
+        if (unitRect != null) {
+          for (final person in unit.people) {
+            parentRank[person.id] = unitRect.center.dx;
+          }
         }
 
         for (var i = 0; i < unit.people.length - 1; i++) {
@@ -653,15 +673,31 @@ class _TreeLayout {
           parentIds: parentIds,
           parentRects: parentRects,
           childRects: [childRect],
+          connectorColor: _branchConnectorColors.first,
+          connectorLane: 0,
         );
       } else {
         existing.childRects.add(childRect);
       }
     }
-    final links = linksByFamily.values.map((link) {
-      link.childRects.sort((a, b) => a.center.dx.compareTo(b.center.dx));
-      return link;
-    }).toList();
+    final links =
+        linksByFamily.values.map((link) {
+          link.childRects.sort((a, b) => a.center.dx.compareTo(b.center.dx));
+          return link;
+        }).toList()..sort((a, b) {
+          final aCenter = _rectsCenterX(a.parentRects);
+          final bCenter = _rectsCenterX(b.parentRects);
+          final generationCompare = a.parentRects.first.top.compareTo(
+            b.parentRects.first.top,
+          );
+          if (generationCompare != 0) return generationCompare;
+          return aCenter.compareTo(bCenter);
+        });
+    for (var i = 0; i < links.length; i++) {
+      links[i].connectorColor =
+          _branchConnectorColors[i % _branchConnectorColors.length];
+      links[i].connectorLane = i % 4;
+    }
 
     final height =
         metrics.canvasPadding * 2 +
@@ -713,6 +749,56 @@ class _TreeLayout {
     return units;
   }
 
+  static int _compareUnitsByParentRank(
+    _TreeUnit first,
+    _TreeUnit second,
+    Map<String, double> parentRank,
+    Map<String, Person> peopleById,
+  ) {
+    final firstRank = _unitParentRank(first, parentRank, peopleById);
+    final secondRank = _unitParentRank(second, parentRank, peopleById);
+    final rankCompare = firstRank.compareTo(secondRank);
+    if (rankCompare != 0) return rankCompare;
+    return first.label.compareTo(second.label);
+  }
+
+  static double _unitParentRank(
+    _TreeUnit unit,
+    Map<String, double> parentRank,
+    Map<String, Person> peopleById,
+  ) {
+    final ranks = <double>[];
+    for (final person in unit.people) {
+      for (final parentId in _parentIds(person)) {
+        final rank = parentRank[parentId];
+        if (rank != null && peopleById.containsKey(parentId)) ranks.add(rank);
+      }
+    }
+    if (ranks.isEmpty) return double.maxFinite;
+    return ranks.reduce((a, b) => a + b) / ranks.length;
+  }
+
+  static Rect? _boundsForRects(List<Rect> rects) {
+    if (rects.isEmpty) return null;
+    var left = rects.first.left;
+    var top = rects.first.top;
+    var right = rects.first.right;
+    var bottom = rects.first.bottom;
+    for (final rect in rects.skip(1)) {
+      left = math.min(left, rect.left);
+      top = math.min(top, rect.top);
+      right = math.max(right, rect.right);
+      bottom = math.max(bottom, rect.bottom);
+    }
+    return Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  static double _rectsCenterX(List<Rect> rects) {
+    if (rects.isEmpty) return 0;
+    final bounds = _boundsForRects(rects);
+    return bounds?.center.dx ?? 0;
+  }
+
   static List<String> _parentIds(Person person) {
     final ids = <String>[
       if (person.fatherId.isNotEmpty) person.fatherId,
@@ -755,6 +841,8 @@ class _TreeUnit {
 
   final List<Person> people;
 
+  String get label => people.map((person) => person.fullName).join('|');
+
   double width(_TreeMetrics metrics) {
     return people.length * metrics.cardWidth +
         math.max(people.length - 1, 0) * metrics.spouseGap;
@@ -766,11 +854,15 @@ class _ParentLink {
     required this.parentIds,
     required this.parentRects,
     required this.childRects,
+    required this.connectorColor,
+    required this.connectorLane,
   });
 
   final List<String> parentIds;
   final List<Rect> parentRects;
   final List<Rect> childRects;
+  Color connectorColor;
+  int connectorLane;
 }
 
 class _MarriageMarkerData {
@@ -820,7 +912,12 @@ class _TreeConnectorPainter extends CustomPainter {
     }
 
     for (final link in layout.parentLinks) {
-      _drawFamilyUnitConnectors(canvas, link, connector);
+      final branchConnector = Paint()
+        ..color = link.connectorColor.withValues(alpha: 0.72)
+        ..strokeWidth = connector.strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      _drawFamilyUnitConnectors(canvas, link, branchConnector);
     }
   }
 
@@ -853,7 +950,8 @@ class _TreeConnectorPainter extends CustomPainter {
     final firstChildTop = childTops.map((point) => point.dy).reduce(math.min);
     final elbowY =
         parentAnchor.dy +
-        math.max((firstChildTop - parentAnchor.dy) * 0.45, 18);
+        math.max((firstChildTop - parentAnchor.dy) * 0.45, 18) +
+        link.connectorLane * 6;
 
     canvas.drawLine(parentAnchor, Offset(parentAnchor.dx, elbowY), connector);
 
