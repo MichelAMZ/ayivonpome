@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/app_settings.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
@@ -49,8 +50,8 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   var _scale = 1.0;
   var _needsInitialView = true;
   Size? _lastViewport;
-  Size? _lastTreeSize;
   Size? _lastLayoutSize;
+  Rect? _lastContentRect;
   Offset? _lastCanvasOffset;
   Map<String, Rect> _lastPersonRects = const {};
 
@@ -103,13 +104,14 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
           ),
         );
         _lastViewport = viewport;
-        _lastTreeSize = treeSize;
-        _lastLayoutSize = layout.size;
-        _scheduleInitialView(viewport, treeSize);
         final offset = Offset(
           math.max((treeSize.width - layout.size.width) / 2, 0),
           math.max((treeSize.height - layout.size.height) / 2, 0),
         );
+        final contentRect = offset & layout.size;
+        _lastLayoutSize = layout.size;
+        _lastContentRect = contentRect;
+        _scheduleInitialView(viewport, contentRect);
         _lastCanvasOffset = offset;
         _lastPersonRects = {
           for (final entry in layout.nodes.entries) entry.key.id: entry.value,
@@ -127,7 +129,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                   minScale: treeSettings.minZoom,
                   maxScale: treeSettings.maxZoom,
                   panAxis: PanAxis.free,
-                  clipBehavior: Clip.none,
+                  clipBehavior: Clip.hardEdge,
                   boundaryMargin: const EdgeInsets.all(_panBoundaryMargin),
                   onInteractionUpdate: (_) {
                     final next = _controller.value.getMaxScaleOnAxis();
@@ -211,8 +213,11 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
               ),
               Positioned(
                 right: metrics.canvasPadding + 2,
-                bottom: math.max(metrics.canvasPadding, 24),
+                bottom: constraints.maxWidth < 620
+                    ? 118
+                    : math.max(metrics.canvasPadding, 24),
                 child: TreeFloatingActionsColumn(
+                  compact: constraints.maxWidth < 620,
                   scale: _scale,
                   onZoomIn: () => _applyScale(1.15),
                   onZoomOut: () => _applyScale(0.87),
@@ -255,9 +260,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   }
 
   void _resetView() {
-    final zoom = ref
-        .read(treeViewSettingsServiceProvider)
-        .getInitialZoom(widget.data.appSettings.treeSettings);
+    final zoom = _initialZoomForViewport(widget.data.appSettings.treeSettings);
     setState(() => _scale = zoom);
     _controller.value = _centeredMatrix(zoom);
     _saveLastZoom();
@@ -271,12 +274,14 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
       return;
     }
     final settings = widget.data.appSettings.treeSettings;
-    const fitPadding = 96.0;
+    final compact = viewport.width < 620;
+    final fitPadding = compact ? 72.0 : 96.0;
+    final reservedBottom = compact ? 150.0 : 96.0;
     final widthScale =
         (viewport.width - fitPadding).clamp(120, double.infinity) /
         layoutSize.width;
     final heightScale =
-        (viewport.height - fitPadding).clamp(120, double.infinity) /
+        (viewport.height - reservedBottom).clamp(120, double.infinity) /
         layoutSize.height;
     final zoom = math
         .min(widthScale, heightScale)
@@ -288,35 +293,46 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     _showFeedback('Tout l’arbre est visible');
   }
 
-  void _scheduleInitialView(Size viewport, Size treeSize) {
+  void _scheduleInitialView(Size viewport, Rect contentRect) {
     if (!_needsInitialView) return;
     _needsInitialView = false;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final settings = widget.data.appSettings.treeSettings;
-      final service = ref.read(treeViewSettingsServiceProvider);
-      final fallbackZoom = service.getInitialZoom(settings);
-      final restoredZoom = await service.restoreLastZoom(settings);
-      if (!mounted) return;
-      final zoom = restoredZoom ?? fallbackZoom;
+      final zoom = _initialZoomForViewport(settings, viewport);
       setState(() => _scale = zoom);
-      _controller.value = _centeredMatrix(zoom, viewport, treeSize);
+      _controller.value = _centeredMatrix(zoom, viewport, contentRect);
     });
   }
 
-  Matrix4 _centeredMatrix([double? zoom, Size? viewport, Size? treeSize]) {
+  Matrix4 _centeredMatrix([double? zoom, Size? viewport, Rect? contentRect]) {
     final scale = zoom ?? _scale;
     final effectiveViewport = viewport ?? _lastViewport;
-    final effectiveTreeSize = treeSize ?? _lastTreeSize;
-    if (effectiveViewport == null || effectiveTreeSize == null) {
+    final effectiveContent = contentRect ?? _lastContentRect;
+    if (effectiveViewport == null || effectiveContent == null) {
       return Matrix4.identity()..scaleByDouble(scale, scale, 1, 1);
     }
-    final dx = (effectiveViewport.width - effectiveTreeSize.width * scale) / 2;
-    final dy =
-        (effectiveViewport.height - effectiveTreeSize.height * scale) / 2;
+    final compact = effectiveViewport.width < 620;
+    final targetCenter = Offset(
+      effectiveViewport.width / 2,
+      effectiveViewport.height * (compact ? 0.43 : 0.5),
+    );
+    final dx = targetCenter.dx - effectiveContent.center.dx * scale;
+    final dy = targetCenter.dy - effectiveContent.center.dy * scale;
     return Matrix4.identity()
       ..translateByDouble(dx, dy, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1);
+  }
+
+  double _initialZoomForViewport(TreeViewSettings settings, [Size? viewport]) {
+    final width = viewport?.width ?? _lastViewport?.width;
+    final base = ref
+        .read(treeViewSettingsServiceProvider)
+        .getInitialZoom(settings);
+    final responsiveZoom = width != null && width >= 600 && width <= 1024
+        ? math.max(base, 0.65)
+        : base;
+    return responsiveZoom.clamp(settings.minZoom, settings.maxZoom).toDouble();
   }
 
   void _saveLastZoom() {
@@ -611,19 +627,41 @@ class _TreeLayout {
       }
     }
 
-    final links = <_ParentLink>[];
+    final linksByFamily = <String, _ParentLink>{};
     for (final person in data.people) {
       final childRect = nodes[person];
       if (childRect == null) continue;
-      final parentRects = _parentIds(person)
-          .map(peopleById.get)
-          .whereType<Person>()
-          .map(nodes.get)
-          .whereType<Rect>()
-          .toList();
+      final parentIds =
+          _parentIds(person)
+              .where((id) => id != person.id && peopleById.containsKey(id))
+              .toSet()
+              .toList()
+            ..sort();
+      final parentRects =
+          parentIds
+              .map((id) => peopleById[id])
+              .whereType<Person>()
+              .map(nodes.get)
+              .whereType<Rect>()
+              .toList()
+            ..sort((a, b) => a.center.dx.compareTo(b.center.dx));
       if (parentRects.isEmpty) continue;
-      links.add(_ParentLink(parentRects: parentRects, childRect: childRect));
+      final key = parentIds.join('|');
+      final existing = linksByFamily[key];
+      if (existing == null) {
+        linksByFamily[key] = _ParentLink(
+          parentIds: parentIds,
+          parentRects: parentRects,
+          childRects: [childRect],
+        );
+      } else {
+        existing.childRects.add(childRect);
+      }
     }
+    final links = linksByFamily.values.map((link) {
+      link.childRects.sort((a, b) => a.center.dx.compareTo(b.center.dx));
+      return link;
+    }).toList();
 
     final height =
         metrics.canvasPadding * 2 +
@@ -724,10 +762,15 @@ class _TreeUnit {
 }
 
 class _ParentLink {
-  const _ParentLink({required this.parentRects, required this.childRect});
+  _ParentLink({
+    required this.parentIds,
+    required this.parentRects,
+    required this.childRects,
+  });
 
+  final List<String> parentIds;
   final List<Rect> parentRects;
-  final Rect childRect;
+  final List<Rect> childRects;
 }
 
 class _MarriageMarkerData {
@@ -777,34 +820,64 @@ class _TreeConnectorPainter extends CustomPainter {
     }
 
     for (final link in layout.parentLinks) {
-      final parentCenters = link.parentRects
-          .map((rect) => offset + rect.bottomCenter)
-          .toList();
-      final parentAnchor = parentCenters.length == 1
-          ? parentCenters.first
-          : Offset(
-              (parentCenters.map((point) => point.dx).reduce(math.min) +
-                      parentCenters.map((point) => point.dx).reduce(math.max)) /
-                  2,
-              parentCenters.first.dy,
-            );
-      final childTop = offset + link.childRect.topCenter;
-      final elbowY =
-          parentAnchor.dy +
-          math.max((childTop.dy - parentAnchor.dy) * 0.48, 18);
-
-      final path = Path()
-        ..moveTo(parentAnchor.dx, parentAnchor.dy)
-        ..lineTo(parentAnchor.dx, elbowY)
-        ..lineTo(childTop.dx, elbowY)
-        ..lineTo(childTop.dx, childTop.dy);
-      canvas.drawPath(path, connector);
+      _drawFamilyUnitConnectors(canvas, link, connector);
     }
   }
 
   @override
   bool shouldRepaint(covariant _TreeConnectorPainter oldDelegate) {
     return oldDelegate.layout != layout || oldDelegate.offset != offset;
+  }
+
+  void _drawFamilyUnitConnectors(
+    Canvas canvas,
+    _ParentLink link,
+    Paint connector,
+  ) {
+    if (link.parentRects.isEmpty || link.childRects.isEmpty) return;
+
+    final parentCenters = link.parentRects
+        .map((rect) => offset + rect.bottomCenter)
+        .toList();
+    final childTops =
+        link.childRects.map((rect) => offset + rect.topCenter).toList()
+          ..sort((a, b) => a.dx.compareTo(b.dx));
+    final parentMinX = parentCenters.map((point) => point.dx).reduce(math.min);
+    final parentMaxX = parentCenters.map((point) => point.dx).reduce(math.max);
+    final parentAnchor = Offset(
+      link.parentRects.length == 1
+          ? parentCenters.first.dx
+          : (parentMinX + parentMaxX) / 2,
+      parentCenters.map((point) => point.dy).reduce(math.max),
+    );
+    final firstChildTop = childTops.map((point) => point.dy).reduce(math.min);
+    final elbowY =
+        parentAnchor.dy +
+        math.max((firstChildTop - parentAnchor.dy) * 0.45, 18);
+
+    canvas.drawLine(parentAnchor, Offset(parentAnchor.dx, elbowY), connector);
+
+    if (childTops.length == 1) {
+      final childTop = childTops.first;
+      canvas.drawLine(
+        Offset(parentAnchor.dx, elbowY),
+        Offset(childTop.dx, elbowY),
+        connector,
+      );
+      canvas.drawLine(Offset(childTop.dx, elbowY), childTop, connector);
+      return;
+    }
+
+    final minChildX = childTops.map((point) => point.dx).reduce(math.min);
+    final maxChildX = childTops.map((point) => point.dx).reduce(math.max);
+    canvas.drawLine(
+      Offset(minChildX, elbowY),
+      Offset(maxChildX, elbowY),
+      connector,
+    );
+    for (final childTop in childTops) {
+      canvas.drawLine(Offset(childTop.dx, elbowY), childTop, connector);
+    }
   }
 
   void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
@@ -1010,6 +1083,7 @@ class _PersonSearchDialogState extends State<_PersonSearchDialog> {
 class TreeFloatingActionsColumn extends StatelessWidget {
   const TreeFloatingActionsColumn({
     super.key,
+    this.compact = false,
     required this.scale,
     required this.onZoomIn,
     required this.onZoomOut,
@@ -1018,6 +1092,7 @@ class TreeFloatingActionsColumn extends StatelessWidget {
     this.tutorialButton,
   });
 
+  final bool compact;
   final double scale;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
@@ -1031,11 +1106,12 @@ class TreeFloatingActionsColumn extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         TreeZoomControls(
+          compact: compact,
           scale: scale,
           onZoomIn: onZoomIn,
           onZoomOut: onZoomOut,
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: compact ? 10 : 16),
         DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.95),
@@ -1056,10 +1132,14 @@ class TreeFloatingActionsColumn extends StatelessWidget {
           ),
         ),
         if (tutorialButton != null) ...[
-          const SizedBox(height: 16),
-          SizedBox(width: 54, height: 54, child: Center(child: tutorialButton)),
+          SizedBox(height: compact ? 10 : 16),
+          SizedBox(
+            width: compact ? 48 : 54,
+            height: compact ? 48 : 54,
+            child: Center(child: tutorialButton),
+          ),
         ],
-        const SizedBox(height: 16),
+        SizedBox(height: compact ? 10 : 16),
         DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.95),
@@ -1087,11 +1167,13 @@ class TreeFloatingActionsColumn extends StatelessWidget {
 class TreeZoomControls extends StatelessWidget {
   const TreeZoomControls({
     super.key,
+    this.compact = false,
     required this.scale,
     required this.onZoomIn,
     required this.onZoomOut,
   });
 
+  final bool compact;
   final double scale;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
@@ -1120,13 +1202,14 @@ class TreeZoomControls extends StatelessWidget {
             onPressed: onZoomIn,
           ),
           SizedBox(
-            width: 54,
-            height: 36,
+            width: compact ? 48 : 54,
+            height: compact ? 30 : 36,
             child: Center(
               child: Text(
                 '${(scale * 100).round()}%',
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: const Color(0xFF3F433A),
+                  fontSize: compact ? 11 : null,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1185,11 +1268,53 @@ class TreeLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 620;
+    final items = <Widget>[
+      const _LegendItem(icon: '♂', label: 'Homme', color: Color(0xFF2D7DD2)),
+      const _LegendItem(icon: '♀', label: 'Femme', color: Color(0xFFE53964)),
+      const _LegendItem(
+        icon: '💍',
+        label: 'Marié(e)',
+        color: Color(0xFFE6A400),
+      ),
+      const _LegendItem(
+        icon: '💔',
+        label: 'Divorcé(e)',
+        color: Color(0xFFD64D61),
+      ),
+      const _LegendItem(
+        icon: '📍',
+        label: 'Lieu connu',
+        color: Color(0xFF4C7A2E),
+      ),
+      if (showMembersCounter && membersCount != null)
+        MembersCounterBadge(count: membersCount!, compact: compact),
+    ];
+    final content = compact
+        ? SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 14),
+                  items[i],
+                ],
+              ],
+            ),
+          )
+        : Wrap(
+            spacing: 18,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: items,
+          );
+
     return Center(
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(compact ? 14 : 16),
           border: Border.all(color: const Color(0xFFE2E7DC)),
           boxShadow: const [
             BoxShadow(
@@ -1200,42 +1325,11 @@ class TreeLegend extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Wrap(
-            spacing: 18,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              const _LegendItem(
-                icon: '♂',
-                label: 'Homme',
-                color: Color(0xFF2D7DD2),
-              ),
-              const _LegendItem(
-                icon: '♀',
-                label: 'Femme',
-                color: Color(0xFFE53964),
-              ),
-              const _LegendItem(
-                icon: '💍',
-                label: 'Marié(e)',
-                color: Color(0xFFE6A400),
-              ),
-              const _LegendItem(
-                icon: '💔',
-                label: 'Divorcé(e)',
-                color: Color(0xFFD64D61),
-              ),
-              const _LegendItem(
-                icon: '📍',
-                label: 'Lieu connu',
-                color: Color(0xFF4C7A2E),
-              ),
-              if (showMembersCounter && membersCount != null)
-                MembersCounterBadge(count: membersCount!, compact: compact),
-            ],
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 10 : 14,
+            vertical: compact ? 8 : 10,
           ),
+          child: content,
         ),
       ),
     );

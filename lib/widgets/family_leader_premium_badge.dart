@@ -36,8 +36,8 @@ class FamilyLeaderPremiumBadge extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     final mobile = compact || width < 650;
     final tablet = !mobile && width < 1100;
-    final badgeWidth = mobile ? 92.0 : (tablet ? 270.0 : 340.0);
-    final badgeHeight = mobile ? 54.0 : (tablet ? 74.0 : 88.0);
+    final badgeWidth = mobile ? 96.0 : (tablet ? 270.0 : 340.0);
+    final badgeHeight = mobile ? 50.0 : (tablet ? 74.0 : 88.0);
     final radius = mobile ? 16.0 : 18.0;
 
     final badge = Tooltip(
@@ -54,8 +54,8 @@ class FamilyLeaderPremiumBadge extends StatelessWidget {
             width: badgeWidth,
             height: badgeHeight,
             padding: EdgeInsets.symmetric(
-              horizontal: mobile ? 7 : 12,
-              vertical: mobile ? 6 : 8,
+              horizontal: mobile ? 5 : 12,
+              vertical: mobile ? 2 : 8,
             ),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
@@ -247,18 +247,20 @@ class _MobileContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        _LeaderPortrait(person: person, photo: photo, size: 46),
-        const SizedBox(width: 6),
-        Text(
-          'Chef',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: FamilyLeaderPremiumBadge._goldLight,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
+        _LeaderPortrait(person: person, photo: photo, size: 34),
+        const SizedBox(width: 3),
+        Expanded(
+          child: Text(
+            'Chef',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: FamilyLeaderPremiumBadge._goldLight,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
           ),
         ),
       ],

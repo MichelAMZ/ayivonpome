@@ -35,83 +35,91 @@ class BugReportButton extends ConsumerWidget {
   }
 
   Future<void> _open(BuildContext context, WidgetRef ref) async {
-    final bug = await showDialog<BugReport>(
-      context: context,
-      builder: (context) => BugReportFormDialog(initialScreen: initialScreen),
-    );
-    if (bug == null || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context).bugReportCreated)),
-    );
-    await _offerWhatsappNotifications(context, ref, bug);
+    await showBugReportDialog(context, ref, initialScreen: initialScreen);
   }
+}
 
-  Future<void> _offerWhatsappNotifications(
-    BuildContext context,
-    WidgetRef ref,
-    BugReport bug,
-  ) async {
-    final l10n = AppLocalizations.of(context);
-    final data = ref.read(familyTreeProvider).value;
-    if (data == null) return;
-    final service = ref.read(bugReportServiceProvider);
-    final admins = service.whatsappAdmins(data);
-    if (admins.isEmpty) return;
-    final selected = <String>{for (final admin in admins) admin.id};
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(l10n.notifyAdminsWhatsapp),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(l10n.adminWhatsappNotification),
-                const SizedBox(height: 10),
-                for (final admin in admins)
-                  CheckboxListTile(
-                    value: selected.contains(admin.id),
-                    title: Text(admin.fullName),
-                    subtitle: Text(admin.whatsappNumber),
-                    onChanged: (value) => setDialogState(() {
-                      if (value == true) {
-                        selected.add(admin.id);
-                      } else {
-                        selected.remove(admin.id);
-                      }
-                    }),
-                  ),
-              ],
-            ),
+Future<void> showBugReportDialog(
+  BuildContext context,
+  WidgetRef ref, {
+  String initialScreen = '',
+}) async {
+  final bug = await showDialog<BugReport>(
+    context: context,
+    builder: (context) => BugReportFormDialog(initialScreen: initialScreen),
+  );
+  if (bug == null || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(AppLocalizations.of(context).bugReportCreated)),
+  );
+  await _offerWhatsappNotifications(context, ref, bug);
+}
+
+Future<void> _offerWhatsappNotifications(
+  BuildContext context,
+  WidgetRef ref,
+  BugReport bug,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final data = ref.read(familyTreeProvider).value;
+  if (data == null) return;
+  final service = ref.read(bugReportServiceProvider);
+  final admins = service.whatsappAdmins(data);
+  if (admins.isEmpty) return;
+  final selected = <String>{for (final admin in admins) admin.id};
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text(l10n.notifyAdminsWhatsapp),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l10n.adminWhatsappNotification),
+              const SizedBox(height: 10),
+              for (final admin in admins)
+                CheckboxListTile(
+                  value: selected.contains(admin.id),
+                  title: Text(admin.fullName),
+                  subtitle: Text(admin.whatsappNumber),
+                  onChanged: (value) => setDialogState(() {
+                    if (value == true) {
+                      selected.add(admin.id);
+                    } else {
+                      selected.remove(admin.id);
+                    }
+                  }),
+                ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: selected.isEmpty
-                  ? null
-                  : () => Navigator.pop(context, true),
-              child: Text(l10n.notifyAdminsWhatsapp),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: selected.isEmpty
+                ? null
+                : () => Navigator.pop(context, true),
+            child: Text(l10n.notifyAdminsWhatsapp),
+          ),
+        ],
       ),
-    );
-    if (confirmed != true) return;
-    final message = service.whatsappMessage(bug);
-    final notified = <String>[];
-    for (final admin in admins.where((admin) => selected.contains(admin.id))) {
-      await ref
-          .read(communicationServiceProvider)
-          .openWhatsApp(phoneNumber: admin.whatsappNumber, message: message);
-      notified.add(admin.id);
-    }
+    ),
+  );
+  if (confirmed != true) return;
+  final message = service.whatsappMessage(bug);
+  final notified = <String>[];
+  for (final admin in admins.where((admin) => selected.contains(admin.id))) {
     await ref
-        .read(familyTreeProvider.notifier)
-        .markBugReportAdminsNotified(bug, notified);
+        .read(communicationServiceProvider)
+        .openWhatsApp(phoneNumber: admin.whatsappNumber, message: message);
+    notified.add(admin.id);
   }
+  await ref
+      .read(familyTreeProvider.notifier)
+      .markBugReportAdminsNotified(bug, notified);
 }

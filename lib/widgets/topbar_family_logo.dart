@@ -15,10 +15,11 @@ class TopbarFamilyLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final logoSize = width <= ResponsiveBreakpoints.mobileMax
-        ? 64.0
+    final mobile = width <= ResponsiveBreakpoints.mobileMax;
+    final logoSize = mobile
+        ? 52.0
         : width <= ResponsiveBreakpoints.tabletMax
-        ? 100.0
+        ? 92.0
         : 140.0;
 
     return SizedBox(
@@ -41,10 +42,10 @@ class TopbarFamilyLogo extends StatelessWidget {
           ),
           if (showCounter)
             Positioned(
-              top: -8,
+              top: mobile ? -2 : -8,
               child: _MemberCountBadge(
                 count: membersCount,
-                compact: width <= ResponsiveBreakpoints.mobileMax,
+                compact: mobile,
                 large: width > ResponsiveBreakpoints.tabletMax,
               ),
             ),
@@ -68,10 +69,10 @@ class _MemberCountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 26),
+      constraints: BoxConstraints(minWidth: compact ? 20 : 26),
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 10,
-        vertical: compact ? 2 : 4,
+        horizontal: compact ? 4 : 10,
+        vertical: compact ? 1 : 4,
       ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.86),
@@ -93,7 +94,7 @@ class _MemberCountBadge extends StatelessWidget {
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: const Color(0xFF4F6F1F),
           fontSize: compact
-              ? 12
+              ? 10
               : large
               ? 28
               : 18,

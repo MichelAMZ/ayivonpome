@@ -160,15 +160,15 @@ class _AppShellState extends ConsumerState<AppShell> {
             toolbarHeight: device == ResponsiveDevice.desktop
                 ? 150
                 : device == ResponsiveDevice.tablet
-                ? 112
-                : 80,
+                ? 128
+                : 96,
             elevation: 0,
             scrolledUnderElevation: 0,
             backgroundColor: const Color(0xFFFFFEFA),
             surfaceTintColor: Colors.transparent,
-            titleSpacing: device == ResponsiveDevice.mobile ? 8 : 24,
+            titleSpacing: device == ResponsiveDevice.mobile ? 0 : 24,
             title: const _BrandTitle(),
-            actions: _topBarActions(context, device, auth, l10n),
+            actions: _topBarActions(context, device, auth, l10n, destinations),
           ),
           drawer: _NavigationDrawer(
             selectedIndex: _index,
@@ -228,6 +228,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ResponsiveDevice device,
     AuthState auth,
     AppLocalizations l10n,
+    List<NavigationDestination> destinations,
   ) {
     final authenticated = auth.isAuthenticated;
     final compact = device != ResponsiveDevice.desktop;
@@ -237,8 +238,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (compact) {
       return [
         const LanguageSelectorButton(compact: true),
-        if (authenticated)
-          BugReportButton(compact: true, initialScreen: _currentScreenName()),
         IconButton(
           tooltip: authenticated ? l10n.logout : l10n.enterAccessCode,
           onPressed: authAction,
@@ -258,6 +257,20 @@ class _AppShellState extends ConsumerState<AppShell> {
                 MaterialPageRoute(builder: (_) => const FamilyCouncilScreen()),
               );
             }
+            if (value == 'bug' && authenticated) {
+              showBugReportDialog(
+                context,
+                ref,
+                initialScreen: _currentScreenName(),
+              );
+            }
+            if (value == 'settings') {
+              _selectDestination(
+                destinations.length - 1,
+                destinations: destinations,
+                authenticated: authenticated,
+              );
+            }
           },
           itemBuilder: (context) => [
             PopupMenuItem(
@@ -272,6 +285,17 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
             if (authenticated)
               PopupMenuItem(
+                value: 'bug',
+                child: Row(
+                  children: [
+                    const Icon(Icons.bug_report_outlined),
+                    const SizedBox(width: 10),
+                    Text(l10n.reportBug),
+                  ],
+                ),
+              ),
+            if (authenticated)
+              PopupMenuItem(
                 value: 'council',
                 child: Row(
                   children: [
@@ -281,6 +305,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ],
                 ),
               ),
+            PopupMenuItem(
+              value: 'settings',
+              child: Row(
+                children: [
+                  const Icon(Icons.settings_outlined),
+                  const SizedBox(width: 10),
+                  Text(l10n.settings),
+                ],
+              ),
+            ),
           ],
         ),
         const SizedBox(width: 8),
@@ -597,6 +631,7 @@ class _BrandTitle extends ConsumerWidget {
         : appSettings.applicationTitle.trim();
     final subtitle = appSettings.applicationSubtitle.trim();
     final membersCount = ref.watch(membersCountProvider);
+    final l10n = AppLocalizations.of(context);
     final showSubtitle =
         appSettings.showApplicationSubtitle && subtitle.isNotEmpty;
     final showLeader =
@@ -605,15 +640,12 @@ class _BrandTitle extends ConsumerWidget {
         leader != null;
     final showLeaderBadge =
         showLeader && leadership.topBarLogoMode != 'classicLogo';
-    final compact =
-        MediaQuery.sizeOf(context).width <= ResponsiveBreakpoints.tabletMax;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        if (showLeaderBadge)
-          FamilyLeaderPremiumBadge(
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final mobile = screenWidth <= ResponsiveBreakpoints.mobileMax;
+    final compact = screenWidth <= ResponsiveBreakpoints.tabletMax;
+    final desktop = !compact;
+    final leaderBadge = showLeaderBadge
+        ? FamilyLeaderPremiumBadge(
             person: leader,
             title: leadership.title,
             subtitle: leadership.subtitle,
@@ -622,42 +654,97 @@ class _BrandTitle extends ConsumerWidget {
             onTap: () => _openLeaderProfile(context, leader.id),
             onMenuAction: (action) =>
                 _handleLeaderMenuAction(context, ref, leader, action),
+          )
+        : null;
+    final titleBlock = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: const Color(0xFF233A2A),
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+            fontSize: desktop
+                ? 34
+                : mobile
+                ? 16
+                : 24,
           ),
-        if (showLeaderBadge) SizedBox(width: compact ? 14 : 24),
+        ),
+        Text(
+          l10n.membersCount(membersCount),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: const Color(0xFF5E6F58),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+            fontSize: mobile ? 11 : null,
+          ),
+        ),
+        if (showSubtitle && !mobile)
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+      ],
+    );
+
+    if (!desktop) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          TopbarFamilyLogo(
+            membersCount: membersCount,
+            showCounter: appSettings.treeSettings.showMembersCounter,
+          ),
+          SizedBox(width: mobile ? 8 : 14),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                if (leaderBadge != null) ...[
+                  SizedBox(height: mobile ? 4 : 8),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: leaderBadge,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
         TopbarFamilyLogo(
           membersCount: membersCount,
           showCounter: appSettings.treeSettings.showMembersCounter,
         ),
-        SizedBox(width: compact ? 12 : 18),
-        Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
-                  fontSize: compact ? 18 : null,
-                ),
-              ),
-              if (showSubtitle)
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
-            ],
+        const SizedBox(width: 18),
+        Expanded(flex: 4, child: titleBlock),
+        if (leaderBadge != null)
+          Expanded(
+            flex: 5,
+            child: Align(alignment: Alignment.center, child: leaderBadge),
           ),
-        ),
       ],
     );
   }
