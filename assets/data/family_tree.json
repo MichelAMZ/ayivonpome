@@ -1,0 +1,169 @@
+{
+  "appVersion": "1.0.0",
+  "dataVersion": "2026-06-30-001",
+  "lastUpdatedAt": "2026-06-30T00:00:00.000",
+  "appSettings": {
+    "applicationTitle": "Famille AYIVON",
+    "applicationSubtitle": "La grande famille unie",
+    "showApplicationSubtitle": false,
+    "officialFamilyName": "Famille AYIVON",
+    "treeSettings": {
+      "initialZoom": 0.6,
+      "minZoom": 0.4,
+      "maxZoom": 1.2,
+      "resetViewOnStartup": true,
+      "rememberLastZoom": false,
+      "rememberLastPosition": false,
+      "showMembersCounter": true,
+      "showGenerationBadges": true
+    },
+    "languageSettings": {
+      "autoDetectByCountry": true,
+      "manualLocale": "",
+      "currentLocale": "",
+      "supportedLocales": ["fr", "en", "es", "pt", "de"]
+    },
+    "tutorialSettings": {
+      "showTutorialOnFirstLaunch": true,
+      "tutorialAlreadySeen": false,
+      "showFloatingHelpButton": true,
+      "buttonPosition": "bottomRight"
+    }
+  },
+  "mainFamilyCode": "ayivon",
+  "language": "fr",
+  "familyGeneralHistory": {
+    "title": "Histoire de la famille Ayivon",
+    "content": "Cette page rassemble les souvenirs, les origines et les grandes étapes de la famille.",
+    "maxCharacters": 5000
+  },
+  "familyCodes": [
+    {
+      "code": "ayivon",
+      "familyName": "Famille AYIVON",
+      "role": "owner",
+      "status": "accepted"
+    }
+  ],
+  "accessCodes": [
+    {
+      "id": "code001",
+      "code": "ayivon",
+      "label": "Code accès famille principale",
+      "type": "familyAccess",
+      "role": "viewer",
+      "familyCode": "AYIVON",
+      "createdByAdminId": "admin001",
+      "createdByName": "Admin Principal",
+      "createdAt": "2026-06-26T10:00:00"
+    },
+    {
+      "id": "code002",
+      "code": "ayivonvi2026",
+      "label": "Code Admin KPI",
+      "type": "adminKpi",
+      "role": "admin",
+      "familyCode": "AYIVON",
+      "createdByAdminId": "superAdmin001",
+      "createdByName": "Super Admin",
+      "createdAt": "2026-06-26T10:00:00"
+    },
+    {
+      "id": "code003",
+      "code": "EDIT-AYIVON-2026",
+      "label": "Code modification famille Ayivon",
+      "type": "modification",
+      "role": "editor",
+      "familyCode": "AYIVON",
+      "createdByAdminId": "admin001",
+      "createdByName": "Admin Principal",
+      "createdAt": "2026-06-26T10:00:00"
+    }
+  ],
+  "modificationCodes": [
+    {
+      "code": "EDIT-AYIVON-2026",
+      "label": "Code modification famille Ayivon",
+      "createdByAdminId": "admin001"
+    }
+  ],
+  "admins": [
+    {
+      "id": "admin001",
+      "fullName": "Admin Principal Ayivon",
+      "role": "superAdmin",
+      "email": "admin@email.com",
+      "phoneNumber": "+33000000000",
+      "whatsappNumber": "+33000000000"
+    }
+  ],
+  "adminAccess": {
+    "currentAdminCode": "ayivonvi2026",
+    "lastChangedAt": "2026-06-26T00:00:00",
+    "nextChangeDueAt": "2026-09-26T00:00:00",
+    "rotationMonths": 3,
+    "enabled": true,
+    "requireCodeRotationReminder": true
+  },
+  "people": [
+    {
+      "id": "p001",
+      "firstName": "Ama",
+      "lastName": "Ayivon",
+      "gender": "F",
+      "birthDate": "1954-04-20",
+      "birthPlace": "Lome",
+      "publicMapLocation": "Lome, Togo",
+      "familyCode": "AYIVON",
+      "spouseIds": ["p002"],
+      "childrenIds": ["p003"],
+      "spouses": ["p002"],
+      "children": ["p003"]
+    },
+    {
+      "id": "p002",
+      "firstName": "Kossi",
+      "lastName": "Ayivon",
+      "gender": "M",
+      "birthDate": "1950-01-15",
+      "birthPlace": "Kpalime",
+      "familyCode": "AYIVON",
+      "spouseIds": ["p001"],
+      "childrenIds": ["p003"],
+      "spouses": ["p001"],
+      "children": ["p003"]
+    },
+    {
+      "id": "p003",
+      "firstName": "Mawuli",
+      "lastName": "Ayivon",
+      "gender": "M",
+      "birthDate": "1982-11-03",
+      "birthPlace": "Accra",
+      "familyCode": "AYIVON",
+      "fatherId": "p002",
+      "motherId": "p001",
+      "parents": ["p001", "p002"]
+    }
+  ],
+  "marriageRelations": [
+    {
+      "id": "marriage001",
+      "personId": "p001",
+      "spouseId": "p002",
+      "marriageType": "customary",
+      "status": "active",
+      "marriageDate": "1979-08-12",
+      "marriagePlace": "Lome",
+      "order": 1
+    }
+  ],
+  "familyLinks": [],
+  "notifications": [],
+  "changeNotifications": [],
+  "bugReports": [],
+  "infoNews": [],
+  "infoNewsSendLogs": [],
+  "modificationHistory": [],
+  "auditLog": []
+}

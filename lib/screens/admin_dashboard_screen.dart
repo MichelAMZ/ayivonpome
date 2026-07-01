@@ -376,6 +376,12 @@ class _ApplicationSettingsSection extends ConsumerWidget {
               icon: const Icon(Icons.family_restroom_outlined),
               label: Text(l10n.recalculateGenerations),
             ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: canEdit ? () => _reloadData(context, ref) : null,
+              icon: const Icon(Icons.refresh_outlined),
+              label: const Text('Recharger les données'),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -496,6 +502,14 @@ class _ApplicationSettingsSection extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(l10n.recalculateGenerations)));
+  }
+
+  Future<void> _reloadData(BuildContext context, WidgetRef ref) async {
+    await ref.read(familyTreeProvider.notifier).initializeAppFresh();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Données rechargées et arbre recentré')),
+    );
   }
 }
 

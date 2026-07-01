@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/audit_log.dart';
@@ -22,6 +24,9 @@ import '../models/marriage_relation.dart';
 import '../models/modification_code.dart';
 import '../models/person.dart';
 import 'app_providers.dart';
+import 'genealogy_statistics_provider.dart';
+import 'tree_filter_provider.dart';
+import 'tree_runtime_provider.dart';
 
 final familyTreeProvider =
     AsyncNotifierProvider<FamilyTreeController, FamilyTreeData>(
@@ -31,15 +36,87 @@ final familyTreeProvider =
 class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   @override
   Future<FamilyTreeData> build() async {
-    final storage = ref.watch(jsonStorageServiceProvider);
-    final raw = await storage.readRaw();
+    debugPrint('Fresh app initialization started');
+    clearTreeRuntimeState();
+    final data = await _loadFreshData();
+    resetFilters();
+    fitAndCenterTreeOnStart();
+    return data;
+  }
+
+  Future<void> initializeAppFresh() async {
+    debugPrint('Fresh app initialization started');
+    clearTreeRuntimeState();
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final data = await _loadFreshData(forceReloadSource: true);
+      resetFilters();
+      fitAndCenterTreeOnStart();
+      return data;
+    });
+  }
+
+  void clearTreeRuntimeState() {
+    ref.invalidate(treeFilterProvider);
+    ref.invalidate(genealogyStatisticsProvider);
+    debugPrint('Runtime tree state cleared');
+  }
+
+  Future<FamilyTreeData> reloadFamilyJson() =>
+      _loadFreshData(forceReloadSource: true);
+
+  FamilyTreeData rebuildRelationshipGraph(FamilyTreeData data) {
+    final rebuilt = ref
+        .read(familyRelationServiceProvider)
+        .normalizeRelationships(data);
+    debugPrint('Relationship graph rebuilt');
+    return rebuilt;
+  }
+
+  FamilyTreeData recalculateGenerationsForStartup(FamilyTreeData data) {
+    final recalculated = ref
+        .read(genealogyGenerationServiceProvider)
+        .recalculate(data);
+    debugPrint('Generations recalculated');
+    return recalculated;
+  }
+
+  FamilyTreeData recomputeTreeLayout(FamilyTreeData data) {
+    debugPrint('Tree layout recomputed');
+    return data;
+  }
+
+  void resetFilters() {
+    ref.invalidate(treeFilterProvider);
+  }
+
+  void fitAndCenterTreeOnStart() {
+    ref.read(treeViewResetProvider.notifier).requestReset();
+    debugPrint('Tree centered');
+  }
+
+  Future<FamilyTreeData> _loadFreshData({
+    bool forceReloadSource = false,
+  }) async {
+    final storage = ref.read(jsonStorageServiceProvider);
+    final storedRaw = await storage.readRaw();
+    final sourceRaw = await _readBundledFamilyJson();
+    final raw = _selectNewestJson(storedRaw, sourceRaw);
+    debugPrint('Family JSON reloaded');
     if (raw == null || raw.trim().isEmpty) {
-      final demo = FamilyTreeData.demo();
+      final demo = _withFreshMetadata(FamilyTreeData.demo());
       await storage.writeRaw(_encode(demo));
-      return demo;
+      return recomputeTreeLayout(
+        recalculateGenerationsForStartup(rebuildRelationshipGraph(demo)),
+      );
     }
-    final parsed = FamilyTreeData.fromJson(
+    final loaded = FamilyTreeData.fromJson(
       jsonDecode(raw) as Map<String, dynamic>,
+    );
+    final parsed = _preserveUsefulLocalData(
+      loaded,
+      storedRaw: storedRaw,
+      sourceSelected: raw == sourceRaw,
     );
     var pruned = ref
         .read(modificationHistoryServiceProvider)
@@ -54,8 +131,9 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         .read(dataCleanupServiceProvider)
         .runAutomaticCleanup(pruned)
         .data;
-    pruned = dataCleaned;
-    pruned = ref.read(genealogyGenerationServiceProvider).recalculate(pruned);
+    pruned = rebuildRelationshipGraph(dataCleaned);
+    pruned = recalculateGenerationsForStartup(pruned);
+    pruned = recomputeTreeLayout(pruned);
     if (pruned.modificationHistory.length !=
             parsed.modificationHistory.length ||
         pruned.infoNewsSendLogs.length != parsed.infoNewsSendLogs.length ||
@@ -64,7 +142,9 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         !_sameGenerations(pruned, parsed) ||
         pruned.dataCleanupLastCleanedAt != parsed.dataCleanupLastCleanedAt ||
         pruned.infoNewsSendHistoryLastCleanedAt !=
-            parsed.infoNewsSendHistoryLastCleanedAt) {
+            parsed.infoNewsSendHistoryLastCleanedAt ||
+        raw == sourceRaw ||
+        forceReloadSource) {
       await storage.writeRaw(_encode(pruned));
     }
     return pruned;
@@ -80,7 +160,8 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ref
               .read(modificationHistoryServiceProvider)
               .pruneExpired(generationSynced),
-        );
+        )
+        .copyWith(lastUpdatedAt: DateTime.now().toIso8601String());
     await ref.read(jsonStorageServiceProvider).writeRaw(_encode(synced));
     state = AsyncData(synced);
   }
@@ -1476,6 +1557,123 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         ],
       ),
     );
+  }
+
+  Future<String?> _readBundledFamilyJson() async {
+    const assetPath = 'assets/data/family_tree.json';
+    try {
+      if (kIsWeb) {
+        final cacheBuster = DateTime.now().millisecondsSinceEpoch;
+        return NetworkAssetBundle(
+          Uri.base,
+        ).loadString('assets/$assetPath?v=$cacheBuster');
+      }
+      return rootBundle.loadString(assetPath);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _selectNewestJson(String? storedRaw, String? sourceRaw) {
+    if (storedRaw == null || storedRaw.trim().isEmpty) return sourceRaw;
+    if (sourceRaw == null || sourceRaw.trim().isEmpty) return storedRaw;
+    final storedDate = _lastUpdatedFromRaw(storedRaw);
+    final sourceDate = _lastUpdatedFromRaw(sourceRaw);
+    if (sourceDate == null) return storedRaw;
+    if (storedDate == null) return sourceRaw;
+    return sourceDate.isAfter(storedDate) ? sourceRaw : storedRaw;
+  }
+
+  FamilyTreeData _preserveUsefulLocalData(
+    FamilyTreeData loaded, {
+    required String? storedRaw,
+    required bool sourceSelected,
+  }) {
+    if (!sourceSelected || storedRaw == null || storedRaw.trim().isEmpty) {
+      return loaded;
+    }
+    try {
+      final stored = FamilyTreeData.fromJson(
+        jsonDecode(storedRaw) as Map<String, dynamic>,
+      );
+      final storedLanguage = stored.language.trim();
+      final storedLanguageSettings = stored.appSettings.languageSettings;
+      return loaded.copyWith(
+        language: storedLanguage.isEmpty ? loaded.language : storedLanguage,
+        appSettings: loaded.appSettings.copyWith(
+          languageSettings:
+              storedLanguageSettings.currentLocale.isEmpty &&
+                  storedLanguageSettings.manualLocale.isEmpty
+              ? loaded.appSettings.languageSettings
+              : storedLanguageSettings,
+          tutorialSettings: stored.appSettings.tutorialSettings,
+        ),
+        familyCodes: loaded.familyCodes.isEmpty
+            ? stored.familyCodes
+            : loaded.familyCodes,
+        accessCodes: stored.accessCodes,
+        modificationCodes: stored.modificationCodes,
+        adminAccess: stored.adminAccess,
+        superAdminRecovery: stored.superAdminRecovery,
+      );
+    } catch (_) {
+      return loaded;
+    }
+  }
+
+  DateTime? _lastUpdatedFromRaw(String raw) {
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final explicit = _parseDate(json['lastUpdatedAt']);
+      if (explicit != null) return explicit;
+      final dataVersion = _parseDataVersion(json['dataVersion']);
+      if (dataVersion != null) return dataVersion;
+      return _latestNestedDate(json);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  DateTime? _parseDate(Object? value) {
+    if (value is! String || value.trim().isEmpty) return null;
+    return DateTime.tryParse(value.trim());
+  }
+
+  DateTime? _parseDataVersion(Object? value) {
+    if (value is! String || value.length < 10) return null;
+    final normalized = value.substring(0, 10);
+    return DateTime.tryParse(normalized);
+  }
+
+  DateTime? _latestNestedDate(Object? value) {
+    DateTime? latest;
+    void visit(Object? item) {
+      if (item is Map) {
+        for (final entry in item.entries) {
+          if (entry.key.toString().toLowerCase().contains('date') ||
+              entry.key.toString().toLowerCase().contains('updatedat') ||
+              entry.key.toString().toLowerCase().contains('modifiedat')) {
+            final parsed = _parseDate(entry.value);
+            if (parsed != null && (latest == null || parsed.isAfter(latest!))) {
+              latest = parsed;
+            }
+          }
+          visit(entry.value);
+        }
+      } else if (item is List) {
+        for (final child in item) {
+          visit(child);
+        }
+      }
+    }
+
+    visit(value);
+    return latest;
+  }
+
+  FamilyTreeData _withFreshMetadata(FamilyTreeData data) {
+    final now = DateTime.now().toIso8601String();
+    return data.copyWith(lastUpdatedAt: now, dataVersion: now.substring(0, 10));
   }
 
   String _encode(FamilyTreeData data) =>

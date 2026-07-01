@@ -10,7 +10,9 @@ void main() {
         initialZoom: 0.60,
         minZoom: 0.40,
         maxZoom: 1.20,
-        rememberLastZoom: true,
+        resetViewOnStartup: true,
+        rememberLastZoom: false,
+        rememberLastPosition: false,
         showMembersCounter: false,
       ),
       languageSettings: LanguageSettings(
@@ -29,7 +31,9 @@ void main() {
     expect(parsed.treeSettings.initialZoom, 0.60);
     expect(parsed.treeSettings.minZoom, 0.40);
     expect(parsed.treeSettings.maxZoom, 1.20);
-    expect(parsed.treeSettings.rememberLastZoom, isTrue);
+    expect(parsed.treeSettings.resetViewOnStartup, isTrue);
+    expect(parsed.treeSettings.rememberLastZoom, isFalse);
+    expect(parsed.treeSettings.rememberLastPosition, isFalse);
     expect(parsed.treeSettings.showMembersCounter, isFalse);
     expect(parsed.languageSettings.manualLocale, 'en');
     expect(parsed.languageSettings.currentLocale, 'en');

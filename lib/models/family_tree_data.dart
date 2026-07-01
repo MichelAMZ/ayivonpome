@@ -27,6 +27,8 @@ import 'super_admin_recovery.dart';
 class FamilyTreeData {
   const FamilyTreeData({
     this.appVersion = '1.0.0',
+    this.dataVersion = '',
+    this.lastUpdatedAt = '',
     this.appSettings = const AppSettings(),
     this.mainFamilyCode = 'ayivon',
     this.publicMode = const PublicModeConfig(),
@@ -66,6 +68,8 @@ class FamilyTreeData {
   });
 
   final String appVersion;
+  final String dataVersion;
+  final String lastUpdatedAt;
   final AppSettings appSettings;
   final String mainFamilyCode;
   final PublicModeConfig publicMode;
@@ -102,6 +106,8 @@ class FamilyTreeData {
 
   factory FamilyTreeData.fromJson(Map<String, dynamic> json) => FamilyTreeData(
     appVersion: json['appVersion'] as String? ?? '1.0.0',
+    dataVersion: json['dataVersion'] as String? ?? '',
+    lastUpdatedAt: json['lastUpdatedAt'] as String? ?? '',
     appSettings: AppSettings.fromJson(
       Map<String, dynamic>.from(json['appSettings'] as Map? ?? const {}),
     ),
@@ -528,6 +534,8 @@ class FamilyTreeData {
 
   Map<String, dynamic> toJson() => {
     'appVersion': appVersion,
+    'dataVersion': dataVersion,
+    'lastUpdatedAt': lastUpdatedAt,
     'appSettings': appSettings.toJson(),
     'mainFamilyCode': mainFamilyCode,
     'publicMode': publicMode.toJson(),
@@ -577,6 +585,8 @@ class FamilyTreeData {
 
   FamilyTreeData copyWith({
     String? appVersion,
+    String? dataVersion,
+    String? lastUpdatedAt,
     AppSettings? appSettings,
     String? mainFamilyCode,
     PublicModeConfig? publicMode,
@@ -613,6 +623,8 @@ class FamilyTreeData {
   }) {
     return FamilyTreeData(
       appVersion: appVersion ?? this.appVersion,
+      dataVersion: dataVersion ?? this.dataVersion,
+      lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
       appSettings: appSettings ?? this.appSettings,
       mainFamilyCode: mainFamilyCode ?? this.mainFamilyCode,
       publicMode: publicMode ?? this.publicMode,

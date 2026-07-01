@@ -164,7 +164,9 @@ class TreeViewSettings {
     this.initialZoom = 0.60,
     this.minZoom = 0.40,
     this.maxZoom = 1.20,
-    this.rememberLastZoom = true,
+    this.resetViewOnStartup = true,
+    this.rememberLastZoom = false,
+    this.rememberLastPosition = false,
     this.showMembersCounter = true,
     this.showGenerationBadges = true,
   });
@@ -172,7 +174,9 @@ class TreeViewSettings {
   final double initialZoom;
   final double minZoom;
   final double maxZoom;
+  final bool resetViewOnStartup;
   final bool rememberLastZoom;
+  final bool rememberLastPosition;
   final bool showMembersCounter;
   final bool showGenerationBadges;
 
@@ -181,7 +185,9 @@ class TreeViewSettings {
         initialZoom: (json['initialZoom'] as num?)?.toDouble() ?? 0.60,
         minZoom: (json['minZoom'] as num?)?.toDouble() ?? 0.40,
         maxZoom: (json['maxZoom'] as num?)?.toDouble() ?? 1.20,
-        rememberLastZoom: json['rememberLastZoom'] as bool? ?? true,
+        resetViewOnStartup: json['resetViewOnStartup'] as bool? ?? true,
+        rememberLastZoom: json['rememberLastZoom'] as bool? ?? false,
+        rememberLastPosition: json['rememberLastPosition'] as bool? ?? false,
         showMembersCounter: json['showMembersCounter'] as bool? ?? true,
         showGenerationBadges: json['showGenerationBadges'] as bool? ?? true,
       );
@@ -190,7 +196,9 @@ class TreeViewSettings {
     'initialZoom': initialZoom,
     'minZoom': minZoom,
     'maxZoom': maxZoom,
+    'resetViewOnStartup': resetViewOnStartup,
     'rememberLastZoom': rememberLastZoom,
+    'rememberLastPosition': rememberLastPosition,
     'showMembersCounter': showMembersCounter,
     'showGenerationBadges': showGenerationBadges,
   };
@@ -199,7 +207,9 @@ class TreeViewSettings {
     double? initialZoom,
     double? minZoom,
     double? maxZoom,
+    bool? resetViewOnStartup,
     bool? rememberLastZoom,
+    bool? rememberLastPosition,
     bool? showMembersCounter,
     bool? showGenerationBadges,
   }) {
@@ -207,7 +217,9 @@ class TreeViewSettings {
       initialZoom: initialZoom ?? this.initialZoom,
       minZoom: minZoom ?? this.minZoom,
       maxZoom: maxZoom ?? this.maxZoom,
+      resetViewOnStartup: resetViewOnStartup ?? this.resetViewOnStartup,
       rememberLastZoom: rememberLastZoom ?? this.rememberLastZoom,
+      rememberLastPosition: rememberLastPosition ?? this.rememberLastPosition,
       showMembersCounter: showMembersCounter ?? this.showMembersCounter,
       showGenerationBadges: showGenerationBadges ?? this.showGenerationBadges,
     );

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/person.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
+import '../providers/tree_runtime_provider.dart';
 import '../widgets/family_tree_canvas.dart';
 import 'person_detail_screen.dart';
 
@@ -14,6 +15,7 @@ class TreeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
+    final resetToken = ref.watch(treeViewResetProvider);
     final visiblePeopleCount = auth.isAuthenticated
         ? data.people.length
         : data.people.where(_isPubliclyVisible).length;
@@ -21,6 +23,7 @@ class TreeScreen extends ConsumerWidget {
       data: data,
       authMode: auth.mode,
       membersCount: visiblePeopleCount,
+      resetToken: resetToken,
       showMembersCounter: data.appSettings.treeSettings.showMembersCounter,
       topReservedSpace: 8,
       onOpenPerson: (person) => Navigator.of(context).push(

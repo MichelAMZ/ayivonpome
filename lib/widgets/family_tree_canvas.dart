@@ -28,6 +28,7 @@ class FamilyTreeCanvas extends ConsumerStatefulWidget {
     required this.authMode,
     this.topReservedSpace = 0,
     this.membersCount,
+    this.resetToken = 0,
     this.showMembersCounter = true,
   });
 
@@ -36,6 +37,7 @@ class FamilyTreeCanvas extends ConsumerStatefulWidget {
   final AuthMode authMode;
   final double topReservedSpace;
   final int? membersCount;
+  final int resetToken;
   final bool showMembersCounter;
 
   @override
@@ -59,6 +61,18 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant FamilyTreeCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetToken != widget.resetToken &&
+        widget.data.appSettings.treeSettings.resetViewOnStartup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _resetView();
+      });
+    }
   }
 
   @override
