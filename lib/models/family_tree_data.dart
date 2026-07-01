@@ -23,12 +23,15 @@ import 'person.dart';
 import 'public_mode_config.dart';
 import 'modification_code.dart';
 import 'super_admin_recovery.dart';
+import 'sync_state.dart';
 
 class FamilyTreeData {
   const FamilyTreeData({
     this.appVersion = '1.0.0',
     this.dataVersion = '',
     this.lastUpdatedAt = '',
+    this.syncSettings = const SyncSettings(),
+    this.pendingSyncQueue = const [],
     this.appSettings = const AppSettings(),
     this.mainFamilyCode = 'ayivon',
     this.publicMode = const PublicModeConfig(),
@@ -70,6 +73,8 @@ class FamilyTreeData {
   final String appVersion;
   final String dataVersion;
   final String lastUpdatedAt;
+  final SyncSettings syncSettings;
+  final List<PendingSyncItem> pendingSyncQueue;
   final AppSettings appSettings;
   final String mainFamilyCode;
   final PublicModeConfig publicMode;
@@ -108,6 +113,15 @@ class FamilyTreeData {
     appVersion: json['appVersion'] as String? ?? '1.0.0',
     dataVersion: json['dataVersion'] as String? ?? '',
     lastUpdatedAt: json['lastUpdatedAt'] as String? ?? '',
+    syncSettings: SyncSettings.fromJson(
+      Map<String, dynamic>.from(json['syncSettings'] as Map? ?? const {}),
+    ),
+    pendingSyncQueue: (json['pendingSyncQueue'] as List? ?? const [])
+        .whereType<Map>()
+        .map(
+          (item) => PendingSyncItem.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList(),
     appSettings: AppSettings.fromJson(
       Map<String, dynamic>.from(json['appSettings'] as Map? ?? const {}),
     ),
@@ -536,6 +550,8 @@ class FamilyTreeData {
     'appVersion': appVersion,
     'dataVersion': dataVersion,
     'lastUpdatedAt': lastUpdatedAt,
+    'syncSettings': syncSettings.toJson(),
+    'pendingSyncQueue': pendingSyncQueue.map((item) => item.toJson()).toList(),
     'appSettings': appSettings.toJson(),
     'mainFamilyCode': mainFamilyCode,
     'publicMode': publicMode.toJson(),
@@ -587,6 +603,8 @@ class FamilyTreeData {
     String? appVersion,
     String? dataVersion,
     String? lastUpdatedAt,
+    SyncSettings? syncSettings,
+    List<PendingSyncItem>? pendingSyncQueue,
     AppSettings? appSettings,
     String? mainFamilyCode,
     PublicModeConfig? publicMode,
@@ -625,6 +643,8 @@ class FamilyTreeData {
       appVersion: appVersion ?? this.appVersion,
       dataVersion: dataVersion ?? this.dataVersion,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+      syncSettings: syncSettings ?? this.syncSettings,
+      pendingSyncQueue: pendingSyncQueue ?? this.pendingSyncQueue,
       appSettings: appSettings ?? this.appSettings,
       mainFamilyCode: mainFamilyCode ?? this.mainFamilyCode,
       publicMode: publicMode ?? this.publicMode,

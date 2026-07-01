@@ -14,6 +14,14 @@ class AppSettingsService {
         .clamp(minZoom, maxZoom)
         .toDouble();
     final languageSettings = settings.languageSettings;
+    final storageSettings = settings.storageSettings;
+    final storageMode = const {
+      'jsonOnly',
+      'databaseOnly',
+      'hybrid',
+    }.contains(storageSettings.mode)
+        ? storageSettings.mode
+        : 'hybrid';
     final tutorialSettings = settings.tutorialSettings;
     final supportedLocales = languageSettings.supportedLocales
         .where(_isSupportedLocale)
@@ -38,6 +46,7 @@ class AppSettingsService {
       showApplicationSubtitle:
           settings.showApplicationSubtitle && subtitle.isNotEmpty,
       officialFamilyName: officialFamilyName,
+      storageSettings: storageSettings.copyWith(mode: storageMode),
       treeSettings: treeSettings.copyWith(
         initialZoom: initialZoom,
         minZoom: minZoom,

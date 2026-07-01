@@ -1506,4 +1506,55 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get allGenerations => 'All generations';
+
+  @override
+  String get storageMode => 'Storage mode';
+
+  @override
+  String get jsonOnly => 'JSON only';
+
+  @override
+  String get databaseOnly => 'Database only';
+
+  @override
+  String get hybridStorage => 'Hybrid storage';
+
+  @override
+  String get syncStatus => 'Sync status';
+
+  @override
+  String get synced => 'Synced';
+
+  @override
+  String get offline => 'Offline';
+
+  @override
+  String get syncPending => 'Sync pending';
+
+  @override
+  String get syncInProgress => 'Sync in progress';
+
+  @override
+  String get syncError => 'Sync error';
+
+  @override
+  String get syncNow => 'Sync now';
+
+  @override
+  String get lastSyncAt => 'Last sync at';
+
+  @override
+  String get pendingOperations => 'Pending operations';
+
+  @override
+  String get conflictDetected => 'Conflict detected';
+
+  @override
+  String get keepLocalVersion => 'Keep local version';
+
+  @override
+  String get keepRemoteVersion => 'Keep remote version';
+
+  @override
+  String get mergeManually => 'Merge manually';
 }

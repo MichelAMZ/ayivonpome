@@ -6,6 +6,14 @@ void main() {
   test('AppSettings serializes tree view settings', () {
     const settings = AppSettings(
       applicationTitle: 'Famille AYIVON',
+      storageSettings: StorageSettings(
+        mode: 'hybrid',
+        localJsonEnabled: true,
+        remoteDatabaseEnabled: true,
+        offlineQueueEnabled: true,
+        autoSyncOnReconnect: true,
+        syncStatus: 'pending',
+      ),
       treeSettings: TreeViewSettings(
         initialZoom: 0.60,
         minZoom: 0.40,
@@ -29,6 +37,12 @@ void main() {
     final parsed = AppSettings.fromJson(settings.toJson());
 
     expect(parsed.treeSettings.initialZoom, 0.60);
+    expect(parsed.storageSettings.mode, 'hybrid');
+    expect(parsed.storageSettings.localJsonEnabled, isTrue);
+    expect(parsed.storageSettings.remoteDatabaseEnabled, isTrue);
+    expect(parsed.storageSettings.offlineQueueEnabled, isTrue);
+    expect(parsed.storageSettings.autoSyncOnReconnect, isTrue);
+    expect(parsed.storageSettings.syncStatus, 'pending');
     expect(parsed.treeSettings.minZoom, 0.40);
     expect(parsed.treeSettings.maxZoom, 1.20);
     expect(parsed.treeSettings.resetViewOnStartup, isTrue);

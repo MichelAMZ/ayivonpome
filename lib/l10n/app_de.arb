@@ -505,5 +505,22 @@
   "firstAncestor": "Erster Vorfahr",
   "recalculateGenerations": "Alle Generationen neu berechnen",
   "showGenerationBadges": "Generationsbadges anzeigen",
-  "allGenerations": "Alle Generationen"
+  "allGenerations": "Alle Generationen",
+  "storageMode": "Speichermodus",
+  "jsonOnly": "Nur JSON",
+  "databaseOnly": "Nur Datenbank",
+  "hybridStorage": "Hybrider Speicher",
+  "syncStatus": "Synchronisierungsstatus",
+  "synced": "Synchronisiert",
+  "offline": "Offline",
+  "syncPending": "Synchronisierung ausstehend",
+  "syncInProgress": "Synchronisierung läuft",
+  "syncError": "Synchronisierungsfehler",
+  "syncNow": "Jetzt synchronisieren",
+  "lastSyncAt": "Letzte Synchronisierung",
+  "pendingOperations": "Ausstehende Vorgänge",
+  "conflictDetected": "Konflikt erkannt",
+  "keepLocalVersion": "Lokale Version behalten",
+  "keepRemoteVersion": "Remote-Version behalten",
+  "mergeManually": "Manuell zusammenführen"
 }

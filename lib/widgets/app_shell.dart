@@ -32,6 +32,7 @@ import 'info_news_bar.dart';
 import 'language_selector_button.dart';
 import 'responsive.dart';
 import 'secure_code_text_field.dart';
+import 'sync_status_badge.dart';
 import 'topbar_family_logo.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -46,6 +47,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   var _popupOpen = false;
   var _adminKpiUnlocked = false;
   var _familyAnnouncementsBootstrapped = false;
+  var _syncAttemptedThisSession = false;
   final _dismissedThisSession = <String>{};
   final _shownAnnouncementIds = <String>{};
 
@@ -63,9 +65,15 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
     ref.listen(familyTreeProvider, (previous, next) {
-      next.whenData((_) {
+      next.whenData((data) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
+          if (!_syncAttemptedThisSession &&
+              data.pendingSyncQueue.isNotEmpty &&
+              data.syncSettings.syncStatus != 'error') {
+            _syncAttemptedThisSession = true;
+            ref.read(familyTreeProvider.notifier).syncPendingChanges();
+          }
           if (!_familyAnnouncementsBootstrapped) {
             _bootstrapFamilyAnnouncements();
           } else {
@@ -194,6 +202,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           body: Column(
             children: [
               const InfoNewsBar(),
+              const SyncStatusBadge(),
               const _OptionalFamilyLeadershipBanner(),
               Expanded(child: screens[_index]),
             ],

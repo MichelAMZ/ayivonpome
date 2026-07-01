@@ -1511,4 +1511,55 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get allGenerations => 'Todas as gerações';
+
+  @override
+  String get storageMode => 'Modo de armazenamento';
+
+  @override
+  String get jsonOnly => 'Apenas JSON';
+
+  @override
+  String get databaseOnly => 'Apenas banco de dados';
+
+  @override
+  String get hybridStorage => 'Armazenamento híbrido';
+
+  @override
+  String get syncStatus => 'Status de sincronização';
+
+  @override
+  String get synced => 'Sincronizado';
+
+  @override
+  String get offline => 'Offline';
+
+  @override
+  String get syncPending => 'Sincronização pendente';
+
+  @override
+  String get syncInProgress => 'Sincronização em andamento';
+
+  @override
+  String get syncError => 'Erro de sincronização';
+
+  @override
+  String get syncNow => 'Sincronizar agora';
+
+  @override
+  String get lastSyncAt => 'Última sincronização';
+
+  @override
+  String get pendingOperations => 'Operações pendentes';
+
+  @override
+  String get conflictDetected => 'Conflito detectado';
+
+  @override
+  String get keepLocalVersion => 'Manter versão local';
+
+  @override
+  String get keepRemoteVersion => 'Manter versão remota';
+
+  @override
+  String get mergeManually => 'Mesclar manualmente';
 }

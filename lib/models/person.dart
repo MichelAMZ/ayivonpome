@@ -46,6 +46,11 @@ class Person {
     this.history = const [],
     this.notes = '',
     this.generation = 0,
+    this.createdAt = '',
+    this.updatedAt = '',
+    this.updatedBy = '',
+    this.version = 1,
+    this.deletedAt = '',
   });
 
   final String id;
@@ -90,6 +95,11 @@ class Person {
   final List<HistoryEvent> history;
   final String notes;
   final int generation;
+  final String createdAt;
+  final String updatedAt;
+  final String updatedBy;
+  final int version;
+  final String deletedAt;
 
   String get fullName {
     final value = '$firstName $lastName'.trim();
@@ -165,6 +175,11 @@ class Person {
         .toList(),
     notes: json['notes'] as String? ?? '',
     generation: json['generation'] as int? ?? 0,
+    createdAt: json['createdAt'] as String? ?? '',
+    updatedAt: json['updatedAt'] as String? ?? '',
+    updatedBy: json['updatedBy'] as String? ?? '',
+    version: json['version'] as int? ?? 1,
+    deletedAt: json['deletedAt'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -210,6 +225,11 @@ class Person {
     'history': history.map((event) => event.toJson()).toList(),
     'notes': notes,
     'generation': generation,
+    'createdAt': createdAt,
+    'updatedAt': updatedAt,
+    'updatedBy': updatedBy,
+    'version': version,
+    'deletedAt': deletedAt,
   };
 
   Person copyWith({
@@ -255,6 +275,11 @@ class Person {
     List<HistoryEvent>? history,
     String? notes,
     int? generation,
+    String? createdAt,
+    String? updatedAt,
+    String? updatedBy,
+    int? version,
+    String? deletedAt,
   }) {
     return Person(
       id: id ?? this.id,
@@ -299,6 +324,11 @@ class Person {
       history: history ?? this.history,
       notes: notes ?? this.notes,
       generation: generation ?? this.generation,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      updatedBy: updatedBy ?? this.updatedBy,
+      version: version ?? this.version,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }

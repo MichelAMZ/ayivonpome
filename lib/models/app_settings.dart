@@ -4,6 +4,7 @@ class AppSettings {
     this.applicationSubtitle = '',
     this.showApplicationSubtitle = false,
     this.officialFamilyName = '',
+    this.storageSettings = const StorageSettings(),
     this.treeSettings = const TreeViewSettings(),
     this.languageSettings = const LanguageSettings(),
     this.tutorialSettings = const TutorialSettings(),
@@ -13,6 +14,7 @@ class AppSettings {
   final String applicationSubtitle;
   final bool showApplicationSubtitle;
   final String officialFamilyName;
+  final StorageSettings storageSettings;
   final TreeViewSettings treeSettings;
   final LanguageSettings languageSettings;
   final TutorialSettings tutorialSettings;
@@ -22,6 +24,9 @@ class AppSettings {
     applicationSubtitle: json['applicationSubtitle'] as String? ?? '',
     showApplicationSubtitle: json['showApplicationSubtitle'] as bool? ?? false,
     officialFamilyName: json['officialFamilyName'] as String? ?? '',
+    storageSettings: StorageSettings.fromJson(
+      Map<String, dynamic>.from(json['storageSettings'] as Map? ?? const {}),
+    ),
     treeSettings: TreeViewSettings.fromJson(
       Map<String, dynamic>.from(json['treeSettings'] as Map? ?? const {}),
     ),
@@ -38,6 +43,7 @@ class AppSettings {
     'applicationSubtitle': applicationSubtitle,
     'showApplicationSubtitle': showApplicationSubtitle,
     'officialFamilyName': officialFamilyName,
+    'storageSettings': storageSettings.toJson(),
     'treeSettings': treeSettings.toJson(),
     'languageSettings': languageSettings.toJson(),
     'tutorialSettings': tutorialSettings.toJson(),
@@ -48,6 +54,7 @@ class AppSettings {
     String? applicationSubtitle,
     bool? showApplicationSubtitle,
     String? officialFamilyName,
+    StorageSettings? storageSettings,
     TreeViewSettings? treeSettings,
     LanguageSettings? languageSettings,
     TutorialSettings? tutorialSettings,
@@ -58,9 +65,76 @@ class AppSettings {
       showApplicationSubtitle:
           showApplicationSubtitle ?? this.showApplicationSubtitle,
       officialFamilyName: officialFamilyName ?? this.officialFamilyName,
+      storageSettings: storageSettings ?? this.storageSettings,
       treeSettings: treeSettings ?? this.treeSettings,
       languageSettings: languageSettings ?? this.languageSettings,
       tutorialSettings: tutorialSettings ?? this.tutorialSettings,
+    );
+  }
+}
+
+class StorageSettings {
+  const StorageSettings({
+    this.mode = 'hybrid',
+    this.localJsonEnabled = true,
+    this.remoteDatabaseEnabled = true,
+    this.offlineQueueEnabled = true,
+    this.autoSyncOnReconnect = true,
+    this.lastSyncAt = '',
+    this.syncStatus = 'idle',
+  });
+
+  final String mode;
+  final bool localJsonEnabled;
+  final bool remoteDatabaseEnabled;
+  final bool offlineQueueEnabled;
+  final bool autoSyncOnReconnect;
+  final String lastSyncAt;
+  final String syncStatus;
+
+  factory StorageSettings.fromJson(Map<String, dynamic> json) {
+    final mode = json['mode'] as String? ?? 'hybrid';
+    return StorageSettings(
+      mode: const {'jsonOnly', 'databaseOnly', 'hybrid'}.contains(mode)
+          ? mode
+          : 'hybrid',
+      localJsonEnabled: json['localJsonEnabled'] as bool? ?? true,
+      remoteDatabaseEnabled: json['remoteDatabaseEnabled'] as bool? ?? true,
+      offlineQueueEnabled: json['offlineQueueEnabled'] as bool? ?? true,
+      autoSyncOnReconnect: json['autoSyncOnReconnect'] as bool? ?? true,
+      lastSyncAt: json['lastSyncAt'] as String? ?? '',
+      syncStatus: json['syncStatus'] as String? ?? 'idle',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'mode': mode,
+    'localJsonEnabled': localJsonEnabled,
+    'remoteDatabaseEnabled': remoteDatabaseEnabled,
+    'offlineQueueEnabled': offlineQueueEnabled,
+    'autoSyncOnReconnect': autoSyncOnReconnect,
+    'lastSyncAt': lastSyncAt,
+    'syncStatus': syncStatus,
+  };
+
+  StorageSettings copyWith({
+    String? mode,
+    bool? localJsonEnabled,
+    bool? remoteDatabaseEnabled,
+    bool? offlineQueueEnabled,
+    bool? autoSyncOnReconnect,
+    String? lastSyncAt,
+    String? syncStatus,
+  }) {
+    return StorageSettings(
+      mode: mode ?? this.mode,
+      localJsonEnabled: localJsonEnabled ?? this.localJsonEnabled,
+      remoteDatabaseEnabled:
+          remoteDatabaseEnabled ?? this.remoteDatabaseEnabled,
+      offlineQueueEnabled: offlineQueueEnabled ?? this.offlineQueueEnabled,
+      autoSyncOnReconnect: autoSyncOnReconnect ?? this.autoSyncOnReconnect,
+      lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+      syncStatus: syncStatus ?? this.syncStatus,
     );
   }
 }

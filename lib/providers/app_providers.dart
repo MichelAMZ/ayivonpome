@@ -4,6 +4,8 @@ import '../models/family_tree_data.dart';
 import '../services/auth_code_service.dart';
 import '../services/backup_service.dart';
 import '../services/change_notification_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/conflict_resolution_service.dart';
 import '../services/bug_report_service.dart';
 import '../services/communication_service.dart';
 import '../services/data_cleanup_service.dart';
@@ -17,9 +19,11 @@ import '../services/family_announcement_service.dart';
 import '../services/genealogy_statistics_service.dart';
 import '../services/genealogy_generation_service.dart';
 import '../services/history_cleanup_service.dart';
+import '../services/hybrid_family_repository.dart';
 import '../services/import_export_service.dart';
 import '../services/info_news_service.dart';
 import '../services/json_storage_service.dart';
+import '../services/local_json_repository.dart';
 import '../services/kpi_service.dart';
 import '../services/language_detection_service.dart';
 import '../services/map_service.dart';
@@ -28,6 +32,8 @@ import '../services/modification_history_service.dart';
 import '../services/modification_code_service.dart';
 import '../services/notification_service.dart';
 import '../services/push_notification_provider.dart';
+import '../services/remote_database_repository.dart';
+import '../services/sync_service.dart';
 import '../services/tree_view_settings_service.dart';
 import '../services/super_admin_recovery_service.dart';
 
@@ -37,6 +43,36 @@ final jsonStorageServiceProvider = Provider<JsonStorageService>(
 
 final backupServiceProvider = Provider<BackupService>(
   (ref) => BackupService(ref.watch(jsonStorageServiceProvider)),
+);
+
+final localJsonRepositoryProvider = Provider<JsonFamilyRepository>(
+  (ref) => JsonFamilyRepository(ref.watch(jsonStorageServiceProvider)),
+);
+
+final remoteDatabaseRepositoryProvider = Provider<DatabaseFamilyRepository>(
+  (ref) => const DatabaseFamilyRepository(),
+);
+
+final hybridFamilyRepositoryProvider = Provider<HybridFamilyRepository>(
+  (ref) => HybridFamilyRepository(
+    localRepository: ref.watch(localJsonRepositoryProvider),
+    remoteRepository: ref.watch(remoteDatabaseRepositoryProvider),
+  ),
+);
+
+final connectivityServiceProvider = Provider<ConnectivityService>(
+  (ref) => const ConnectivityService(),
+);
+
+final syncServiceProvider = Provider<SyncService>(
+  (ref) => SyncService(
+    connectivity: ref.watch(connectivityServiceProvider),
+    remoteRepository: ref.watch(remoteDatabaseRepositoryProvider),
+  ),
+);
+
+final conflictResolutionServiceProvider = Provider<ConflictResolutionService>(
+  (ref) => const ConflictResolutionService(),
 );
 
 final authCodeServiceProvider = Provider<AuthCodeService>(

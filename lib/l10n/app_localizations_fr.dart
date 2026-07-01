@@ -1512,4 +1512,55 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get allGenerations => 'Toutes les générations';
+
+  @override
+  String get storageMode => 'Mode de stockage';
+
+  @override
+  String get jsonOnly => 'JSON uniquement';
+
+  @override
+  String get databaseOnly => 'Base uniquement';
+
+  @override
+  String get hybridStorage => 'Stockage hybride';
+
+  @override
+  String get syncStatus => 'Statut de synchronisation';
+
+  @override
+  String get synced => 'Synchronisé';
+
+  @override
+  String get offline => 'Hors ligne';
+
+  @override
+  String get syncPending => 'Synchronisation en attente';
+
+  @override
+  String get syncInProgress => 'Synchronisation en cours';
+
+  @override
+  String get syncError => 'Erreur de synchronisation';
+
+  @override
+  String get syncNow => 'Synchroniser maintenant';
+
+  @override
+  String get lastSyncAt => 'Dernière synchronisation';
+
+  @override
+  String get pendingOperations => 'Opérations en attente';
+
+  @override
+  String get conflictDetected => 'Conflit détecté';
+
+  @override
+  String get keepLocalVersion => 'Garder version locale';
+
+  @override
+  String get keepRemoteVersion => 'Garder version distante';
+
+  @override
+  String get mergeManually => 'Fusionner manuellement';
 }

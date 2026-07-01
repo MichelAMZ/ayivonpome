@@ -505,5 +505,22 @@
   "firstAncestor": "Primeiro ancestral",
   "recalculateGenerations": "Recalcular todas as gerações",
   "showGenerationBadges": "Mostrar badges de geração",
-  "allGenerations": "Todas as gerações"
+  "allGenerations": "Todas as gerações",
+  "storageMode": "Modo de armazenamento",
+  "jsonOnly": "Apenas JSON",
+  "databaseOnly": "Apenas banco de dados",
+  "hybridStorage": "Armazenamento híbrido",
+  "syncStatus": "Status de sincronização",
+  "synced": "Sincronizado",
+  "offline": "Offline",
+  "syncPending": "Sincronização pendente",
+  "syncInProgress": "Sincronização em andamento",
+  "syncError": "Erro de sincronização",
+  "syncNow": "Sincronizar agora",
+  "lastSyncAt": "Última sincronização",
+  "pendingOperations": "Operações pendentes",
+  "conflictDetected": "Conflito detectado",
+  "keepLocalVersion": "Manter versão local",
+  "keepRemoteVersion": "Manter versão remota",
+  "mergeManually": "Mesclar manualmente"
 }

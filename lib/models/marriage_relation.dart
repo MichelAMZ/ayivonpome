@@ -11,6 +11,11 @@ class MarriageRelation {
     this.endDate = '',
     this.notes = '',
     this.order = 1,
+    this.createdAt = '',
+    this.updatedAt = '',
+    this.updatedBy = '',
+    this.version = 1,
+    this.deletedAt = '',
   });
 
   final String id;
@@ -24,6 +29,11 @@ class MarriageRelation {
   final String endDate;
   final String notes;
   final int order;
+  final String createdAt;
+  final String updatedAt;
+  final String updatedBy;
+  final int version;
+  final String deletedAt;
 
   factory MarriageRelation.fromJson(Map<String, dynamic> json) =>
       MarriageRelation(
@@ -38,6 +48,11 @@ class MarriageRelation {
         endDate: json['endDate'] as String? ?? '',
         notes: json['notes'] as String? ?? '',
         order: json['order'] as int? ?? 1,
+        createdAt: json['createdAt'] as String? ?? '',
+        updatedAt: json['updatedAt'] as String? ?? '',
+        updatedBy: json['updatedBy'] as String? ?? '',
+        version: json['version'] as int? ?? 1,
+        deletedAt: json['deletedAt'] as String? ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -52,6 +67,11 @@ class MarriageRelation {
     'endDate': endDate,
     'notes': notes,
     'order': order,
+    'createdAt': createdAt,
+    'updatedAt': updatedAt,
+    'updatedBy': updatedBy,
+    'version': version,
+    'deletedAt': deletedAt,
   };
 
   MarriageRelation copyWith({
@@ -66,6 +86,11 @@ class MarriageRelation {
     String? endDate,
     String? notes,
     int? order,
+    String? createdAt,
+    String? updatedAt,
+    String? updatedBy,
+    int? version,
+    String? deletedAt,
   }) {
     return MarriageRelation(
       id: id ?? this.id,
@@ -79,6 +104,11 @@ class MarriageRelation {
       endDate: endDate ?? this.endDate,
       notes: notes ?? this.notes,
       order: order ?? this.order,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      updatedBy: updatedBy ?? this.updatedBy,
+      version: version ?? this.version,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }

@@ -3013,6 +3013,108 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Toutes les générations'**
   String get allGenerations;
+
+  /// No description provided for @storageMode.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mode de stockage'**
+  String get storageMode;
+
+  /// No description provided for @jsonOnly.
+  ///
+  /// In fr, this message translates to:
+  /// **'JSON uniquement'**
+  String get jsonOnly;
+
+  /// No description provided for @databaseOnly.
+  ///
+  /// In fr, this message translates to:
+  /// **'Base uniquement'**
+  String get databaseOnly;
+
+  /// No description provided for @hybridStorage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Stockage hybride'**
+  String get hybridStorage;
+
+  /// No description provided for @syncStatus.
+  ///
+  /// In fr, this message translates to:
+  /// **'Statut de synchronisation'**
+  String get syncStatus;
+
+  /// No description provided for @synced.
+  ///
+  /// In fr, this message translates to:
+  /// **'Synchronisé'**
+  String get synced;
+
+  /// No description provided for @offline.
+  ///
+  /// In fr, this message translates to:
+  /// **'Hors ligne'**
+  String get offline;
+
+  /// No description provided for @syncPending.
+  ///
+  /// In fr, this message translates to:
+  /// **'Synchronisation en attente'**
+  String get syncPending;
+
+  /// No description provided for @syncInProgress.
+  ///
+  /// In fr, this message translates to:
+  /// **'Synchronisation en cours'**
+  String get syncInProgress;
+
+  /// No description provided for @syncError.
+  ///
+  /// In fr, this message translates to:
+  /// **'Erreur de synchronisation'**
+  String get syncError;
+
+  /// No description provided for @syncNow.
+  ///
+  /// In fr, this message translates to:
+  /// **'Synchroniser maintenant'**
+  String get syncNow;
+
+  /// No description provided for @lastSyncAt.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernière synchronisation'**
+  String get lastSyncAt;
+
+  /// No description provided for @pendingOperations.
+  ///
+  /// In fr, this message translates to:
+  /// **'Opérations en attente'**
+  String get pendingOperations;
+
+  /// No description provided for @conflictDetected.
+  ///
+  /// In fr, this message translates to:
+  /// **'Conflit détecté'**
+  String get conflictDetected;
+
+  /// No description provided for @keepLocalVersion.
+  ///
+  /// In fr, this message translates to:
+  /// **'Garder version locale'**
+  String get keepLocalVersion;
+
+  /// No description provided for @keepRemoteVersion.
+  ///
+  /// In fr, this message translates to:
+  /// **'Garder version distante'**
+  String get keepRemoteVersion;
+
+  /// No description provided for @mergeManually.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fusionner manuellement'**
+  String get mergeManually;
 }
 
 class _AppLocalizationsDelegate

@@ -23,6 +23,7 @@ import '../models/info_news.dart';
 import '../models/marriage_relation.dart';
 import '../models/modification_code.dart';
 import '../models/person.dart';
+import '../models/sync_state.dart';
 import 'app_providers.dart';
 import 'genealogy_statistics_provider.dart';
 import 'tree_filter_provider.dart';
@@ -54,6 +55,14 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       fitAndCenterTreeOnStart();
       return data;
     });
+  }
+
+  Future<void> syncPendingChanges() async {
+    final data = await future;
+    final synced = await ref.read(syncServiceProvider).syncPendingQueue(data);
+    if (_encode(synced) == _encode(data)) return;
+    await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
+    state = AsyncData(synced);
   }
 
   void clearTreeRuntimeState() {
@@ -150,11 +159,14 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return pruned;
   }
 
-  Future<void> save(FamilyTreeData data) async {
+  Future<void> save(
+    FamilyTreeData data, {
+    PendingSyncItem? syncOperation,
+  }) async {
     final generationSynced = ref
         .read(genealogyGenerationServiceProvider)
         .recalculate(data);
-    final synced = ref
+    var synced = ref
         .read(changeNotificationServiceProvider)
         .syncFromAuditLog(
           ref
@@ -162,7 +174,10 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
               .pruneExpired(generationSynced),
         )
         .copyWith(lastUpdatedAt: DateTime.now().toIso8601String());
-    await ref.read(jsonStorageServiceProvider).writeRaw(_encode(synced));
+    synced = await ref
+        .read(syncServiceProvider)
+        .enqueueOrSync(synced, operation: syncOperation);
+    await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
     state = AsyncData(synced);
   }
 
@@ -281,6 +296,10 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final updated = ref
         .read(marriageServiceProvider)
         .declareDivorce(data, relation, divorceDate: divorceDate, notes: notes);
+    final updatedRelation = updated.marriageRelations.firstWhere(
+      (item) => item.id == relation.id,
+      orElse: () => relation,
+    );
     await save(
       updated.copyWith(
         auditLog: [
@@ -295,6 +314,13 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
+      syncOperation: ref
+          .read(syncServiceProvider)
+          .marriageOperation(
+            relation: updatedRelation,
+            action: 'update',
+            updatedBy: adminId,
+          ),
     );
   }
 
@@ -310,6 +336,10 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final updated = ref
         .read(marriageServiceProvider)
         .restoreMarriage(data, relation);
+    final updatedRelation = updated.marriageRelations.firstWhere(
+      (item) => item.id == relation.id,
+      orElse: () => relation,
+    );
     await save(
       updated.copyWith(
         auditLog: [
@@ -324,11 +354,19 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
+      syncOperation: ref
+          .read(syncServiceProvider)
+          .marriageOperation(
+            relation: updatedRelation,
+            action: 'restore',
+            updatedBy: adminId,
+          ),
     );
   }
 
   Future<void> upsertPerson(Person person, String action) async {
     final data = await future;
+    final now = DateTime.now().toIso8601String();
     final duplicate = data.people.any(
       (candidate) =>
           candidate.id != person.id &&
@@ -341,11 +379,20 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     }
     final people = [...data.people];
     final index = people.indexWhere((item) => item.id == person.id);
+    final preparedPerson = person.copyWith(
+      createdAt: index == -1
+          ? (person.createdAt.isEmpty ? now : person.createdAt)
+          : people[index].createdAt,
+      updatedAt: now,
+      updatedBy: action,
+      version: index == -1 ? 1 : people[index].version + 1,
+      deletedAt: '',
+    );
     if (index == -1) {
-      people.add(person);
+      people.add(preparedPerson);
     } else {
       await createBackup();
-      people[index] = person;
+      people[index] = preparedPerson;
     }
     var nextData = ref
         .read(familyRelationServiceProvider)
@@ -361,9 +408,18 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     if (index == -1 && action == 'create_person') {
       nextData = ref
           .read(familyAnnouncementServiceProvider)
-          .addBirthAnnouncementIfNeeded(nextData, person);
+          .addBirthAnnouncementIfNeeded(nextData, preparedPerson);
     }
-    await save(nextData);
+    await save(
+      nextData,
+      syncOperation: ref
+          .read(syncServiceProvider)
+          .personOperation(
+            person: preparedPerson,
+            action: index == -1 ? 'create' : 'update',
+            updatedBy: action,
+          ),
+    );
   }
 
   Future<void> deletePerson(String id) async {
@@ -374,6 +430,9 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         people: data.people.where((person) => person.id != id).toList(),
         auditLog: [...data.auditLog, _log('delete_person', id, '')],
       ),
+      syncOperation: ref
+          .read(syncServiceProvider)
+          .deletePersonOperation(personId: id, updatedBy: 'delete_person'),
     );
   }
 
@@ -572,7 +631,16 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     } else {
       links[index] = link;
     }
-    await save(data.copyWith(familyLinks: links));
+    await save(
+      data.copyWith(familyLinks: links),
+      syncOperation: ref
+          .read(syncServiceProvider)
+          .familyLinkOperation(
+            link: link,
+            action: index == -1 ? 'create' : 'update',
+            updatedBy: 'family_link_upsert',
+          ),
+    );
   }
 
   Future<void> upsertNotification(

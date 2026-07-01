@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -120,6 +123,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           const SizedBox(height: 24),
           _ApplicationSettingsSection(data: data),
+          const SizedBox(height: 24),
+          _SyncManagementSection(data: data),
           const SizedBox(height: 24),
           Text(
             l10n.adminSecurity,
@@ -509,6 +514,148 @@ class _ApplicationSettingsSection extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Données rechargées et arbre recentré')),
+    );
+  }
+}
+
+class _SyncManagementSection extends ConsumerWidget {
+  const _SyncManagementSection({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final storage = data.appSettings.storageSettings;
+    final pending = data.pendingSyncQueue
+        .where((item) => item.status != 'synced')
+        .toList();
+    final errors = pending.where((item) => item.status == 'failed').toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Synchronisation', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _InfoRow(label: 'Mode de stockage', value: storage.mode),
+                _InfoRow(
+                  label: 'Dernière synchronisation',
+                  value: storage.lastSyncAt.isEmpty ? '-' : storage.lastSyncAt,
+                ),
+                _InfoRow(label: 'Statut', value: storage.syncStatus),
+                _InfoRow(
+                  label: 'Opérations en attente',
+                  value: pending.length.toString(),
+                ),
+                _InfoRow(
+                  label: 'Erreurs de synchronisation',
+                  value: errors.length.toString(),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () async {
+                        await ref
+                            .read(familyTreeProvider.notifier)
+                            .syncPendingChanges();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Synchronisation lancée'),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.sync_outlined),
+                      label: const Text('Synchroniser maintenant'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final raw = ref
+                            .read(importExportServiceProvider)
+                            .serialize(data);
+                        await Clipboard.setData(ClipboardData(text: raw));
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('JSON copié')),
+                        );
+                      },
+                      icon: const Icon(Icons.file_download_outlined),
+                      label: const Text('Exporter JSON'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: const ['json'],
+                          withData: true,
+                        );
+                        final file = result?.files.single;
+                        final bytes = file?.bytes;
+                        if (bytes == null) return;
+                        final raw = utf8.decode(bytes);
+                        final imported = ref
+                            .read(importExportServiceProvider)
+                            .parse(raw);
+                        await ref
+                            .read(familyTreeProvider.notifier)
+                            .importData(imported, merge: true);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('JSON importé')),
+                        );
+                      },
+                      icon: const Icon(Icons.file_upload_outlined),
+                      label: const Text('Importer JSON'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: const ['json'],
+                          withData: true,
+                        );
+                        final file = result?.files.single;
+                        final bytes = file?.bytes;
+                        if (bytes == null) return;
+                        final raw = utf8.decode(bytes);
+                        final restored = ref
+                            .read(importExportServiceProvider)
+                            .parse(raw);
+                        await ref
+                            .read(familyTreeProvider.notifier)
+                            .importData(restored, merge: false);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Sauvegarde restaurée')),
+                        );
+                      },
+                      icon: const Icon(Icons.restore_outlined),
+                      label: const Text('Restaurer depuis sauvegarde'),
+                    ),
+                  ],
+                ),
+                if (errors.isNotEmpty) ...[
+                  const Divider(height: 28),
+                  for (final item in errors.take(5))
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.sync_problem_outlined),
+                      title: Text('${item.entityType}:${item.entityId}'),
+                      subtitle: Text(item.lastError),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -2,11 +2,29 @@
   "appVersion": "1.0.0",
   "dataVersion": "2026-06-30-001",
   "lastUpdatedAt": "2026-06-30T00:00:00.000",
+  "syncSettings": {
+    "storageMode": "jsonAndDatabase",
+    "databaseEnabled": true,
+    "offlineModeEnabled": true,
+    "autoSyncOnReconnect": true,
+    "lastSyncAt": "",
+    "syncStatus": "idle"
+  },
+  "pendingSyncQueue": [],
   "appSettings": {
     "applicationTitle": "Famille AYIVON",
     "applicationSubtitle": "La grande famille unie",
     "showApplicationSubtitle": false,
     "officialFamilyName": "Famille AYIVON",
+    "storageSettings": {
+      "mode": "hybrid",
+      "localJsonEnabled": true,
+      "remoteDatabaseEnabled": true,
+      "offlineQueueEnabled": true,
+      "autoSyncOnReconnect": true,
+      "lastSyncAt": "",
+      "syncStatus": "idle"
+    },
     "treeSettings": {
       "initialZoom": 0.6,
       "minZoom": 0.4,
