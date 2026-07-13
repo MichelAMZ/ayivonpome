@@ -70,5 +70,22 @@ void main() {
       expect(decoded.originalLastName, 'Lévonvi');
       expect(decoded.shouldShowOriginLastName, isTrue);
     });
+
+    test('serializes linked family tree fields', () {
+      const person = Person(
+        id: 'p1',
+        firstName: 'Ama',
+        lastName: 'Amouzou',
+        familyId: 'family-ayivon',
+        originFamilyId: 'family-levonvi',
+        linkedTreeEnabled: true,
+      );
+
+      final decoded = Person.fromJson(person.toJson());
+
+      expect(decoded.familyId, 'family-ayivon');
+      expect(decoded.originFamilyId, 'family-levonvi');
+      expect(decoded.linkedTreeEnabled, isTrue);
+    });
   });
 }

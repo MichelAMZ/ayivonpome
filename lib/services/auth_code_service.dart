@@ -19,9 +19,6 @@ class AuthCodeService {
 
   AuthSession? verifyCode(FamilyTreeData data, String code) {
     final normalized = code.trim().toUpperCase();
-    if (normalized == data.mainFamilyCode.toUpperCase() || normalized == 'AYIVON') {
-      return AuthSession(familyCode: data.mainFamilyCode, role: 'superAdmin');
-    }
     FamilyCode? match;
     for (final familyCode in data.familyCodes) {
       if (familyCode.code.toUpperCase() == normalized &&
@@ -30,9 +27,13 @@ class AuthCodeService {
         break;
       }
     }
-    return match == null
-        ? null
-        : AuthSession(familyCode: match.code, role: match.role);
+    if (match != null) {
+      return AuthSession(familyCode: match.code, role: match.role);
+    }
+    if (normalized == data.mainFamilyCode.toUpperCase()) {
+      return AuthSession(familyCode: data.mainFamilyCode, role: 'viewer');
+    }
+    return null;
   }
 
   Future<String?> readLastCode() async {

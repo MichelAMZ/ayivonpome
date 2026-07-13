@@ -1296,6 +1296,45 @@ class AppLocalizationsEs extends AppLocalizations {
   String get linkedFamilyCode => 'Código familia vinculada';
 
   @override
+  String get linkedFamilyTree => 'Árbol familiar vinculado';
+
+  @override
+  String get openLinkedFamilyTree => 'Abrir árbol familiar vinculado';
+
+  @override
+  String get originFamilyTree => 'Árbol de la familia de origen';
+
+  @override
+  String get familyOfOrigin => 'Familia de origen';
+
+  @override
+  String get linkedBranch => 'Rama vinculada';
+
+  @override
+  String get openFamilyBranch => 'Abrir rama familiar';
+
+  @override
+  String get backToMainTree => 'Volver al árbol principal';
+
+  @override
+  String get mainFamilyTree => 'Árbol familiar principal';
+
+  @override
+  String get familyBreadcrumb => 'Ruta familiar';
+
+  @override
+  String get linkedTreeAvailable => 'Árbol vinculado disponible';
+
+  @override
+  String get noLinkedTree => 'Sin árbol vinculado';
+
+  @override
+  String get manageLinkedTrees => 'Gestionar árboles vinculados';
+
+  @override
+  String get treeBridgePerson => 'Persona puente';
+
+  @override
   String get temporaryCode => 'Código temporal';
 
   @override

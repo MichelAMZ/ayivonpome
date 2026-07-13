@@ -36,8 +36,8 @@ class FamilyLeaderPremiumBadge extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     final mobile = compact || width < 650;
     final tablet = !mobile && width < 1100;
-    final badgeWidth = mobile ? 96.0 : (tablet ? 270.0 : 340.0);
-    final badgeHeight = mobile ? 50.0 : (tablet ? 74.0 : 88.0);
+    final badgeWidth = mobile ? 168.0 : (tablet ? 270.0 : 340.0);
+    final badgeHeight = mobile ? 54.0 : (tablet ? 74.0 : 88.0);
     final radius = mobile ? 16.0 : 18.0;
 
     final badge = Tooltip(
@@ -74,7 +74,7 @@ class FamilyLeaderPremiumBadge extends StatelessWidget {
               ],
             ),
             child: mobile
-                ? _MobileContent(person: person, photo: photo)
+                ? _MobileContent(person: person, title: title, photo: photo)
                 : _FullContent(
                     person: person,
                     title: title,
@@ -239,9 +239,14 @@ class _FullContent extends StatelessWidget {
 }
 
 class _MobileContent extends StatelessWidget {
-  const _MobileContent({required this.person, required this.photo});
+  const _MobileContent({
+    required this.person,
+    required this.title,
+    required this.photo,
+  });
 
   final Person person;
+  final String title;
   final String photo;
 
   @override
@@ -249,18 +254,38 @@ class _MobileContent extends StatelessWidget {
     return Row(
       children: [
         _LeaderPortrait(person: person, photo: photo, size: 34),
-        const SizedBox(width: 3),
+        const SizedBox(width: 6),
         Expanded(
-          child: Text(
-            'Chef',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: FamilyLeaderPremiumBadge._goldLight,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                person.fullName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                  height: 1.05,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: FamilyLeaderPremiumBadge._goldLight,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                  height: 1.05,
+                ),
+              ),
+            ],
           ),
         ),
       ],

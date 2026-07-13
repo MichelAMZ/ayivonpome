@@ -12,6 +12,7 @@ import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
+import '../providers/linked_family_tree_provider.dart';
 import '../providers/tree_filter_provider.dart';
 import 'members_counter_badge.dart';
 import '../services/location_filter_service.dart';
@@ -30,6 +31,7 @@ class FamilyTreeCanvas extends ConsumerStatefulWidget {
     this.membersCount,
     this.resetToken = 0,
     this.showMembersCounter = true,
+    this.highlightedPersonIds = const {},
   });
 
   final FamilyTreeData data;
@@ -39,6 +41,7 @@ class FamilyTreeCanvas extends ConsumerStatefulWidget {
   final int? membersCount;
   final int resetToken;
   final bool showMembersCounter;
+  final Set<String> highlightedPersonIds;
 
   @override
   ConsumerState<FamilyTreeCanvas> createState() => _FamilyTreeCanvasState();
@@ -51,7 +54,10 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   final _controller = TransformationController();
   var _scale = 1.0;
   var _needsInitialView = true;
+  var _isInteracting = false;
+  var _hasPendingViewportCenter = false;
   Size? _lastViewport;
+  Size? _lastCenteredViewport;
   Size? _lastLayoutSize;
   Rect? _lastContentRect;
   Offset? _lastCanvasOffset;
@@ -93,6 +99,9 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     final displayData = filter.isActive && filter.showOnlyResults
         ? widget.data.copyWith(people: filteredPeople)
         : widget.data;
+    final linkedTreeService = ref.watch(
+      linkedFamilyTreeServiceProvider(widget.data),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -126,6 +135,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
         _lastLayoutSize = layout.size;
         _lastContentRect = contentRect;
         _scheduleInitialView(viewport, contentRect);
+        _scheduleViewportCenter(viewport, contentRect);
         _lastCanvasOffset = offset;
         _lastPersonRects = {
           for (final entry in layout.nodes.entries) entry.key.id: entry.value,
@@ -136,6 +146,9 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
           child: Stack(
             children: [
               Listener(
+                onPointerDown: (_) => _isInteracting = true,
+                onPointerUp: (_) => _endInteraction(),
+                onPointerCancel: (_) => _endInteraction(),
                 onPointerSignal: _handlePointerSignal,
                 child: InteractiveViewer(
                   constrained: false,
@@ -151,7 +164,10 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                       setState(() => _scale = next);
                     }
                   },
-                  onInteractionEnd: (_) => _saveLastZoom(),
+                  onInteractionEnd: (_) {
+                    _endInteraction();
+                    _saveLastZoom();
+                  },
                   child: SizedBox(
                     width: treeSize.width,
                     height: treeSize.height,
@@ -186,9 +202,13 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                                 width: metrics.cardWidth,
                                 height: metrics.cardHeight,
                                 compact: constraints.maxWidth < 700,
-                                highlighted: highlightedIds.contains(
-                                  entry.key.id,
-                                ),
+                                highlighted:
+                                    highlightedIds.contains(entry.key.id) ||
+                                    widget.highlightedPersonIds.contains(
+                                      entry.key.id,
+                                    ),
+                                hasLinkedFamilyTree: linkedTreeService
+                                    .hasLinkedFamilyTree(entry.key),
                                 onOpen: () => widget.onOpenPerson(entry.key),
                               ),
                             ),
@@ -270,6 +290,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     final next = (_scale * factor).clamp(settings.minZoom, settings.maxZoom);
     setState(() => _scale = next.toDouble());
     _controller.value = _centeredMatrix(_scale);
+    _lastCenteredViewport = _lastViewport;
     _saveLastZoom();
   }
 
@@ -277,6 +298,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     final zoom = _initialZoomForViewport(widget.data.appSettings.treeSettings);
     setState(() => _scale = zoom);
     _controller.value = _centeredMatrix(zoom);
+    _lastCenteredViewport = _lastViewport;
     _saveLastZoom();
   }
 
@@ -303,6 +325,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
         .toDouble();
     setState(() => _scale = zoom);
     _controller.value = _centeredMatrix(zoom);
+    _lastCenteredViewport = _lastViewport;
     _saveLastZoom();
     _showFeedback('Tout l’arbre est visible');
   }
@@ -316,7 +339,51 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
       final zoom = _initialZoomForViewport(settings, viewport);
       setState(() => _scale = zoom);
       _controller.value = _centeredMatrix(zoom, viewport, contentRect);
+      _lastCenteredViewport = viewport;
     });
+  }
+
+  void _scheduleViewportCenter(Size viewport, Rect contentRect) {
+    final previous = _lastCenteredViewport;
+    if (previous == null) return;
+    if (!_hasViewportMeaningfullyChanged(previous, viewport)) return;
+    if (_hasPendingViewportCenter) return;
+
+    _hasPendingViewportCenter = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _hasPendingViewportCenter = false;
+      if (_isInteracting) return;
+      _centerForViewportChange(viewport, contentRect);
+    });
+  }
+
+  bool _hasViewportMeaningfullyChanged(Size previous, Size next) {
+    return (previous.width - next.width).abs() > 2 ||
+        (previous.height - next.height).abs() > 2;
+  }
+
+  void _centerForViewportChange(Size viewport, Rect contentRect) {
+    _controller.value = _centeredMatrix(_scale, viewport, contentRect);
+    _lastCenteredViewport = viewport;
+  }
+
+  void _endInteraction() {
+    if (!_isInteracting && !_hasPendingViewportCenter) return;
+    _isInteracting = false;
+    final viewport = _lastViewport;
+    final contentRect = _lastContentRect;
+    if (viewport == null || contentRect == null) return;
+    if (_lastCenteredViewport == null ||
+        _hasViewportMeaningfullyChanged(_lastCenteredViewport!, viewport)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isInteracting) return;
+        final latestViewport = _lastViewport;
+        final latestContentRect = _lastContentRect;
+        if (latestViewport == null || latestContentRect == null) return;
+        _centerForViewportChange(latestViewport, latestContentRect);
+      });
+    }
   }
 
   Matrix4 _centeredMatrix([double? zoom, Size? viewport, Rect? contentRect]) {

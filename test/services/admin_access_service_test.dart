@@ -26,7 +26,7 @@ void main() {
     expect(service.validate(data, 'bad-code'), isFalse);
   });
 
-  test('keeps expected admin code valid when persisted access is disabled', () {
+  test('rejects admin codes when persisted access is disabled', () {
     const data = FamilyTreeData(
       adminAccess: AdminAccess(
         currentAdminCode: 'oldPersistedCode',
@@ -34,14 +34,11 @@ void main() {
       ),
     );
 
-    expect(service.validate(data, 'ayivonvi2026'), isTrue);
+    expect(service.validate(data, 'ayivonvi2026'), isFalse);
     expect(service.validate(data, 'oldPersistedCode'), isFalse);
   });
 
   test('normalizes whitespace in admin codes', () {
-    expect(
-      AdminAccessService.normalizeCode(' ayivonvi 2026\n'),
-      AdminAccessService.defaultAdminCode,
-    );
+    expect(AdminAccessService.normalizeCode(' ayivonvi 2026\n'), 'AYIVONVI2026');
   });
 }

@@ -6,11 +6,8 @@ enum AdminCodeRotationStatus { upToDate, dueSoon, late }
 class AdminAccessService {
   const AdminAccessService();
 
-  static const defaultAdminCode = 'AYIVONVI2026';
-
   bool validate(FamilyTreeData data, String code) {
     final normalized = normalizeCode(code);
-    if (normalized == defaultAdminCode) return true;
     if (!data.adminAccess.enabled) return false;
     if (normalizeCode(data.adminAccess.currentAdminCode) == normalized) {
       return true;

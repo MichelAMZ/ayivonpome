@@ -30,6 +30,7 @@ class PersonCard extends ConsumerStatefulWidget {
     this.width,
     this.height,
     this.highlighted = false,
+    this.hasLinkedFamilyTree = false,
   });
 
   final Person person;
@@ -40,6 +41,7 @@ class PersonCard extends ConsumerStatefulWidget {
   final double? width;
   final double? height;
   final bool highlighted;
+  final bool hasLinkedFamilyTree;
 
   @override
   ConsumerState<PersonCard> createState() => _PersonCardState();
@@ -129,6 +131,32 @@ class _PersonCardState extends ConsumerState<PersonCard> {
                         right: compact ? 76 : 88,
                         child: _LeaderPill(
                           label: AppLocalizations.of(context).currentChief,
+                        ),
+                      ),
+                    if (widget.hasLinkedFamilyTree)
+                      Positioned(
+                        top: compact ? 42 : 48,
+                        right: 10,
+                        child: Tooltip(
+                          message: AppLocalizations.of(
+                            context,
+                          ).openLinkedFamilyTree,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEAF3D7),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF7CA45A),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.account_tree_outlined,
+                              size: 17,
+                              color: Color(0xFF315B22),
+                            ),
+                          ),
                         ),
                       ),
                     if (showGenerationBadge)

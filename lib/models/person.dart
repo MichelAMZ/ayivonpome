@@ -34,6 +34,9 @@ class Person {
     this.whatsappVisibility = 'familyOnly',
     this.privacy = const PersonPrivacy(),
     this.photo = '',
+    this.familyId = '',
+    this.originFamilyId = '',
+    this.linkedTreeEnabled = false,
     this.familyCode = '',
     this.fatherId = '',
     this.motherId = '',
@@ -83,6 +86,9 @@ class Person {
   final String whatsappVisibility;
   final PersonPrivacy privacy;
   final String photo;
+  final String familyId;
+  final String originFamilyId;
+  final bool linkedTreeEnabled;
   final String familyCode;
   final String fatherId;
   final String motherId;
@@ -160,6 +166,9 @@ class Person {
       Map<String, dynamic>.from(json['privacy'] as Map? ?? const {}),
     ),
     photo: json['photo'] as String? ?? '',
+    familyId: json['familyId'] as String? ?? '',
+    originFamilyId: json['originFamilyId'] as String? ?? '',
+    linkedTreeEnabled: json['linkedTreeEnabled'] as bool? ?? false,
     familyCode: json['familyCode'] as String? ?? '',
     fatherId: json['fatherId'] as String? ?? '',
     motherId: json['motherId'] as String? ?? '',
@@ -213,6 +222,9 @@ class Person {
     'whatsappVisibility': whatsappVisibility,
     'privacy': privacy.toJson(),
     'photo': photo,
+    'familyId': familyId,
+    'originFamilyId': originFamilyId,
+    'linkedTreeEnabled': linkedTreeEnabled,
     'familyCode': familyCode,
     'fatherId': fatherId,
     'motherId': motherId,
@@ -263,6 +275,9 @@ class Person {
     String? whatsappVisibility,
     PersonPrivacy? privacy,
     String? photo,
+    String? familyId,
+    String? originFamilyId,
+    bool? linkedTreeEnabled,
     String? familyCode,
     String? fatherId,
     String? motherId,
@@ -312,6 +327,9 @@ class Person {
       whatsappVisibility: whatsappVisibility ?? this.whatsappVisibility,
       privacy: privacy ?? this.privacy,
       photo: photo ?? this.photo,
+      familyId: familyId ?? this.familyId,
+      originFamilyId: originFamilyId ?? this.originFamilyId,
+      linkedTreeEnabled: linkedTreeEnabled ?? this.linkedTreeEnabled,
       familyCode: familyCode ?? this.familyCode,
       fatherId: fatherId ?? this.fatherId,
       motherId: motherId ?? this.motherId,

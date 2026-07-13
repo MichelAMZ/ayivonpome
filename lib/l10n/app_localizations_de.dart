@@ -1297,6 +1297,45 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkedFamilyCode => 'Verknüpfte-Familie-Code';
 
   @override
+  String get linkedFamilyTree => 'Verknüpfter Stammbaum';
+
+  @override
+  String get openLinkedFamilyTree => 'Verknüpften Stammbaum öffnen';
+
+  @override
+  String get originFamilyTree => 'Stammbaum der Herkunftsfamilie';
+
+  @override
+  String get familyOfOrigin => 'Herkunftsfamilie';
+
+  @override
+  String get linkedBranch => 'Verknüpfter Zweig';
+
+  @override
+  String get openFamilyBranch => 'Familienzweig öffnen';
+
+  @override
+  String get backToMainTree => 'Zurück zum Hauptstammbaum';
+
+  @override
+  String get mainFamilyTree => 'Hauptstammbaum';
+
+  @override
+  String get familyBreadcrumb => 'Familien-Breadcrumb';
+
+  @override
+  String get linkedTreeAvailable => 'Verknüpfter Stammbaum verfügbar';
+
+  @override
+  String get noLinkedTree => 'Kein verknüpfter Stammbaum';
+
+  @override
+  String get manageLinkedTrees => 'Verknüpfte Stammbäume verwalten';
+
+  @override
+  String get treeBridgePerson => 'Brückenperson';
+
+  @override
   String get temporaryCode => 'Temporärer Code';
 
   @override

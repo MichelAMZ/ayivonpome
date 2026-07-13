@@ -1290,6 +1290,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkedFamilyCode => 'Linked family code';
 
   @override
+  String get linkedFamilyTree => 'Linked family tree';
+
+  @override
+  String get openLinkedFamilyTree => 'Open linked family tree';
+
+  @override
+  String get originFamilyTree => 'Family of origin tree';
+
+  @override
+  String get familyOfOrigin => 'Family of origin';
+
+  @override
+  String get linkedBranch => 'Linked branch';
+
+  @override
+  String get openFamilyBranch => 'Open family branch';
+
+  @override
+  String get backToMainTree => 'Back to main tree';
+
+  @override
+  String get mainFamilyTree => 'Main family tree';
+
+  @override
+  String get familyBreadcrumb => 'Family breadcrumb';
+
+  @override
+  String get linkedTreeAvailable => 'Linked tree available';
+
+  @override
+  String get noLinkedTree => 'No linked tree';
+
+  @override
+  String get manageLinkedTrees => 'Manage linked trees';
+
+  @override
+  String get treeBridgePerson => 'Bridge person';
+
+  @override
   String get temporaryCode => 'Temporary code';
 
   @override

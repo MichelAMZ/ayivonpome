@@ -1,4 +1,6 @@
 import 'package:ayivonpome/models/family_tree_data.dart';
+import 'package:ayivonpome/models/family.dart';
+import 'package:ayivonpome/models/family_tree_reference.dart';
 import 'package:ayivonpome/models/sync_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -41,5 +43,34 @@ void main() {
     expect(parsed.pendingSyncQueue.single.updatedAt, '2026-07-01T12:00:00');
     expect(parsed.pendingSyncQueue.single.updatedBy, 'admin');
     expect(parsed.pendingSyncQueue.single.lastError, 'network');
+  });
+
+  test('FamilyTreeData serializes families and linked tree references', () {
+    const data = FamilyTreeData(
+      families: [
+        Family(id: 'family-ayivon', name: 'Famille AYIVON', code: 'AYIVON'),
+        Family(id: 'family-levonvi', name: 'Famille Lévonvi', code: 'LEVONVI'),
+      ],
+      familyTreeLinks: [
+        FamilyTreeReference(
+          id: 'tree-link-001',
+          personId: 'p100',
+          sourceFamilyId: 'family-ayivon',
+          targetFamilyId: 'family-levonvi',
+          targetFamilyName: 'Famille Lévonvi',
+          relationshipType: 'originFamily',
+          enabled: true,
+        ),
+      ],
+    );
+
+    final parsed = FamilyTreeData.fromJson(data.toJson());
+
+    expect(parsed.families, hasLength(2));
+    expect(parsed.families.last.name, 'Famille Lévonvi');
+    expect(parsed.familyTreeLinks, hasLength(1));
+    expect(parsed.familyTreeLinks.single.personId, 'p100');
+    expect(parsed.familyTreeLinks.single.targetFamilyId, 'family-levonvi');
+    expect(parsed.familyTreeLinks.single.enabled, isTrue);
   });
 }

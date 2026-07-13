@@ -584,11 +584,6 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   bool _validateAdminCode(String code) {
     debugPrint('Admin code entered');
-    final normalized = AdminAccessService.normalizeCode(code);
-    if (normalized == AdminAccessService.defaultAdminCode) {
-      debugPrint('Admin code valid');
-      return true;
-    }
     final data = ref.read(familyTreeProvider).value;
     if (data == null) return false;
     final valid = ref.read(adminAccessServiceProvider).validate(data, code);

@@ -10,9 +10,11 @@ import 'family_code.dart';
 import 'family_council_member.dart';
 import 'family_history.dart';
 import 'family_honor.dart';
+import 'family.dart';
 import 'family_leadership.dart';
 import 'family_leadership_history_entry.dart';
 import 'family_link.dart';
+import 'family_tree_reference.dart';
 import 'family_notification.dart';
 import 'history_event.dart';
 import 'important_place.dart';
@@ -47,6 +49,8 @@ class FamilyTreeData {
     this.familyAnnouncementSettings = const FamilyAnnouncementSettings(),
     this.familyAnnouncementHistory = const [],
     this.familyCodes = const [],
+    this.families = const [],
+    this.familyTreeLinks = const [],
     this.accessCodes = const [],
     this.modificationCodes = const [],
     this.admins = const [],
@@ -87,6 +91,8 @@ class FamilyTreeData {
   final FamilyAnnouncementSettings familyAnnouncementSettings;
   final List<FamilyAnnouncementHistory> familyAnnouncementHistory;
   final List<FamilyCode> familyCodes;
+  final List<Family> families;
+  final List<FamilyTreeReference> familyTreeLinks;
   final List<AccessCode> accessCodes;
   final List<ModificationCode> modificationCodes;
   final List<AdminUser> admins;
@@ -171,6 +177,17 @@ class FamilyTreeData {
     familyCodes: (json['familyCodes'] as List? ?? const [])
         .whereType<Map>()
         .map((item) => FamilyCode.fromJson(Map<String, dynamic>.from(item)))
+        .toList(),
+    families: (json['families'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => Family.fromJson(Map<String, dynamic>.from(item)))
+        .toList(),
+    familyTreeLinks: (json['familyTreeLinks'] as List? ?? const [])
+        .whereType<Map>()
+        .map(
+          (item) =>
+              FamilyTreeReference.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList(),
     accessCodes: (json['accessCodes'] as List? ?? const [])
         .whereType<Map>()
@@ -324,6 +341,21 @@ class FamilyTreeData {
         status: 'pending',
       ),
     ],
+    families: const [
+      Family(id: 'family-ayivon', name: 'Famille AYIVON', code: 'AYIVON'),
+      Family(id: 'family-levonvi', name: 'Famille Lévonvi', code: 'LEVONVI'),
+    ],
+    familyTreeLinks: const [
+      FamilyTreeReference(
+        id: 'tree-link-001',
+        personId: 'p001',
+        sourceFamilyId: 'family-ayivon',
+        targetFamilyId: 'family-levonvi',
+        targetFamilyName: 'Famille Lévonvi',
+        relationshipType: 'originFamily',
+        enabled: true,
+      ),
+    ],
     accessCodes: const [
       AccessCode(
         id: 'code001',
@@ -415,10 +447,16 @@ class FamilyTreeData {
         emailVisibility: 'familyOnly',
         phoneVisibility: 'familyOnly',
         whatsappVisibility: 'familyOnly',
+        familyId: 'family-ayivon',
+        originFamilyId: 'family-levonvi',
+        linkedTreeEnabled: true,
         familyCode: 'AMOUZOU2026',
+        fatherId: 'p010',
+        motherId: 'p011',
         spouseIds: ['p002'],
         childrenIds: ['p003'],
         marriageType: 'customary',
+        parents: ['p010', 'p011'],
         spouses: ['p002'],
         children: ['p003'],
         importantPlaces: [
@@ -444,12 +482,41 @@ class FamilyTreeData {
         notes: 'Matriarche de la branche principale.',
       ),
       Person(
+        id: 'p010',
+        firstName: 'Kodjo',
+        lastName: 'Lévonvi',
+        gender: 'M',
+        birthDate: '1924-02-10',
+        birthPlace: 'Lome',
+        familyId: 'family-levonvi',
+        familyCode: 'LEVONVI',
+        spouseIds: ['p011'],
+        childrenIds: ['p001'],
+        spouses: ['p011'],
+        children: ['p001'],
+      ),
+      Person(
+        id: 'p011',
+        firstName: 'Akou',
+        lastName: 'Lévonvi',
+        gender: 'F',
+        birthDate: '1928-09-18',
+        birthPlace: 'Lome',
+        familyId: 'family-levonvi',
+        familyCode: 'LEVONVI',
+        spouseIds: ['p010'],
+        childrenIds: ['p001'],
+        spouses: ['p010'],
+        children: ['p001'],
+      ),
+      Person(
         id: 'p002',
         firstName: 'Kossi',
         lastName: 'Amouzou',
         gender: 'M',
         birthDate: '1950-01-15',
         birthPlace: 'Kpalime',
+        familyId: 'family-ayivon',
         familyCode: 'AMOUZOU2026',
         spouseIds: ['p001'],
         childrenIds: ['p003'],
@@ -464,6 +531,7 @@ class FamilyTreeData {
         gender: 'M',
         birthDate: '1982-11-03',
         birthPlace: 'Accra',
+        familyId: 'family-ayivon',
         familyCode: 'AMOUZOU2026',
         fatherId: 'p002',
         motherId: 'p001',
@@ -568,6 +636,8 @@ class FamilyTreeData {
         .map((item) => item.toJson())
         .toList(),
     'familyCodes': familyCodes.map((item) => item.toJson()).toList(),
+    'families': families.map((item) => item.toJson()).toList(),
+    'familyTreeLinks': familyTreeLinks.map((item) => item.toJson()).toList(),
     'accessCodes': accessCodes.map((item) => item.toJson()).toList(),
     'modificationCodes': modificationCodes
         .map((item) => item.toJson())
@@ -617,6 +687,8 @@ class FamilyTreeData {
     FamilyAnnouncementSettings? familyAnnouncementSettings,
     List<FamilyAnnouncementHistory>? familyAnnouncementHistory,
     List<FamilyCode>? familyCodes,
+    List<Family>? families,
+    List<FamilyTreeReference>? familyTreeLinks,
     List<AccessCode>? accessCodes,
     List<ModificationCode>? modificationCodes,
     List<AdminUser>? admins,
@@ -660,6 +732,8 @@ class FamilyTreeData {
       familyAnnouncementHistory:
           familyAnnouncementHistory ?? this.familyAnnouncementHistory,
       familyCodes: familyCodes ?? this.familyCodes,
+      families: families ?? this.families,
+      familyTreeLinks: familyTreeLinks ?? this.familyTreeLinks,
       accessCodes: accessCodes ?? this.accessCodes,
       modificationCodes: modificationCodes ?? this.modificationCodes,
       admins: admins ?? this.admins,

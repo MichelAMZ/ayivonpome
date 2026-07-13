@@ -2582,6 +2582,84 @@ abstract class AppLocalizations {
   /// **'Code famille liée'**
   String get linkedFamilyCode;
 
+  /// No description provided for @linkedFamilyTree.
+  ///
+  /// In fr, this message translates to:
+  /// **'Arbre familial lié'**
+  String get linkedFamilyTree;
+
+  /// No description provided for @openLinkedFamilyTree.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ouvrir l\'arbre familial lié'**
+  String get openLinkedFamilyTree;
+
+  /// No description provided for @originFamilyTree.
+  ///
+  /// In fr, this message translates to:
+  /// **'Arbre de la famille d\'origine'**
+  String get originFamilyTree;
+
+  /// No description provided for @familyOfOrigin.
+  ///
+  /// In fr, this message translates to:
+  /// **'Famille d\'origine'**
+  String get familyOfOrigin;
+
+  /// No description provided for @linkedBranch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Branche liée'**
+  String get linkedBranch;
+
+  /// No description provided for @openFamilyBranch.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ouvrir la branche familiale'**
+  String get openFamilyBranch;
+
+  /// No description provided for @backToMainTree.
+  ///
+  /// In fr, this message translates to:
+  /// **'Retour à l\'arbre principal'**
+  String get backToMainTree;
+
+  /// No description provided for @mainFamilyTree.
+  ///
+  /// In fr, this message translates to:
+  /// **'Arbre familial principal'**
+  String get mainFamilyTree;
+
+  /// No description provided for @familyBreadcrumb.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fil d\'Ariane familial'**
+  String get familyBreadcrumb;
+
+  /// No description provided for @linkedTreeAvailable.
+  ///
+  /// In fr, this message translates to:
+  /// **'Arbre lié disponible'**
+  String get linkedTreeAvailable;
+
+  /// No description provided for @noLinkedTree.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun arbre lié'**
+  String get noLinkedTree;
+
+  /// No description provided for @manageLinkedTrees.
+  ///
+  /// In fr, this message translates to:
+  /// **'Gérer les arbres liés'**
+  String get manageLinkedTrees;
+
+  /// No description provided for @treeBridgePerson.
+  ///
+  /// In fr, this message translates to:
+  /// **'Personne passerelle'**
+  String get treeBridgePerson;
+
   /// No description provided for @temporaryCode.
   ///
   /// In fr, this message translates to:
