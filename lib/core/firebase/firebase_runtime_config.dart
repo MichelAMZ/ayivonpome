@@ -1,6 +1,15 @@
 import 'package:firebase_core/firebase_core.dart';
 
 class FirebaseRuntimeConfig {
+  static const FirebaseOptions defaultOptions = FirebaseOptions(
+    apiKey: 'AIzaSyCTtBe2RhML26Fs0nd-cZ5aS_U6sorBH4I',
+    appId: '1:487156596777:web:8d1043776dcfb6e6b75c38',
+    messagingSenderId: '487156596777',
+    projectId: 'ayivon-aziangbede',
+    authDomain: 'ayivon-aziangbede.firebaseapp.com',
+    storageBucket: 'ayivon-aziangbede.firebasestorage.app',
+  );
+
   const FirebaseRuntimeConfig({
     required this.enabled,
     required this.familyId,
@@ -25,7 +34,9 @@ class FirebaseRuntimeConfig {
         projectId.isNotEmpty;
 
     return FirebaseRuntimeConfig(
-      enabled: const bool.fromEnvironment('ENABLE_FIREBASE'),
+      enabled:
+          const bool.fromEnvironment('ENABLE_FIREBASE', defaultValue: true) &&
+          !const bool.fromEnvironment('DISABLE_FIREBASE'),
       familyId: const String.fromEnvironment(
         'FIREBASE_FAMILY_ID',
         defaultValue: 'ayivon',
@@ -40,7 +51,7 @@ class FirebaseRuntimeConfig {
               authDomain: authDomain,
               storageBucket: storageBucket,
             )
-          : null,
+          : defaultOptions,
     );
   }
 

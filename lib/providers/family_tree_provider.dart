@@ -24,6 +24,7 @@ import '../models/marriage_relation.dart';
 import '../models/modification_code.dart';
 import '../models/person.dart';
 import '../models/sync_state.dart';
+import '../services/parent_auto_creation_service.dart';
 import 'app_providers.dart';
 import 'genealogy_statistics_provider.dart';
 import 'tree_filter_provider.dart';
@@ -162,6 +163,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   Future<void> save(
     FamilyTreeData data, {
     PendingSyncItem? syncOperation,
+    List<PendingSyncItem> syncOperations = const [],
   }) async {
     final generationSynced = ref
         .read(genealogyGenerationServiceProvider)
@@ -174,9 +176,10 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
               .pruneExpired(generationSynced),
         )
         .copyWith(lastUpdatedAt: DateTime.now().toIso8601String());
+    final operations = [?syncOperation, ...syncOperations];
     synced = await ref
         .read(syncServiceProvider)
-        .enqueueOrSync(synced, operation: syncOperation);
+        .enqueueOrSyncMany(synced, operations: operations);
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
     state = AsyncData(synced);
   }
@@ -420,6 +423,126 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
             updatedBy: action,
           ),
     );
+  }
+
+  Future<void> upsertPersonWithParents(
+    Person person,
+    String action, {
+    ParentDraft? fatherDraft,
+    ParentDraft? motherDraft,
+    bool linkParentsAsCouple = false,
+    String parentCoupleStatus = 'unknown',
+    String actorRole = '',
+    String adminId = '',
+  }) async {
+    final data = await future;
+    final now = DateTime.now().toIso8601String();
+    final duplicate = data.people.any(
+      (candidate) =>
+          candidate.id != person.id &&
+          candidate.firstName.toLowerCase() == person.firstName.toLowerCase() &&
+          candidate.lastName.toLowerCase() == person.lastName.toLowerCase() &&
+          candidate.birthDate == person.birthDate,
+    );
+    if (duplicate) {
+      throw StateError('duplicate_person');
+    }
+    final people = [...data.people];
+    final index = people.indexWhere((item) => item.id == person.id);
+    final preparedPerson = person.copyWith(
+      createdAt: index == -1
+          ? (person.createdAt.isEmpty ? now : person.createdAt)
+          : people[index].createdAt,
+      updatedAt: now,
+      updatedBy: action,
+      version: index == -1 ? 1 : people[index].version + 1,
+      deletedAt: '',
+    );
+    if (index == -1) {
+      people.add(preparedPerson);
+    } else {
+      await createBackup();
+      people[index] = preparedPerson;
+    }
+
+    var nextData = data.copyWith(
+      people: people,
+      auditLog: [...data.auditLog, _log(action, person.id, person.familyCode)],
+    );
+    final parentResult = ref
+        .read(parentAutoCreationServiceProvider)
+        .apply(
+          data: nextData,
+          child: preparedPerson,
+          fatherDraft: fatherDraft,
+          motherDraft: motherDraft,
+          linkParentsAsCouple: linkParentsAsCouple,
+          parentCoupleStatus: parentCoupleStatus,
+          actorRole: actorRole,
+          adminId: adminId,
+        );
+    nextData = ref
+        .read(familyRelationServiceProvider)
+        .normalizeRelationships(
+          parentResult.data.copyWith(
+            auditLog: [
+              ...parentResult.data.auditLog,
+              ...parentResult.auditLogs,
+            ],
+          ),
+        );
+    if (index == -1 && action == 'create_person') {
+      final updatedChild = nextData.people.firstWhere(
+        (item) => item.id == preparedPerson.id,
+        orElse: () => preparedPerson,
+      );
+      nextData = ref
+          .read(familyAnnouncementServiceProvider)
+          .addBirthAnnouncementIfNeeded(nextData, updatedChild);
+    }
+
+    final updatedChild = nextData.people.firstWhere(
+      (item) => item.id == preparedPerson.id,
+      orElse: () => preparedPerson,
+    );
+    final operations = [
+      ref
+          .read(syncServiceProvider)
+          .personOperation(
+            person: updatedChild,
+            action: index == -1 ? 'create' : 'update',
+            updatedBy: action,
+          ),
+      ...parentResult.createdParents.map(
+        (parent) => ref
+            .read(syncServiceProvider)
+            .personOperation(
+              person: parent,
+              action: 'create',
+              updatedBy: 'auto_parent_creation',
+            ),
+      ),
+      ...parentResult.updatedParents.map(
+        (parent) => ref
+            .read(syncServiceProvider)
+            .personOperation(
+              person: parent,
+              action: 'update',
+              updatedBy: 'parent_link',
+            ),
+      ),
+      ...parentResult.createdMarriageRelations.map(
+        (relation) => ref
+            .read(syncServiceProvider)
+            .marriageOperation(
+              relation: relation,
+              action: 'create',
+              updatedBy: 'auto_parent_creation',
+            ),
+      ),
+    ];
+
+    await save(nextData, syncOperations: operations);
   }
 
   Future<void> deletePerson(String id) async {

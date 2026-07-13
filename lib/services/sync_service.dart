@@ -21,10 +21,18 @@ class SyncService {
     FamilyTreeData data, {
     PendingSyncItem? operation,
   }) async {
+    if (operation == null) return enqueueOrSyncMany(data);
+    return enqueueOrSyncMany(data, operations: [operation]);
+  }
+
+  Future<FamilyTreeData> enqueueOrSyncMany(
+    FamilyTreeData data, {
+    List<PendingSyncItem> operations = const [],
+  }) async {
     final storage = data.appSettings.storageSettings;
     if (!storage.remoteDatabaseEnabled ||
         storage.mode == 'jsonOnly' ||
-        operation == null) {
+        operations.isEmpty) {
       return data;
     }
     if (!storage.offlineQueueEnabled) {
@@ -32,10 +40,32 @@ class SyncService {
     }
     final online = await _connectivity.isOnline;
     if (!online) {
-      return _enqueue(data, operation, status: 'offline');
+      return _enqueueAll(data, operations, status: 'offline');
     }
+    final audit = [...data.auditLog];
+    final failed = <PendingSyncItem>[];
     try {
-      await _send(operation);
+      for (final operation in operations) {
+        try {
+          await _send(operation);
+          audit.add(
+            _log(
+              'sync_remote_success',
+              operation.entityId,
+              operation.entityType,
+            ),
+          );
+        } catch (error) {
+          failed.add(operation.copyWith(lastError: error.toString()));
+        }
+      }
+      if (failed.isNotEmpty) {
+        return _enqueueAll(
+          data.copyWith(auditLog: audit),
+          failed,
+          status: 'pending',
+        );
+      }
       final now = DateTime.now().toIso8601String();
       final status = data.pendingSyncQueue.isEmpty ? 'synced' : 'pending';
       return data.copyWith(
@@ -49,17 +79,13 @@ class SyncService {
             lastSyncAt: now,
           ),
         ),
-        auditLog: [
-          ...data.auditLog,
-          _log('sync_remote_success', operation.entityId, operation.entityType),
-        ],
+        auditLog: audit,
       );
     } catch (error) {
-      return _enqueue(
-        data,
-        operation.copyWith(lastError: error.toString()),
-        status: 'pending',
-      );
+      final withError = operations
+          .map((operation) => operation.copyWith(lastError: error.toString()))
+          .toList();
+      return _enqueueAll(data, withError, status: 'pending');
     }
   }
 
@@ -226,20 +252,25 @@ class SyncService {
     }
   }
 
-  FamilyTreeData _enqueue(
+  FamilyTreeData _enqueueAll(
     FamilyTreeData data,
-    PendingSyncItem operation, {
+    List<PendingSyncItem> operations, {
     required String status,
   }) {
-    final queue = [
-      ...data.pendingSyncQueue.where(
-        (item) =>
-            item.entityType != operation.entityType ||
-            item.entityId != operation.entityId ||
-            item.action != operation.action,
-      ),
-      operation.copyWith(status: 'pending'),
-    ];
+    var queue = [...data.pendingSyncQueue];
+    final audit = [...data.auditLog];
+    for (final operation in operations) {
+      queue = [
+        ...queue.where(
+          (item) =>
+              item.entityType != operation.entityType ||
+              item.entityId != operation.entityId ||
+              item.action != operation.action,
+        ),
+        operation.copyWith(status: 'pending'),
+      ];
+      audit.add(_log('sync_queued', operation.entityId, operation.entityType));
+    }
     return data.copyWith(
       pendingSyncQueue: queue,
       syncSettings: data.syncSettings.copyWith(syncStatus: status),
@@ -248,10 +279,7 @@ class SyncService {
           syncStatus: status,
         ),
       ),
-      auditLog: [
-        ...data.auditLog,
-        _log('sync_queued', operation.entityId, operation.entityType),
-      ],
+      auditLog: audit,
     );
   }
 

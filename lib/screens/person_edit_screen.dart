@@ -6,7 +6,9 @@ import '../models/history_event.dart';
 import '../models/important_place.dart';
 import '../models/person.dart';
 import '../models/person_privacy.dart';
+import '../providers/app_providers.dart';
 import '../providers/family_tree_provider.dart';
+import '../services/parent_auto_creation_service.dart';
 
 class PersonEditScreen extends ConsumerStatefulWidget {
   const PersonEditScreen({super.key, this.person});
@@ -51,7 +53,24 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   late bool _showHistoryInPublicMode;
   late final TextEditingController _familyCode;
   late final TextEditingController _fatherId;
+  late final TextEditingController _fatherFirstName;
+  late final TextEditingController _fatherLastName;
+  late final TextEditingController _fatherBirthDate;
+  late final TextEditingController _fatherDeathDate;
+  late final TextEditingController _fatherPhoto;
+  late final TextEditingController _fatherCountry;
+  late final TextEditingController _fatherCity;
+  late final TextEditingController _fatherBirthPlace;
   late final TextEditingController _motherId;
+  late final TextEditingController _motherFirstName;
+  late final TextEditingController _motherBirthLastName;
+  late final TextEditingController _motherMaritalLastName;
+  late final TextEditingController _motherBirthDate;
+  late final TextEditingController _motherDeathDate;
+  late final TextEditingController _motherPhoto;
+  late final TextEditingController _motherCountry;
+  late final TextEditingController _motherCity;
+  late final TextEditingController _motherBirthPlace;
   late final TextEditingController _spouseIds;
   late final TextEditingController _childrenIds;
   late String _marriageType;
@@ -65,6 +84,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   late final TextEditingController _historyLatitude;
   late final TextEditingController _historyLongitude;
   late final TextEditingController _historyDescription;
+  bool _linkParentsAsCouple = false;
+  String _parentCoupleStatus = 'unknown';
 
   @override
   void initState() {
@@ -117,7 +138,24 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     _showHistoryInPublicMode = p?.privacy.showHistoryInPublicMode ?? false;
     _familyCode = TextEditingController(text: p?.familyCode ?? 'AMOUZOU2026');
     _fatherId = TextEditingController(text: p?.fatherId ?? '');
+    _fatherFirstName = TextEditingController();
+    _fatherLastName = TextEditingController();
+    _fatherBirthDate = TextEditingController();
+    _fatherDeathDate = TextEditingController();
+    _fatherPhoto = TextEditingController();
+    _fatherCountry = TextEditingController();
+    _fatherCity = TextEditingController();
+    _fatherBirthPlace = TextEditingController();
     _motherId = TextEditingController(text: p?.motherId ?? '');
+    _motherFirstName = TextEditingController();
+    _motherBirthLastName = TextEditingController();
+    _motherMaritalLastName = TextEditingController();
+    _motherBirthDate = TextEditingController();
+    _motherDeathDate = TextEditingController();
+    _motherPhoto = TextEditingController();
+    _motherCountry = TextEditingController();
+    _motherCity = TextEditingController();
+    _motherBirthPlace = TextEditingController();
     _spouseIds = TextEditingController(text: p?.spouseIds.join(', ') ?? '');
     _childrenIds = TextEditingController(text: p?.childrenIds.join(', ') ?? '');
     _marriageType = p?.marriageType ?? 'unknown';
@@ -164,7 +202,24 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _whatsappNumber,
       _familyCode,
       _fatherId,
+      _fatherFirstName,
+      _fatherLastName,
+      _fatherBirthDate,
+      _fatherDeathDate,
+      _fatherPhoto,
+      _fatherCountry,
+      _fatherCity,
+      _fatherBirthPlace,
       _motherId,
+      _motherFirstName,
+      _motherBirthLastName,
+      _motherMaritalLastName,
+      _motherBirthDate,
+      _motherDeathDate,
+      _motherPhoto,
+      _motherCountry,
+      _motherCity,
+      _motherBirthPlace,
       _spouseIds,
       _childrenIds,
       _parents,
@@ -186,6 +241,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final data = ref.watch(familyTreeProvider).value;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.person == null ? l10n.addPerson : l10n.edit),
@@ -223,8 +279,70 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
               l10n.familyRelationships,
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            _field(_fatherId, l10n.father),
-            _field(_motherId, l10n.mother),
+            _parentSection(
+              title: l10n.father,
+              role: ParentRole.father,
+              existingId: _fatherId,
+              firstName: _fatherFirstName,
+              lastName: _fatherLastName,
+              birthLastName: null,
+              maritalLastName: null,
+              birthDate: _fatherBirthDate,
+              deathDate: _fatherDeathDate,
+              photo: _fatherPhoto,
+              country: _fatherCountry,
+              city: _fatherCity,
+              birthPlace: _fatherBirthPlace,
+              data: data,
+            ),
+            _parentSection(
+              title: l10n.mother,
+              role: ParentRole.mother,
+              existingId: _motherId,
+              firstName: _motherFirstName,
+              lastName: null,
+              birthLastName: _motherBirthLastName,
+              maritalLastName: _motherMaritalLastName,
+              birthDate: _motherBirthDate,
+              deathDate: _motherDeathDate,
+              photo: _motherPhoto,
+              country: _motherCountry,
+              city: _motherCity,
+              birthPlace: _motherBirthPlace,
+              data: data,
+            ),
+            SwitchListTile(
+              value: _linkParentsAsCouple,
+              title: const Text('Relier le père et la mère comme couple'),
+              subtitle: const Text('Uniquement après confirmation.'),
+              onChanged: (value) =>
+                  setState(() => _linkParentsAsCouple = value),
+            ),
+            if (_linkParentsAsCouple)
+              DropdownButtonFormField<String>(
+                initialValue: _parentCoupleStatus,
+                decoration: const InputDecoration(
+                  labelText: 'Statut de la relation des parents',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'married', child: Text('Mariés')),
+                  DropdownMenuItem(
+                    value: 'partner',
+                    child: Text('Union libre'),
+                  ),
+                  DropdownMenuItem(value: 'separated', child: Text('Séparés')),
+                  DropdownMenuItem(value: 'divorced', child: Text('Divorcés')),
+                  DropdownMenuItem(
+                    value: 'unknown',
+                    child: Text('Relation inconnue'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _parentCoupleStatus = value);
+                  }
+                },
+              ),
             _field(_spouseIds, l10n.spouses),
             _field(_childrenIds, l10n.children),
             DropdownButtonFormField<String>(
@@ -399,6 +517,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
+        onChanged: (_) => setState(() {}),
         keyboardType: keyboard
             ? const TextInputType.numberWithOptions(decimal: true, signed: true)
             : null,
@@ -408,6 +527,131 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
                   ? l10n.requiredField
                   : null
             : null,
+      ),
+    );
+  }
+
+  Widget _parentSection({
+    required String title,
+    required ParentRole role,
+    required TextEditingController existingId,
+    required TextEditingController firstName,
+    required TextEditingController? lastName,
+    required TextEditingController? birthLastName,
+    required TextEditingController? maritalLastName,
+    required TextEditingController birthDate,
+    required TextEditingController deathDate,
+    required TextEditingController photo,
+    required TextEditingController country,
+    required TextEditingController city,
+    required TextEditingController birthPlace,
+    required dynamic data,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final draft = _draft(
+      role,
+      existingId: existingId.text,
+      firstName: firstName.text,
+      lastName: lastName?.text ?? '',
+      birthLastName: birthLastName?.text ?? '',
+      maritalLastName: maritalLastName?.text ?? '',
+      birthDate: birthDate.text,
+      deathDate: deathDate.text,
+      photo: photo.text,
+      country: country.text,
+      city: city.text,
+      birthPlace: birthPlace.text,
+    );
+    final matches = data == null || existingId.text.trim().isNotEmpty
+        ? const <ParentMatch>[]
+        : ref.read(parentAutoCreationServiceProvider).search(data, draft);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).dividerColor),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              _field(existingId, 'Membre existant dans l’arbre'),
+              _field(firstName, l10n.firstName),
+              if (lastName != null) _field(lastName, l10n.lastName),
+              if (birthLastName != null)
+                _field(birthLastName, l10n.bornLastName),
+              if (maritalLastName != null)
+                _field(maritalLastName, 'Nom marital facultatif'),
+              Row(
+                children: [
+                  Expanded(child: _field(birthDate, l10n.birthDate)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(deathDate, l10n.deathDate)),
+                ],
+              ),
+              _field(birthPlace, l10n.birthPlace),
+              Row(
+                children: [
+                  Expanded(child: _field(country, 'Pays')),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(city, 'Ville')),
+                ],
+              ),
+              _field(photo, 'Photo'),
+              if (matches.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Membres similaires',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                ...matches
+                    .take(3)
+                    .map(
+                      (match) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundImage: match.person.photo.isEmpty
+                              ? null
+                              : NetworkImage(match.person.photo),
+                          child: match.person.photo.isEmpty
+                              ? Text(_initials(match.person))
+                              : null,
+                        ),
+                        title: Text(match.person.fullName),
+                        subtitle: Text(
+                          [
+                            match.person.gender,
+                            match.person.birthDate,
+                            match.person.currentCity.isNotEmpty
+                                ? match.person.currentCity
+                                : match.person.currentCountry,
+                            match.person.familyCode,
+                          ].where((item) => item.trim().isNotEmpty).join(' · '),
+                        ),
+                        trailing: TextButton(
+                          onPressed: () {
+                            setState(() {
+                              existingId.text = match.person.id;
+                              firstName.clear();
+                              lastName?.clear();
+                              birthLastName?.clear();
+                              maritalLastName?.clear();
+                            });
+                          },
+                          child: const Text('Sélectionner'),
+                        ),
+                      ),
+                    ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -435,6 +679,115 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         },
       ),
     );
+  }
+
+  ParentDraft _draft(
+    ParentRole role, {
+    required String existingId,
+    required String firstName,
+    required String lastName,
+    required String birthLastName,
+    required String maritalLastName,
+    required String birthDate,
+    required String deathDate,
+    required String photo,
+    required String country,
+    required String city,
+    required String birthPlace,
+  }) {
+    return ParentDraft(
+      role: role,
+      existingPersonId: existingId.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      birthLastName: birthLastName.trim(),
+      maritalLastName: maritalLastName.trim(),
+      birthDate: birthDate.trim(),
+      deathDate: deathDate.trim(),
+      photo: photo.trim(),
+      country: country.trim(),
+      city: city.trim(),
+      birthPlace: birthPlace.trim(),
+    );
+  }
+
+  String _initials(Person person) {
+    final first = person.firstName.trim().isEmpty
+        ? ''
+        : person.firstName.trim()[0];
+    final last = person.lastName.trim().isEmpty
+        ? ''
+        : person.lastName.trim()[0];
+    final value = '$first$last'.trim();
+    return value.isEmpty ? '?' : value.toUpperCase();
+  }
+
+  Future<bool> _confirmParentCreation(ParentDraft draft, Person child) async {
+    if (!draft.createsNewPerson) return true;
+    final data = ref.read(familyTreeProvider).value;
+    final matches = data == null
+        ? const <ParentMatch>[]
+        : ref.read(parentAutoCreationServiceProvider).search(data, draft);
+    final hasStrongMatch = matches.any(
+      (match) => match.level == ParentSimilarityLevel.strong,
+    );
+    final roleLabel = draft.role == ParentRole.father ? 'père' : 'mère';
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nouveau parent détecté'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                matches.isEmpty
+                    ? 'Aucun membre correspondant à ${draft.displayName} n’a été trouvé dans l’arbre. Voulez-vous créer cette personne et la définir comme $roleLabel de ${child.fullName} ?'
+                    : 'Un ou plusieurs membres similaires existent déjà. Vérifiez qu’il ne s’agit pas de la même personne avant de créer un nouveau membre.',
+              ),
+              if (matches.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...matches
+                    .take(4)
+                    .map(
+                      (match) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(match.person.fullName),
+                        subtitle: Text(
+                          '${match.person.gender} · ${match.person.birthDate} · ${match.level.name}',
+                        ),
+                      ),
+                    ),
+              ],
+              if (hasStrongMatch) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Correspondance forte détectée : confirmez seulement s’il s’agit bien d’une autre personne.',
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'search'),
+            child: const Text('Rechercher à nouveau'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'create'),
+            child: Text(
+              hasStrongMatch ? 'Créer quand même' : 'Créer le parent',
+            ),
+          ),
+        ],
+      ),
+    );
+    return result == 'create';
   }
 
   Future<void> _save() async {
@@ -517,6 +870,34 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       history: history,
       notes: _notes.text.trim(),
     );
+    final fatherDraft = _draft(
+      ParentRole.father,
+      existingId: _fatherId.text,
+      firstName: _fatherFirstName.text,
+      lastName: _fatherLastName.text,
+      birthLastName: '',
+      maritalLastName: '',
+      birthDate: _fatherBirthDate.text,
+      deathDate: _fatherDeathDate.text,
+      photo: _fatherPhoto.text,
+      country: _fatherCountry.text,
+      city: _fatherCity.text,
+      birthPlace: _fatherBirthPlace.text,
+    );
+    final motherDraft = _draft(
+      ParentRole.mother,
+      existingId: _motherId.text,
+      firstName: _motherFirstName.text,
+      lastName: '',
+      birthLastName: _motherBirthLastName.text,
+      maritalLastName: _motherMaritalLastName.text,
+      birthDate: _motherBirthDate.text,
+      deathDate: _motherDeathDate.text,
+      photo: _motherPhoto.text,
+      country: _motherCountry.text,
+      city: _motherCity.text,
+      birthPlace: _motherBirthPlace.text,
+    );
     if (person.fatherId == person.id ||
         person.motherId == person.id ||
         person.spouseIds.contains(person.id) ||
@@ -529,12 +910,18 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       ).showSnackBar(SnackBar(content: Text(l10n.invalidRelationship)));
       return;
     }
+    if (!await _confirmParentCreation(fatherDraft, person)) return;
+    if (!await _confirmParentCreation(motherDraft, person)) return;
     try {
       await ref
           .read(familyTreeProvider.notifier)
-          .upsertPerson(
+          .upsertPersonWithParents(
             person,
             widget.person == null ? 'create_person' : 'edit_person',
+            fatherDraft: fatherDraft.hasIdentity ? fatherDraft : null,
+            motherDraft: motherDraft.hasIdentity ? motherDraft : null,
+            linkParentsAsCouple: _linkParentsAsCouple,
+            parentCoupleStatus: _parentCoupleStatus,
           );
       if (mounted) {
         Navigator.pop(context);

@@ -54,6 +54,8 @@ class Person {
     this.updatedBy = '',
     this.version = 1,
     this.deletedAt = '',
+    this.isTemporaryProfile = false,
+    this.profileNeedsCompletion = false,
   });
 
   final String id;
@@ -106,6 +108,8 @@ class Person {
   final String updatedBy;
   final int version;
   final String deletedAt;
+  final bool isTemporaryProfile;
+  final bool profileNeedsCompletion;
 
   String get fullName {
     final value = '$firstName $lastName'.trim();
@@ -189,6 +193,8 @@ class Person {
     updatedBy: json['updatedBy'] as String? ?? '',
     version: json['version'] as int? ?? 1,
     deletedAt: json['deletedAt'] as String? ?? '',
+    isTemporaryProfile: json['isTemporaryProfile'] as bool? ?? false,
+    profileNeedsCompletion: json['profileNeedsCompletion'] as bool? ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -242,6 +248,8 @@ class Person {
     'updatedBy': updatedBy,
     'version': version,
     'deletedAt': deletedAt,
+    'isTemporaryProfile': isTemporaryProfile,
+    'profileNeedsCompletion': profileNeedsCompletion,
   };
 
   Person copyWith({
@@ -295,6 +303,8 @@ class Person {
     String? updatedBy,
     int? version,
     String? deletedAt,
+    bool? isTemporaryProfile,
+    bool? profileNeedsCompletion,
   }) {
     return Person(
       id: id ?? this.id,
@@ -347,6 +357,9 @@ class Person {
       updatedBy: updatedBy ?? this.updatedBy,
       version: version ?? this.version,
       deletedAt: deletedAt ?? this.deletedAt,
+      isTemporaryProfile: isTemporaryProfile ?? this.isTemporaryProfile,
+      profileNeedsCompletion:
+          profileNeedsCompletion ?? this.profileNeedsCompletion,
     );
   }
 }

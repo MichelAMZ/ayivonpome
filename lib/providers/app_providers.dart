@@ -35,6 +35,7 @@ import '../services/marriage_service.dart';
 import '../services/modification_history_service.dart';
 import '../services/modification_code_service.dart';
 import '../services/notification_service.dart';
+import '../services/parent_auto_creation_service.dart';
 import '../services/push_notification_provider.dart';
 import '../services/remote_database_repository.dart';
 import '../services/sync_service.dart';
@@ -150,6 +151,10 @@ final superAdminRecoveryServiceProvider = Provider<SuperAdminRecoveryService>(
 
 final familyRelationServiceProvider = Provider<FamilyRelationService>(
   (ref) => FamilyRelationService(),
+);
+
+final parentAutoCreationServiceProvider = Provider<ParentAutoCreationService>(
+  (ref) => const ParentAutoCreationService(),
 );
 
 final familyCouncilServiceProvider = Provider<FamilyCouncilService>(
