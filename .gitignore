@@ -34,6 +34,15 @@ migrate_working_dir/
 /coverage/
 .firebase/
 
+# LWS/PHP API secrets
+api/.env
+api/storage/logs/*
+api/storage/backups/*
+api/storage/uploads/*
+!api/storage/logs/.gitkeep
+!api/storage/backups/.gitkeep
+!api/storage/uploads/.gitkeep
+
 # Symbolication related
 app.*.symbols
 

@@ -2582,6 +2582,126 @@ abstract class AppLocalizations {
   /// **'Code famille liée'**
   String get linkedFamilyCode;
 
+  /// No description provided for @branding.
+  ///
+  /// In fr, this message translates to:
+  /// **'Branding'**
+  String get branding;
+
+  /// No description provided for @visualIdentity.
+  ///
+  /// In fr, this message translates to:
+  /// **'Identité visuelle'**
+  String get visualIdentity;
+
+  /// No description provided for @familyLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Logo familial'**
+  String get familyLogo;
+
+  /// No description provided for @customizeLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Personnaliser le logo'**
+  String get customizeLogo;
+
+  /// No description provided for @uploadLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Importer un logo'**
+  String get uploadLogo;
+
+  /// No description provided for @replaceLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Remplacer le logo'**
+  String get replaceLogo;
+
+  /// No description provided for @deleteLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer le logo'**
+  String get deleteLogo;
+
+  /// No description provided for @restoreDefaultLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Restaurer par défaut'**
+  String get restoreDefaultLogo;
+
+  /// No description provided for @logoPreview.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aperçu du logo'**
+  String get logoPreview;
+
+  /// No description provided for @logoPosition.
+  ///
+  /// In fr, this message translates to:
+  /// **'Position du logo'**
+  String get logoPosition;
+
+  /// No description provided for @logoSize.
+  ///
+  /// In fr, this message translates to:
+  /// **'Taille du logo'**
+  String get logoSize;
+
+  /// No description provided for @logoShape.
+  ///
+  /// In fr, this message translates to:
+  /// **'Forme du logo'**
+  String get logoShape;
+
+  /// No description provided for @showLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Afficher le logo'**
+  String get showLogo;
+
+  /// No description provided for @hideLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Masquer le logo'**
+  String get hideLogo;
+
+  /// No description provided for @showMemberCountOnLogo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Affichage du compteur de membres'**
+  String get showMemberCountOnLogo;
+
+  /// No description provided for @useLogoAsFavicon.
+  ///
+  /// In fr, this message translates to:
+  /// **'Utiliser comme favicon'**
+  String get useLogoAsFavicon;
+
+  /// No description provided for @logoUpdated.
+  ///
+  /// In fr, this message translates to:
+  /// **'Logo mis à jour avec succès'**
+  String get logoUpdated;
+
+  /// No description provided for @invalidLogoFile.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fichier logo invalide'**
+  String get invalidLogoFile;
+
+  /// No description provided for @logoFileTooLarge.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le fichier logo est trop volumineux'**
+  String get logoFileTooLarge;
+
+  /// No description provided for @brandingPermissionRequired.
+  ///
+  /// In fr, this message translates to:
+  /// **'Permission branding requise'**
+  String get brandingPermissionRequired;
+
   /// No description provided for @linkedFamilyTree.
   ///
   /// In fr, this message translates to:

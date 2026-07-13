@@ -18,6 +18,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/admin_access_service.dart';
+import 'branding_settings_screen.dart';
 import '../widgets/admin_contact_card.dart';
 import '../widgets/bug_report_button.dart';
 import '../widgets/bug_report_card.dart';
@@ -463,6 +464,23 @@ class _ApplicationSettingsSection extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: Text(l10n.visualIdentity),
+            subtitle: Text(l10n.familyLogo),
+            trailing: const Icon(Icons.chevron_right),
+            enabled: canEdit,
+            onTap: canEdit
+                ? () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const BrandingSettingsScreen(),
+                    ),
+                  )
+                : null,
           ),
         ),
       ],

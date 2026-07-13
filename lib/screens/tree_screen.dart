@@ -29,7 +29,9 @@ class TreeScreen extends ConsumerWidget {
       authMode: auth.mode,
       membersCount: visiblePeopleCount,
       resetToken: resetToken,
-      showMembersCounter: data.appSettings.treeSettings.showMembersCounter,
+      showMembersCounter:
+          data.appSettings.treeSettings.showMembersCounter &&
+          data.appSettings.branding.memberCountDisplayMode == 'bottomBar',
       topReservedSpace: 8,
       onOpenPerson: (person) => _openPerson(context, linkedTreeService, person),
     );

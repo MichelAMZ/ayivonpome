@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ayivonpome/models/app_settings.dart';
+import 'package:ayivonpome/models/branding_settings.dart';
 import 'package:ayivonpome/services/app_settings_service.dart';
 
 void main() {
@@ -32,6 +33,16 @@ void main() {
         tutorialAlreadySeen: true,
         showFloatingHelpButton: false,
       ),
+      branding: BrandingSettings(
+        logoEnabled: false,
+        logoUrl: 'https://example.com/logo.webp',
+        logoFileName: 'logo.webp',
+        logoMimeType: 'image/webp',
+        logoWidthDesktop: 120,
+        memberCountDisplayMode: 'superscriptTitle',
+        useAsFavicon: true,
+        logoVersion: 3,
+      ),
     );
 
     final parsed = AppSettings.fromJson(settings.toJson());
@@ -62,6 +73,14 @@ void main() {
     expect(parsed.tutorialSettings.tutorialAlreadySeen, isTrue);
     expect(parsed.tutorialSettings.showFloatingHelpButton, isFalse);
     expect(parsed.tutorialSettings.buttonPosition, 'bottomRight');
+    expect(parsed.branding.logoEnabled, isFalse);
+    expect(parsed.branding.logoUrl, 'https://example.com/logo.webp');
+    expect(parsed.branding.logoFileName, 'logo.webp');
+    expect(parsed.branding.logoMimeType, 'image/webp');
+    expect(parsed.branding.logoWidthDesktop, 120);
+    expect(parsed.branding.memberCountDisplayMode, 'superscriptTitle');
+    expect(parsed.branding.useAsFavicon, isTrue);
+    expect(parsed.branding.logoVersion, 3);
   });
 
   test('AppSettingsService clamps invalid tree zoom values', () {

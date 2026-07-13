@@ -1295,6 +1295,66 @@ class AppLocalizationsPt extends AppLocalizations {
   String get linkedFamilyCode => 'Código família ligada';
 
   @override
+  String get branding => 'Marca';
+
+  @override
+  String get visualIdentity => 'Identidade visual';
+
+  @override
+  String get familyLogo => 'Logo familiar';
+
+  @override
+  String get customizeLogo => 'Personalizar logo';
+
+  @override
+  String get uploadLogo => 'Carregar logo';
+
+  @override
+  String get replaceLogo => 'Substituir logo';
+
+  @override
+  String get deleteLogo => 'Eliminar logo';
+
+  @override
+  String get restoreDefaultLogo => 'Restaurar padrão';
+
+  @override
+  String get logoPreview => 'Pré-visualização do logo';
+
+  @override
+  String get logoPosition => 'Posição do logo';
+
+  @override
+  String get logoSize => 'Tamanho do logo';
+
+  @override
+  String get logoShape => 'Forma do logo';
+
+  @override
+  String get showLogo => 'Mostrar logo';
+
+  @override
+  String get hideLogo => 'Ocultar logo';
+
+  @override
+  String get showMemberCountOnLogo => 'Visualização do contador de membros';
+
+  @override
+  String get useLogoAsFavicon => 'Usar logo como favicon';
+
+  @override
+  String get logoUpdated => 'Logo atualizado com sucesso';
+
+  @override
+  String get invalidLogoFile => 'Ficheiro de logo inválido';
+
+  @override
+  String get logoFileTooLarge => 'O ficheiro de logo é demasiado grande';
+
+  @override
+  String get brandingPermissionRequired => 'Permissão de marca necessária';
+
+  @override
   String get linkedFamilyTree => 'Árvore familiar ligada';
 
   @override

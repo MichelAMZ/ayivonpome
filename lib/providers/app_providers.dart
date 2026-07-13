@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
+import '../core/firebase/firebase_runtime_config.dart';
+import '../data/firestore/firestore_remote_database_client.dart';
 import '../models/family_tree_data.dart';
 import '../services/auth_code_service.dart';
 import '../services/backup_service.dart';
@@ -49,9 +53,20 @@ final localJsonRepositoryProvider = Provider<JsonFamilyRepository>(
   (ref) => JsonFamilyRepository(ref.watch(jsonStorageServiceProvider)),
 );
 
-final remoteDatabaseRepositoryProvider = Provider<DatabaseFamilyRepository>(
-  (ref) => const DatabaseFamilyRepository(),
-);
+final remoteDatabaseRepositoryProvider = Provider<DatabaseFamilyRepository>((
+  ref,
+) {
+  final config = FirebaseRuntimeConfig.fromEnvironment();
+  if (config.enabled && Firebase.apps.isNotEmpty) {
+    return DatabaseFamilyRepository(
+      client: FirestoreRemoteDatabaseClient(
+        firestore: FirebaseFirestore.instance,
+        familyId: config.familyId,
+      ),
+    );
+  }
+  return const DatabaseFamilyRepository();
+});
 
 final hybridFamilyRepositoryProvider = Provider<HybridFamilyRepository>(
   (ref) => HybridFamilyRepository(

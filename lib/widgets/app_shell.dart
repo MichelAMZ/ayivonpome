@@ -634,6 +634,7 @@ class _BrandTitle extends ConsumerWidget {
         ? AppLocalizations.of(context).appTitle
         : appSettings.applicationTitle.trim();
     final subtitle = appSettings.applicationSubtitle.trim();
+    final branding = appSettings.branding;
     final membersCount = ref.watch(membersCountProvider);
     final l10n = AppLocalizations.of(context);
     final showSubtitle =
@@ -660,36 +661,63 @@ class _BrandTitle extends ConsumerWidget {
                 _handleLeaderMenuAction(context, ref, leader, action),
           )
         : null;
+    final showTitleCounter =
+        appSettings.treeSettings.showMembersCounter &&
+        branding.memberCountDisplayMode == 'superscriptTitle';
     final titleBlock = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: const Color(0xFF233A2A),
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
-            fontSize: desktop
-                ? 34
-                : mobile
-                ? 16
-                : 24,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: const Color(0xFF233A2A),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                  fontSize: desktop
+                      ? 34
+                      : mobile
+                      ? 16
+                      : 24,
+                ),
+              ),
+            ),
+            if (showTitleCounter) ...[
+              const SizedBox(width: 6),
+              Transform.translate(
+                offset: Offset(0, mobile ? -5 : -10),
+                child: Text(
+                  membersCount.toString(),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: const Color(0xFF5E6F1F),
+                    fontWeight: FontWeight.w900,
+                    fontSize: mobile ? 10 : 13,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
-        Text(
-          l10n.membersCount(membersCount),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: const Color(0xFF5E6F58),
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-            fontSize: mobile ? 11 : null,
+        if (appSettings.treeSettings.showMembersCounter &&
+            branding.memberCountDisplayMode == 'bottomBar')
+          Text(
+            l10n.membersCount(membersCount),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: const Color(0xFF5E6F58),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+              fontSize: mobile ? 11 : null,
+            ),
           ),
-        ),
         if (showSubtitle && !mobile)
           Text(
             subtitle,
@@ -709,11 +737,14 @@ class _BrandTitle extends ConsumerWidget {
         mainAxisSize: MainAxisSize.max,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          TopbarFamilyLogo(
-            membersCount: membersCount,
-            showCounter: appSettings.treeSettings.showMembersCounter,
-          ),
-          SizedBox(width: mobile ? 8 : 14),
+          if (branding.logoPosition == 'leftOfTitle') ...[
+            TopbarFamilyLogo(
+              membersCount: membersCount,
+              settings: branding,
+              showCounter: appSettings.treeSettings.showMembersCounter,
+            ),
+            SizedBox(width: mobile ? 8 : 14),
+          ],
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -730,6 +761,14 @@ class _BrandTitle extends ConsumerWidget {
               ],
             ),
           ),
+          if (branding.logoPosition == 'rightOfTitle') ...[
+            SizedBox(width: mobile ? 8 : 14),
+            TopbarFamilyLogo(
+              membersCount: membersCount,
+              settings: branding,
+              showCounter: appSettings.treeSettings.showMembersCounter,
+            ),
+          ],
         ],
       );
     }
@@ -738,12 +777,23 @@ class _BrandTitle extends ConsumerWidget {
       mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        TopbarFamilyLogo(
-          membersCount: membersCount,
-          showCounter: appSettings.treeSettings.showMembersCounter,
-        ),
-        const SizedBox(width: 18),
+        if (branding.logoPosition == 'leftOfTitle') ...[
+          TopbarFamilyLogo(
+            membersCount: membersCount,
+            settings: branding,
+            showCounter: appSettings.treeSettings.showMembersCounter,
+          ),
+          const SizedBox(width: 18),
+        ],
         Expanded(flex: 4, child: titleBlock),
+        if (branding.logoPosition == 'rightOfTitle') ...[
+          const SizedBox(width: 18),
+          TopbarFamilyLogo(
+            membersCount: membersCount,
+            settings: branding,
+            showCounter: appSettings.treeSettings.showMembersCounter,
+          ),
+        ],
         if (leaderBadge != null)
           Expanded(
             flex: 5,

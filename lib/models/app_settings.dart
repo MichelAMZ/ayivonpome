@@ -1,3 +1,5 @@
+import 'branding_settings.dart';
+
 class AppSettings {
   const AppSettings({
     this.applicationTitle = 'FamilyTreeApp',
@@ -8,6 +10,7 @@ class AppSettings {
     this.treeSettings = const TreeViewSettings(),
     this.languageSettings = const LanguageSettings(),
     this.tutorialSettings = const TutorialSettings(),
+    this.branding = const BrandingSettings(),
   });
 
   final String applicationTitle;
@@ -18,6 +21,7 @@ class AppSettings {
   final TreeViewSettings treeSettings;
   final LanguageSettings languageSettings;
   final TutorialSettings tutorialSettings;
+  final BrandingSettings branding;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
     applicationTitle: json['applicationTitle'] as String? ?? 'FamilyTreeApp',
@@ -36,6 +40,9 @@ class AppSettings {
     tutorialSettings: TutorialSettings.fromJson(
       Map<String, dynamic>.from(json['tutorialSettings'] as Map? ?? const {}),
     ),
+    branding: BrandingSettings.fromJson(
+      Map<String, dynamic>.from(json['branding'] as Map? ?? const {}),
+    ),
   );
 
   Map<String, dynamic> toJson() => {
@@ -47,6 +54,7 @@ class AppSettings {
     'treeSettings': treeSettings.toJson(),
     'languageSettings': languageSettings.toJson(),
     'tutorialSettings': tutorialSettings.toJson(),
+    'branding': branding.toJson(),
   };
 
   AppSettings copyWith({
@@ -58,6 +66,7 @@ class AppSettings {
     TreeViewSettings? treeSettings,
     LanguageSettings? languageSettings,
     TutorialSettings? tutorialSettings,
+    BrandingSettings? branding,
   }) {
     return AppSettings(
       applicationTitle: applicationTitle ?? this.applicationTitle,
@@ -69,6 +78,7 @@ class AppSettings {
       treeSettings: treeSettings ?? this.treeSettings,
       languageSettings: languageSettings ?? this.languageSettings,
       tutorialSettings: tutorialSettings ?? this.tutorialSettings,
+      branding: branding ?? this.branding,
     );
   }
 }

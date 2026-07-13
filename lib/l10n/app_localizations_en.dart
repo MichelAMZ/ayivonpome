@@ -1290,6 +1290,66 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkedFamilyCode => 'Linked family code';
 
   @override
+  String get branding => 'Branding';
+
+  @override
+  String get visualIdentity => 'Visual identity';
+
+  @override
+  String get familyLogo => 'Family logo';
+
+  @override
+  String get customizeLogo => 'Customize logo';
+
+  @override
+  String get uploadLogo => 'Upload logo';
+
+  @override
+  String get replaceLogo => 'Replace logo';
+
+  @override
+  String get deleteLogo => 'Delete logo';
+
+  @override
+  String get restoreDefaultLogo => 'Restore default';
+
+  @override
+  String get logoPreview => 'Logo preview';
+
+  @override
+  String get logoPosition => 'Logo position';
+
+  @override
+  String get logoSize => 'Logo size';
+
+  @override
+  String get logoShape => 'Logo shape';
+
+  @override
+  String get showLogo => 'Show logo';
+
+  @override
+  String get hideLogo => 'Hide logo';
+
+  @override
+  String get showMemberCountOnLogo => 'Member count display';
+
+  @override
+  String get useLogoAsFavicon => 'Use logo as favicon';
+
+  @override
+  String get logoUpdated => 'Logo updated successfully';
+
+  @override
+  String get invalidLogoFile => 'Invalid logo file';
+
+  @override
+  String get logoFileTooLarge => 'Logo file is too large';
+
+  @override
+  String get brandingPermissionRequired => 'Branding permission required';
+
+  @override
   String get linkedFamilyTree => 'Linked family tree';
 
   @override

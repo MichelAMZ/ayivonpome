@@ -1,0 +1,1 @@
+void updateWebFaviconImpl(String faviconUrl) {}

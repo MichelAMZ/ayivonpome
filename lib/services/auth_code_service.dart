@@ -12,6 +12,7 @@ class AuthSession {
   bool get isSuperAdmin => role == 'superAdmin';
   bool get isAdmin => role == 'admin' || role == 'superAdmin';
   bool get isOwner => role == 'owner' || isSuperAdmin;
+  bool get canManageBranding => isSuperAdmin || role == 'admin';
 }
 
 class AuthCodeService {

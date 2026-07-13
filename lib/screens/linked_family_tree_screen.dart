@@ -80,7 +80,9 @@ class LinkedFamilyTreeScreen extends ConsumerWidget {
               authMode: auth.mode,
               membersCount: linkedData.people.length,
               showMembersCounter:
-                  data.appSettings.treeSettings.showMembersCounter,
+                  data.appSettings.treeSettings.showMembersCounter &&
+                  data.appSettings.branding.memberCountDisplayMode ==
+                      'bottomBar',
               highlightedPersonIds: {focusPersonId},
               onOpenPerson: (person) => Navigator.of(context).push(
                 MaterialPageRoute(

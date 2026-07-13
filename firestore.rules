@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasFamilyAccess(familyId) {
+      return isAuthenticated() &&
+        currentUser().data.active == true &&
+        currentUser().data.familyId == familyId;
+    }
+
+    function isAdmin(familyId) {
+      return hasFamilyAccess(familyId) &&
+        currentUser().data.role in ['admin', 'super_admin'];
+    }
+
+    function isSuperAdmin(familyId) {
+      return hasFamilyAccess(familyId) &&
+        currentUser().data.role == 'super_admin';
+    }
+
+    match /families/{familyId} {
+      allow read: if hasFamilyAccess(familyId);
+      allow create, update: if isAdmin(familyId);
+      allow delete: if isSuperAdmin(familyId);
+    }
+
+    match /members/{memberId} {
+      allow read: if hasFamilyAccess(resource.data.familyId);
+      allow create: if isAdmin(request.resource.data.familyId);
+      allow update: if isAdmin(resource.data.familyId) &&
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.version == resource.data.version + 1;
+      allow delete: if false;
+    }
+
+    match /relationships/{relationshipId} {
+      allow read: if hasFamilyAccess(resource.data.familyId);
+      allow create: if isAdmin(request.resource.data.familyId);
+      allow update: if isAdmin(resource.data.familyId) &&
+        request.resource.data.familyId == resource.data.familyId;
+      allow delete: if false;
+    }
+
+    match /family_tree_links/{linkId} {
+      allow read: if hasFamilyAccess(resource.data.familyId);
+      allow create: if isAdmin(request.resource.data.familyId);
+      allow update: if isAdmin(resource.data.familyId) &&
+        request.resource.data.familyId == resource.data.familyId;
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if hasFamilyAccess(resource.data.familyId);
+      allow create, update: if isAdmin(request.resource.data.familyId);
+      allow delete: if isSuperAdmin(resource.data.familyId);
+    }
+
+    match /activity_logs/{logId} {
+      allow read: if isAdmin(resource.data.familyId);
+      allow create: if isAdmin(request.resource.data.familyId);
+      allow update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if false;
+    }
+  }
+}
