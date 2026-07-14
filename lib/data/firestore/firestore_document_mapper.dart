@@ -12,6 +12,7 @@ class FirestoreDocumentMapper {
       ...json,
       'id': id,
       'familyId': familyId,
+      'deletedAt': json['deletedAt'] ?? '',
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }

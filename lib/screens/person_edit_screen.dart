@@ -961,8 +961,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         _showSaveSnackBar(
           color: Colors.green,
           icon: Icons.check_circle,
-          message:
-              'Enregistrement effectué avec succès dans la base de données.',
+          message: 'Modification enregistrée dans la base de données.',
           duration: const Duration(seconds: 3),
         );
         Navigator.pop(context);

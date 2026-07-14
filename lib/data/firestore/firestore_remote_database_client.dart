@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../models/audit_log.dart';
 import '../../models/family_link.dart';
@@ -103,49 +104,105 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> savePerson(Person person) => updatePerson(person);
 
   @override
-  Future<void> createPerson(Person person) {
+  Future<void> createPerson(Person person) async {
+    _validatePersonWrite(person, 'creer');
+    final doc = _members.doc(person.id);
     final now = DateTime.now().toUtc().toIso8601String();
-    return _members
-        .doc(person.id)
-        .set(
+    try {
+      await doc.set(
+        _mapper.toFirestore(
+          person
+              .copyWith(
+                createdAt: person.createdAt.isEmpty ? now : person.createdAt,
+                updatedAt: now,
+                version: person.version <= 0 ? 1 : person.version,
+              )
+              .toJson(),
+          id: person.id,
+          familyId: _tenantFamilyId,
+        ),
+        SetOptions(merge: true),
+      );
+    } on FirebaseException catch (error, stackTrace) {
+      _debugFirestoreSaveFailure('createPerson', doc.path, error);
+      Error.throwWithStackTrace(
+        FirestoreSaveException(
+          operation: 'createPerson',
+          documentPath: doc.path,
+          firebaseCode: error.code,
+          message: error.message ?? error.toString(),
+        ),
+        stackTrace,
+      );
+    } catch (error, stackTrace) {
+      _debugFirestoreSaveFailure('createPerson', doc.path, error);
+      Error.throwWithStackTrace(
+        FirestoreSaveException(
+          operation: 'createPerson',
+          documentPath: doc.path,
+          message: error.toString(),
+        ),
+        stackTrace,
+      );
+    }
+  }
+
+  @override
+  Future<void> updatePerson(Person person) async {
+    _validatePersonWrite(person, 'enregistrer');
+    final doc = _members.doc(person.id);
+    final now = DateTime.now().toUtc().toIso8601String();
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(doc);
+        final remote = snapshot.data();
+        final remoteVersionValue = remote?['version'];
+        final remoteVersion = remoteVersionValue is num
+            ? remoteVersionValue.toInt()
+            : 0;
+        final createdAtValue = remote?['createdAt'];
+        final createdAt = createdAtValue is String && createdAtValue.isNotEmpty
+            ? createdAtValue
+            : person.createdAt;
+
+        final updatedPerson = person.copyWith(
+          createdAt: createdAt.isEmpty ? now : createdAt,
+          updatedAt: now,
+          version: remoteVersion + 1,
+        );
+
+        transaction.set(
+          doc,
           _mapper.toFirestore(
-            person
-                .copyWith(
-                  createdAt: person.createdAt.isEmpty ? now : person.createdAt,
-                  updatedAt: now,
-                  version: person.version <= 0 ? 1 : person.version,
-                )
-                .toJson(),
+            updatedPerson.toJson(),
             id: person.id,
             familyId: _tenantFamilyId,
           ),
           SetOptions(merge: true),
         );
-  }
-
-  @override
-  Future<void> updatePerson(Person person) async {
-    final doc = _members.doc(person.id);
-    final snapshot = await doc.get();
-    final remote = snapshot.data();
-    final remoteVersion = remote?['version'] as int? ?? 0;
-    if (remoteVersion > person.version) {
-      throw FirestoreConflictException(
-        documentPath: doc.path,
-        localVersion: person.version,
-        remoteVersion: remoteVersion,
+      });
+    } on FirebaseException catch (error, stackTrace) {
+      _debugFirestoreSaveFailure('updatePerson', doc.path, error);
+      Error.throwWithStackTrace(
+        FirestoreSaveException(
+          operation: 'updatePerson',
+          documentPath: doc.path,
+          firebaseCode: error.code,
+          message: error.message ?? error.toString(),
+        ),
+        stackTrace,
+      );
+    } catch (error, stackTrace) {
+      _debugFirestoreSaveFailure('updatePerson', doc.path, error);
+      Error.throwWithStackTrace(
+        FirestoreSaveException(
+          operation: 'updatePerson',
+          documentPath: doc.path,
+          message: error.toString(),
+        ),
+        stackTrace,
       );
     }
-
-    final now = DateTime.now().toUtc().toIso8601String();
-    await doc.set(
-      _mapper.toFirestore(
-        person.copyWith(updatedAt: now, version: remoteVersion + 1).toJson(),
-        id: person.id,
-        familyId: _tenantFamilyId,
-      ),
-      SetOptions(merge: true),
-    );
   }
 
   @override
@@ -238,6 +295,29 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   }
 
   String get _tenantFamilyId => _familyId;
+
+  void _validatePersonWrite(Person person, String action) {
+    if (person.id.trim().isEmpty) {
+      throw ArgumentError(
+        'Impossible de $action une personne sans identifiant.',
+      );
+    }
+    if (_tenantFamilyId.trim().isEmpty) {
+      throw StateError(
+        'Impossible de $action la personne : familyId est vide.',
+      );
+    }
+  }
+
+  void _debugFirestoreSaveFailure(
+    String operation,
+    String documentPath,
+    Object error,
+  ) {
+    if (kDebugMode) {
+      debugPrint('Firestore $operation failed on $documentPath: $error');
+    }
+  }
 }
 
 class FirestoreConflictException implements Exception {
@@ -255,5 +335,26 @@ class FirestoreConflictException implements Exception {
   String toString() {
     return 'Firestore conflict on $documentPath: local version $localVersion, '
         'remote version $remoteVersion.';
+  }
+}
+
+class FirestoreSaveException implements Exception {
+  const FirestoreSaveException({
+    required this.operation,
+    required this.documentPath,
+    required this.message,
+    this.firebaseCode,
+  });
+
+  final String operation;
+  final String documentPath;
+  final String? firebaseCode;
+  final String message;
+
+  @override
+  String toString() {
+    final code = firebaseCode == null ? '' : ' [$firebaseCode]';
+    return 'Firestore save failed$code on $documentPath during $operation: '
+        '$message';
   }
 }
