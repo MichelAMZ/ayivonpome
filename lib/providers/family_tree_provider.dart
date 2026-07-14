@@ -61,9 +61,15 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
 
   Future<void> syncPendingChanges() async {
     final data = await future;
+    debugPrint(
+      'SYNC PROVIDER syncPendingChanges START '
+      'familyId=${data.mainFamilyCode} queue=${data.pendingSyncQueue.length}',
+    );
     final synced = await ref.read(syncServiceProvider).syncPendingQueue(data);
     if (_encode(synced) == _encode(data)) return;
+    debugPrint('SYNC PROVIDER local save after pending sync START');
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
+    debugPrint('SYNC PROVIDER local save after pending sync SUCCESS');
     state = AsyncData(synced);
   }
 
@@ -94,8 +100,12 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     debugPrint('Runtime tree state cleared');
   }
 
-  Future<FamilyTreeData> reloadFamilyJson() =>
-      _loadFreshData(forceReloadSource: true);
+  Future<FamilyTreeData> reloadFamilyJson() async {
+    debugPrint('FAMILY RELOAD START');
+    final data = await _loadFreshData(forceReloadSource: true);
+    debugPrint('FAMILY RELOAD SUCCESS familyId=${data.mainFamilyCode}');
+    return data;
+  }
 
   FamilyTreeData rebuildRelationshipGraph(FamilyTreeData data) {
     final rebuilt = ref
@@ -199,11 +209,22 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         )
         .copyWith(lastUpdatedAt: DateTime.now().toIso8601String());
     final operations = [?syncOperation, ...syncOperations];
+    debugPrint(
+      'FAMILY SAVE START familyId=${synced.mainFamilyCode} '
+      'operations=${operations.length}',
+    );
     synced = await ref
         .read(syncServiceProvider)
         .enqueueOrSyncMany(synced, operations: operations);
+    debugPrint(
+      'FAMILY SAVE remote sync STEP DONE status=${synced.syncSettings.syncStatus} '
+      'queue=${synced.pendingSyncQueue.length}',
+    );
+    debugPrint('FAMILY SAVE local JSON START');
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
+    debugPrint('FAMILY SAVE local JSON SUCCESS');
     state = AsyncData(synced);
+    debugPrint('FAMILY SAVE state updated');
     return synced;
   }
 

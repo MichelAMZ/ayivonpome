@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../models/audit_log.dart';
@@ -60,6 +62,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
   @override
   Future<void> saveFamilyTree(FamilyTreeData data) async {
+    await _ensureFirebaseUser('saveFamilyTree', 'families/$_familyId');
     final batch = _firestore.batch();
     batch.set(_firestore.collection('families').doc(_familyId), {
       'id': _familyId,
@@ -106,25 +109,32 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   @override
   Future<void> createPerson(Person person) async {
     _validatePersonWrite(person, 'creer');
-    final doc = _members.doc(person.id);
+    final personId = person.id.trim();
+    final doc = _members.doc(personId);
     final now = DateTime.now().toUtc().toIso8601String();
     try {
-      await doc.set(
-        _mapper.toFirestore(
-          person
-              .copyWith(
-                createdAt: person.createdAt.isEmpty ? now : person.createdAt,
-                updatedAt: now,
-                version: person.version <= 0 ? 1 : person.version,
-              )
-              .toJson(),
-          id: person.id,
-          familyId: _tenantFamilyId,
-        ),
-        SetOptions(merge: true),
+      await _ensureFirebaseUser('createPerson', doc.path, personId: personId);
+      final data = _mapper.toFirestore(
+        person
+            .copyWith(
+              createdAt: person.createdAt.isEmpty ? now : person.createdAt,
+              updatedAt: now,
+              version: person.version <= 0 ? 1 : person.version,
+            )
+            .toJson(),
+        id: personId,
+        familyId: _tenantFamilyId,
       );
+      _debugFirestoreWriteStart(
+        'createPerson',
+        doc.path,
+        personId: personId,
+        data: data,
+      );
+      await doc.set(data, SetOptions(merge: true));
+      _debugFirestoreWriteSuccess('createPerson', doc.path);
     } on FirebaseException catch (error, stackTrace) {
-      _debugFirestoreSaveFailure('createPerson', doc.path, error);
+      _debugFirestoreSaveFailure('createPerson', doc.path, error, stackTrace);
       Error.throwWithStackTrace(
         FirestoreSaveException(
           operation: 'createPerson',
@@ -135,7 +145,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         stackTrace,
       );
     } catch (error, stackTrace) {
-      _debugFirestoreSaveFailure('createPerson', doc.path, error);
+      _debugFirestoreSaveFailure('createPerson', doc.path, error, stackTrace);
       Error.throwWithStackTrace(
         FirestoreSaveException(
           operation: 'createPerson',
@@ -150,39 +160,27 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   @override
   Future<void> updatePerson(Person person) async {
     _validatePersonWrite(person, 'enregistrer');
-    final doc = _members.doc(person.id);
+    final personId = person.id.trim();
+    final doc = _members.doc(personId);
     final now = DateTime.now().toUtc().toIso8601String();
     try {
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(doc);
-        final remote = snapshot.data();
-        final remoteVersionValue = remote?['version'];
-        final remoteVersion = remoteVersionValue is num
-            ? remoteVersionValue.toInt()
-            : 0;
-        final createdAtValue = remote?['createdAt'];
-        final createdAt = createdAtValue is String && createdAtValue.isNotEmpty
-            ? createdAtValue
-            : person.createdAt;
-
-        final updatedPerson = person.copyWith(
-          createdAt: createdAt.isEmpty ? now : createdAt,
-          updatedAt: now,
-          version: remoteVersion + 1,
-        );
-
-        transaction.set(
-          doc,
-          _mapper.toFirestore(
-            updatedPerson.toJson(),
-            id: person.id,
-            familyId: _tenantFamilyId,
-          ),
-          SetOptions(merge: true),
-        );
-      });
+      await _ensureFirebaseUser('updatePerson', doc.path, personId: personId);
+      final nextVersion = person.version <= 0 ? 1 : person.version + 1;
+      final data = _mapper.toFirestore(
+        person.copyWith(updatedAt: now, version: nextVersion).toJson(),
+        id: personId,
+        familyId: _tenantFamilyId,
+      );
+      _debugFirestoreWriteStart(
+        'updatePerson',
+        doc.path,
+        personId: personId,
+        data: data,
+      );
+      await doc.set(data, SetOptions(merge: true));
+      _debugFirestoreWriteSuccess('updatePerson', doc.path);
     } on FirebaseException catch (error, stackTrace) {
-      _debugFirestoreSaveFailure('updatePerson', doc.path, error);
+      _debugFirestoreSaveFailure('updatePerson', doc.path, error, stackTrace);
       Error.throwWithStackTrace(
         FirestoreSaveException(
           operation: 'updatePerson',
@@ -193,7 +191,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         stackTrace,
       );
     } catch (error, stackTrace) {
-      _debugFirestoreSaveFailure('updatePerson', doc.path, error);
+      _debugFirestoreSaveFailure('updatePerson', doc.path, error, stackTrace);
       Error.throwWithStackTrace(
         FirestoreSaveException(
           operation: 'updatePerson',
@@ -209,17 +207,17 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> deletePerson(String personId) => _softDelete(_members, personId);
 
   @override
-  Future<void> createMarriage(MarriageRelation relation) {
-    return _relationships
-        .doc(relation.id)
-        .set(
-          _mapper.toFirestore(
-            relation.toJson(),
-            id: relation.id,
-            familyId: _familyId,
-          ),
-          SetOptions(merge: true),
-        );
+  Future<void> createMarriage(MarriageRelation relation) async {
+    final doc = _relationships.doc(relation.id);
+    await _ensureFirebaseUser('createMarriage', doc.path);
+    await doc.set(
+      _mapper.toFirestore(
+        relation.toJson(),
+        id: relation.id,
+        familyId: _familyId,
+      ),
+      SetOptions(merge: true),
+    );
   }
 
   @override
@@ -231,36 +229,75 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       _softDelete(_relationships, relationId);
 
   @override
-  Future<void> createFamilyLink(FamilyLink link) {
-    return _familyLinks
-        .doc(link.id)
-        .set(
-          _mapper.toFirestore(link.toJson(), id: link.id, familyId: _familyId),
-          SetOptions(merge: true),
-        );
+  Future<void> createFamilyLink(FamilyLink link) async {
+    final doc = _familyLinks.doc(link.id);
+    await _ensureFirebaseUser('createFamilyLink', doc.path);
+    await doc.set(
+      _mapper.toFirestore(link.toJson(), id: link.id, familyId: _familyId),
+      SetOptions(merge: true),
+    );
   }
 
   @override
   Future<void> updateFamilyLink(FamilyLink link) => createFamilyLink(link);
 
   @override
-  Future<void> createAuditLog(AuditLog log) {
-    return _activityLogs.doc(log.id).set({
-      ...log.toJson(),
-      'familyId': _tenantFamilyId,
-      'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  Future<void> createAuditLog(AuditLog log) async {
+    final doc = _activityLogs.doc(log.id);
+    try {
+      await _ensureFirebaseUser('createAuditLog', doc.path);
+      await doc.set({
+        ...log.toJson(),
+        'id': log.id,
+        'familyId': _tenantFamilyId,
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      _debugFirestoreWriteSuccess('createAuditLog', doc.path);
+    } on FirebaseException catch (error, stackTrace) {
+      _debugFirestoreSaveFailure('createAuditLog', doc.path, error, stackTrace);
+      rethrow;
+    } catch (error, stackTrace) {
+      _debugFirestoreSaveFailure('createAuditLog', doc.path, error, stackTrace);
+      rethrow;
+    }
   }
 
   @override
   Future<void> upsertSyncIncident(SyncIncident incident) async {
     final doc = _syncIncidents.doc(incident.id);
-    final snapshot = await doc.get();
-    await doc.set({
-      ...incident.toFirestoreUpdate(),
-      if (!snapshot.exists) 'firstOccurredAt': FieldValue.serverTimestamp(),
-      'lastOccurredAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      final user = await _ensureFirebaseUser('upsertSyncIncident', doc.path);
+      if (user == null) {
+        throw StateError(
+          'Impossible d’enregistrer l’incident : utilisateur Firebase non connecté.',
+        );
+      }
+      await doc.set({
+        ...incident.toFirestoreUpdate(),
+        'id': incident.id,
+        'familyId': _tenantFamilyId,
+        'userId': user.uid,
+        'firstOccurredAtClient': incident.firstOccurredAt,
+        'lastOccurredAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      _debugFirestoreWriteSuccess('upsertSyncIncident', doc.path);
+    } on FirebaseException catch (error, stackTrace) {
+      _debugFirestoreSaveFailure(
+        'upsertSyncIncident',
+        doc.path,
+        error,
+        stackTrace,
+      );
+      rethrow;
+    } catch (error, stackTrace) {
+      _debugFirestoreSaveFailure(
+        'upsertSyncIncident',
+        doc.path,
+        error,
+        stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Query<Map<String, dynamic>> _activeByFamily(
@@ -274,20 +311,21 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> _softDelete(
     CollectionReference<Map<String, dynamic>> collection,
     String id,
-  ) {
+  ) async {
+    final doc = collection.doc(id);
+    await _ensureFirebaseUser('softDelete', doc.path, personId: id);
     if (collection.path == _members.path) {
-      final doc = collection.doc(id);
-      return doc.get().then((snapshot) {
-        final remoteVersion = snapshot.data()?['version'] as int? ?? 0;
-        return doc.set({
-          'familyId': _familyId,
-          'deletedAt': DateTime.now().toUtc().toIso8601String(),
-          'updatedAt': FieldValue.serverTimestamp(),
-          'version': remoteVersion + 1,
-        }, SetOptions(merge: true));
-      });
+      final snapshot = await doc.get();
+      final remoteVersion = _safeVersion(snapshot.data()?['version']);
+      await doc.set({
+        'familyId': _familyId,
+        'deletedAt': DateTime.now().toUtc().toIso8601String(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'version': remoteVersion + 1,
+      }, SetOptions(merge: true));
+      return;
     }
-    return collection.doc(id).set({
+    await doc.set({
       'familyId': _familyId,
       'deletedAt': DateTime.now().toUtc().toIso8601String(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -295,6 +333,65 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   }
 
   String get _tenantFamilyId => _familyId;
+
+  Future<User?> _ensureFirebaseUser(
+    String operation,
+    String documentPath, {
+    String personId = '',
+  }) async {
+    if (Firebase.apps.isEmpty) {
+      if (kDebugMode) {
+        debugPrint('AUTH Firebase not initialized for $operation');
+      }
+      return null;
+    }
+
+    var user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (kDebugMode) {
+        debugPrint('AUTH anonymous sign-in START for $operation');
+      }
+      final credential = await FirebaseAuth.instance.signInAnonymously();
+      user = credential.user;
+      if (user == null) {
+        throw StateError(
+          'Firebase Authentication n’a pas créé de session utilisateur.',
+        );
+      }
+    }
+
+    if (kDebugMode) {
+      debugPrint('AUTH UID = ${user.uid}');
+      debugPrint('AUTH ANONYMOUS = ${user.isAnonymous}');
+      debugPrint('AUTH EMAIL = ${user.email}');
+      debugPrint('FAMILY ID = $_tenantFamilyId');
+      if (personId.isNotEmpty) debugPrint('PERSON ID = $personId');
+      debugPrint('FIRESTORE OPERATION = $operation');
+      debugPrint('FIRESTORE PATH = $documentPath');
+      await _debugCurrentRole(user.uid);
+    }
+    return user;
+  }
+
+  Future<void> _debugCurrentRole(String uid) async {
+    try {
+      final role = await _firestore.collection('user_roles').doc(uid).get();
+      final data = role.data();
+      debugPrint('AUTH ROLE DOC = user_roles/$uid');
+      debugPrint('AUTH ROLE EXISTS = ${role.exists}');
+      debugPrint('AUTH ROLE = ${data?['role']}');
+      debugPrint('AUTH ROLE ACTIVE = ${data?['active']}');
+      debugPrint('AUTH ROLE FAMILY_IDS = ${data?['familyIds']}');
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint('AUTH ROLE READ FAILED code=${error.code}');
+      debugPrint('AUTH ROLE READ MESSAGE = ${error.message}');
+      debugPrint('AUTH ROLE READ PLUGIN = ${error.plugin}');
+      debugPrintStack(stackTrace: stackTrace);
+    } catch (error, stackTrace) {
+      debugPrint('AUTH ROLE READ ERROR = $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
 
   void _validatePersonWrite(Person person, String action) {
     if (person.id.trim().isEmpty) {
@@ -313,10 +410,47 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     String operation,
     String documentPath,
     Object error,
+    StackTrace stackTrace,
   ) {
     if (kDebugMode) {
-      debugPrint('Firestore $operation failed on $documentPath: $error');
+      debugPrint('FIRESTORE $operation FAILED');
+      debugPrint('path: $documentPath');
+      debugPrint('familyId: $_tenantFamilyId');
+      if (error is FirebaseException) {
+        debugPrint('code: ${error.code}');
+        debugPrint('message: ${error.message}');
+        debugPrint('plugin: ${error.plugin}');
+      } else {
+        debugPrint('error: $error');
+      }
+      debugPrintStack(stackTrace: stackTrace);
     }
+  }
+
+  void _debugFirestoreWriteStart(
+    String operation,
+    String documentPath, {
+    required String personId,
+    required Map<String, dynamic> data,
+  }) {
+    if (kDebugMode) {
+      debugPrint('FIRESTORE $operation START');
+      debugPrint('path: $documentPath');
+      debugPrint('familyId: $_tenantFamilyId');
+      debugPrint('personId: $personId');
+      debugPrint('data: $data');
+    }
+  }
+
+  void _debugFirestoreWriteSuccess(String operation, String documentPath) {
+    if (kDebugMode) {
+      debugPrint('FIRESTORE $operation SUCCESS: $documentPath');
+    }
+  }
+
+  int _safeVersion(Object? value) {
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? 0;
   }
 }
 

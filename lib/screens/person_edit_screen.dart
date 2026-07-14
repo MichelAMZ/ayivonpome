@@ -249,6 +249,19 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.person == null ? l10n.addPerson : l10n.edit),
+        actions: [
+          IconButton(
+            tooltip: l10n.save,
+            onPressed: _isSaving ? null : _save,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save),
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,

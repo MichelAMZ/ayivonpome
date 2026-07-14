@@ -30,7 +30,9 @@ service cloud.firestore {
     }
 
     function hasFamilyAccess(familyId) {
-      return isActiveUser() && familyId in currentRole().familyIds;
+      return isActiveUser() &&
+        currentRole().familyIds is list &&
+        currentRole().familyIds.hasAny([familyId]);
     }
 
     function hasAnyRole(roles) {

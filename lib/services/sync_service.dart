@@ -56,7 +56,9 @@ class SyncService {
       for (final operation in operations) {
         _logOperation(operation, data.mainFamilyCode);
         try {
+          debugPrint('SYNC SEND START operationId=${operation.id}');
           await _send(operation);
+          debugPrint('SYNC SEND SUCCESS operationId=${operation.id}');
           audit.add(
             _log(
               'sync_remote_success',
@@ -167,7 +169,9 @@ class SyncService {
       if (item.status == 'synced' || item.status == 'resolved') continue;
       _logOperation(item, working.mainFamilyCode);
       try {
+        debugPrint('SYNC QUEUE SEND START operationId=${item.id}');
         await _send(item);
+        debugPrint('SYNC QUEUE SEND SUCCESS operationId=${item.id}');
         audit.add(_log('sync_queue_item_sent', item.entityId, item.entityType));
       } on FirebaseException catch (error, stackTrace) {
         final lastError = _logFirebaseFailure(
@@ -328,13 +332,16 @@ class SyncService {
     }
     if (item.entityType != 'person') return;
     if (item.action == 'delete') {
+      debugPrint('SYNC REMOTE deletePerson personId=${item.entityId}');
       await _remoteRepository.deletePerson(item.entityId);
       return;
     }
     final person = Person.fromJson(item.payload);
     if (item.action == 'create' || item.action == 'restore') {
+      debugPrint('SYNC REMOTE createPerson personId=${person.id}');
       await _remoteRepository.createPerson(person);
     } else {
+      debugPrint('SYNC REMOTE updatePerson personId=${person.id}');
       await _remoteRepository.updatePerson(person);
     }
   }
@@ -451,6 +458,7 @@ class SyncService {
     );
     debugPrint('FIREBASE CODE: ${error.code}');
     debugPrint('FIREBASE MESSAGE: ${error.message}');
+    debugPrint('FIREBASE PLUGIN: ${error.plugin}');
     debugPrint(
       'SYNC FAILED: ${DateTime.now().toIso8601String()} '
       '${diagnostic.operationSummary}',
@@ -498,7 +506,12 @@ class SyncService {
         userId: user?.uid ?? '',
         userEmail: user?.email ?? '',
       );
+      debugPrint(
+        'SYNC INCIDENT UPSERT START id=${incident.id} '
+        'familyId=${incident.familyId} sourceOperationId=${item.id}',
+      );
       await _remoteRepository.upsertSyncIncident(incident);
+      debugPrint('SYNC INCIDENT UPSERT SUCCESS id=${incident.id}');
     } catch (error, stackTrace) {
       debugPrint('SYNC INCIDENT REPORT SKIPPED: $error');
       debugPrintStack(stackTrace: stackTrace);
