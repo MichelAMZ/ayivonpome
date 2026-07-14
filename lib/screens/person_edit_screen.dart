@@ -1024,6 +1024,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   Future<PersonDuplicateDecision> _resolveDuplicateBeforeSave(
     Person person,
   ) async {
+    if (widget.person != null) return PersonDuplicateDecision.saveAnyway;
     final matches = _duplicateMatchesFor(person);
     if (matches.isEmpty) return PersonDuplicateDecision.saveAnyway;
     final decision = await showDialog<PersonDuplicateDecision>(

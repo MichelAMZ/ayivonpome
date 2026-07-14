@@ -884,17 +884,51 @@ class _ApplicationSettingsSection extends ConsumerWidget {
   }
 }
 
-class _SyncManagementSection extends ConsumerWidget {
+enum _KpiSyncStatus { idle, syncing, success, partialSuccess, failure }
+
+class _KpiSyncResult {
+  const _KpiSyncResult({
+    required this.total,
+    required this.successCount,
+    required this.failureCount,
+    required this.completedAt,
+    required this.status,
+    this.errorMessage = '',
+  });
+
+  final int total;
+  final int successCount;
+  final int failureCount;
+  final DateTime completedAt;
+  final _KpiSyncStatus status;
+  final String errorMessage;
+}
+
+class _SyncManagementSection extends ConsumerStatefulWidget {
   const _SyncManagementSection({required this.data});
 
   final FamilyTreeData data;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SyncManagementSection> createState() =>
+      _SyncManagementSectionState();
+}
+
+class _SyncManagementSectionState
+    extends ConsumerState<_SyncManagementSection> {
+  var _syncStatus = _KpiSyncStatus.idle;
+  _KpiSyncResult? _lastResult;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
     final storage = data.appSettings.storageSettings;
     final pending = data.pendingSyncQueue
-        .where((item) => item.status != 'synced')
+        .where((item) => item.status != 'synced' && item.status != 'resolved')
         .toList();
+    final pendingCount = pending.length;
+    final canSynchronize =
+        pendingCount > 0 && _syncStatus != _KpiSyncStatus.syncing;
     final incidentItems = pending
         .where(
           (item) =>
@@ -945,25 +979,27 @@ class _SyncManagementSection extends ConsumerWidget {
                 const _ExternalNotificationsDisabledBanner(
                   settings: notificationSettings,
                 ),
+                if (_lastResult != null) ...[
+                  const SizedBox(height: 12),
+                  _SyncResultBanner(result: _lastResult!),
+                ],
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
                   children: [
                     FilledButton.icon(
-                      onPressed: () async {
-                        await ref
-                            .read(familyTreeProvider.notifier)
-                            .syncPendingChanges();
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Synchronisation lancée'),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.sync_outlined),
-                      label: const Text('Synchroniser maintenant'),
+                      onPressed: canSynchronize
+                          ? () => _synchronize(context, pending)
+                          : null,
+                      icon: _syncStatus == _KpiSyncStatus.syncing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.sync_outlined),
+                      label: Text(_syncButtonLabel(pendingCount)),
                     ),
                     OutlinedButton.icon(
                       onPressed: () async {
@@ -1042,6 +1078,208 @@ class _SyncManagementSection extends ConsumerWidget {
       ],
     );
   }
+
+  String _syncButtonLabel(int pendingCount) {
+    if (_syncStatus == _KpiSyncStatus.syncing) {
+      return 'Synchronisation en cours...';
+    }
+    if (pendingCount == 0) return 'Aucune donnée à synchroniser';
+    if (_lastResult?.status == _KpiSyncStatus.partialSuccess ||
+        _lastResult?.status == _KpiSyncStatus.failure) {
+      return 'Réessayer la synchronisation ($pendingCount)';
+    }
+    return 'Synchroniser ($pendingCount)';
+  }
+
+  Future<void> _synchronize(
+    BuildContext context,
+    List<dynamic> pendingBefore,
+  ) async {
+    if (_syncStatus == _KpiSyncStatus.syncing || pendingBefore.isEmpty) return;
+    setState(() => _syncStatus = _KpiSyncStatus.syncing);
+    final total = pendingBefore.length;
+    try {
+      final synced = await ref
+          .read(familyTreeProvider.notifier)
+          .syncPendingChanges();
+      final pendingAfter = synced.pendingSyncQueue
+          .where((item) => item.status != 'synced' && item.status != 'resolved')
+          .toList();
+      final failureCount = pendingAfter.length;
+      final successCount = (total - failureCount).clamp(0, total);
+      final status = failureCount == 0
+          ? _KpiSyncStatus.success
+          : successCount > 0
+          ? _KpiSyncStatus.partialSuccess
+          : _KpiSyncStatus.failure;
+      final errorMessage = pendingAfter.isEmpty
+          ? ''
+          : _friendlySyncError(pendingAfter.first.lastError);
+      final result = _KpiSyncResult(
+        total: total,
+        successCount: successCount,
+        failureCount: failureCount,
+        completedAt: DateTime.now(),
+        status: status,
+        errorMessage: errorMessage,
+      );
+      if (!mounted) return;
+      setState(() {
+        _syncStatus = status;
+        _lastResult = result;
+      });
+      await _recordSyncAttempt(result);
+      if (!context.mounted) return;
+      _showSyncSnackBar(context, result);
+    } catch (error, stackTrace) {
+      debugPrint('KPI sync failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      final result = _KpiSyncResult(
+        total: total,
+        successCount: 0,
+        failureCount: total,
+        completedAt: DateTime.now(),
+        status: _KpiSyncStatus.failure,
+        errorMessage: _friendlySyncError(error.toString()),
+      );
+      if (!mounted) return;
+      setState(() {
+        _syncStatus = _KpiSyncStatus.failure;
+        _lastResult = result;
+      });
+      await _recordSyncAttempt(result);
+      if (!context.mounted) return;
+      _showSyncSnackBar(context, result);
+    }
+  }
+
+  Future<void> _recordSyncAttempt(_KpiSyncResult result) async {
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .addAuditLog(
+          switch (result.status) {
+            _KpiSyncStatus.success => 'admin_sync_success',
+            _KpiSyncStatus.partialSuccess => 'admin_sync_partial',
+            _ => 'admin_sync_failed',
+          },
+          actorRole: auth.session?.role ?? 'viewer',
+          adminId: auth.session?.familyCode ?? '',
+          description: _syncResultMessage(result),
+        );
+  }
+
+  void _showSyncSnackBar(BuildContext context, _KpiSyncResult result) {
+    final color = switch (result.status) {
+      _KpiSyncStatus.success => Colors.green,
+      _KpiSyncStatus.partialSuccess => Colors.orange,
+      _ => Colors.red,
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: color,
+        content: Text(_syncResultMessage(result)),
+      ),
+    );
+  }
+
+  String _syncResultMessage(_KpiSyncResult result) {
+    return switch (result.status) {
+      _KpiSyncStatus.success =>
+        'Synchronisation réussie. Toutes les modifications ont été enregistrées dans Firestore.\n'
+            'Dernière synchronisation réussie : ${_formatDateTime(result.completedAt)}',
+      _KpiSyncStatus.partialSuccess =>
+        'Synchronisation partielle : ${result.successCount} modifications enregistrées, '
+            '${result.failureCount} modification en échec.',
+      _ =>
+        'Échec de la synchronisation. Les modifications n’ont pas toutes été enregistrées.'
+            '${result.errorMessage.isEmpty ? '' : '\n${result.errorMessage}'}',
+    };
+  }
+
+  String _friendlySyncError(String error) {
+    if (error.contains('permission-denied')) {
+      return 'Accès refusé par les règles Firestore.';
+    }
+    if (error.contains('unauthenticated')) {
+      return 'Utilisateur non authentifié.';
+    }
+    if (error.contains('unavailable') || error.contains('network')) {
+      return 'Connexion Internet indisponible.';
+    }
+    if (error.contains('not-found')) return 'Document introuvable.';
+    if (error.contains('conflict') || error.contains('version')) {
+      return 'Conflit de données détecté.';
+    }
+    return 'Erreur inconnue lors de l’écriture dans Firestore.';
+  }
+
+  String _formatDateTime(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final year = value.year.toString();
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year à $hour:$minute';
+  }
+}
+
+class _SyncResultBanner extends StatelessWidget {
+  const _SyncResultBanner({required this.result});
+
+  final _KpiSyncResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (result.status) {
+      _KpiSyncStatus.success => Colors.green,
+      _KpiSyncStatus.partialSuccess => Colors.orange,
+      _ => Colors.red,
+    };
+    final icon = switch (result.status) {
+      _KpiSyncStatus.success => Icons.check_circle_outline,
+      _KpiSyncStatus.partialSuccess => Icons.sync_problem_outlined,
+      _ => Icons.error_outline,
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(switch (result.status) {
+              _KpiSyncStatus.success =>
+                'Synchronisation réussie. Toutes les modifications ont été enregistrées dans Firestore.\n'
+                    'Dernière synchronisation réussie : ${_formatBannerDate(result.completedAt)}',
+              _KpiSyncStatus.partialSuccess =>
+                'Synchronisation partielle : ${result.successCount} modifications enregistrées, '
+                    '${result.failureCount} modification en échec.',
+              _ =>
+                'Échec de la synchronisation. Les modifications n’ont pas toutes été enregistrées.'
+                    '${result.errorMessage.isEmpty ? '' : '\n${result.errorMessage}'}',
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatBannerDate(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final year = value.year.toString();
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year à $hour:$minute';
+  }
 }
 
 class _SyncIncidentsPanel extends ConsumerWidget {
@@ -1106,7 +1344,7 @@ class _SyncIncidentsPanel extends ConsumerWidget {
                   for (final incident in incidents)
                     _IncidentTile(
                       incident: incident,
-                      onDetails: () => _showDetails(context, incident),
+                      onDetails: () => _showDetails(context, ref, incident),
                       onRetry: () => _retry(context, ref),
                       onInProgress: () =>
                           _mark(context, ref, incident, 'inProgress'),
@@ -1122,13 +1360,13 @@ class _SyncIncidentsPanel extends ConsumerWidget {
               child: DataTable(
                 columns: const [
                   DataColumn(label: Text('Date')),
-                  DataColumn(label: Text('Utilisateur')),
-                  DataColumn(label: Text('Opération')),
-                  DataColumn(label: Text('Collection')),
-                  DataColumn(label: Text('Document')),
-                  DataColumn(label: Text('Code')),
-                  DataColumn(label: Text('Tentatives')),
                   DataColumn(label: Text('Gravité')),
+                  DataColumn(label: Text('Type')),
+                  DataColumn(label: Text('Code')),
+                  DataColumn(label: Text('Opération')),
+                  DataColumn(label: Text('Ressource')),
+                  DataColumn(label: Text('Source')),
+                  DataColumn(label: Text('Tentatives')),
                   DataColumn(label: Text('Statut')),
                   DataColumn(label: Text('Actions')),
                 ],
@@ -1137,22 +1375,23 @@ class _SyncIncidentsPanel extends ConsumerWidget {
                       (incident) => DataRow(
                         cells: [
                           DataCell(Text(_shortDate(incident.lastOccurredAt))),
-                          DataCell(Text(_userLabel(incident))),
+                          DataCell(Text(incident.severity)),
+                          DataCell(Text(incident.errorType)),
+                          DataCell(Text(incident.errorCode)),
                           DataCell(Text(incident.operationType)),
-                          DataCell(Text(incident.collectionName)),
                           DataCell(
                             Text(
-                              incident.documentId,
+                              '${incident.collectionName}/${incident.documentId}',
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          DataCell(Text(incident.errorCode)),
+                          DataCell(Text(_sourceLabel(incident))),
                           DataCell(Text(incident.attemptCount.toString())),
-                          DataCell(Text(incident.severity)),
                           DataCell(Text(incident.status)),
                           DataCell(
                             _IncidentActions(
-                              onDetails: () => _showDetails(context, incident),
+                              onDetails: () =>
+                                  _showDetails(context, ref, incident),
                               onRetry: () => _retry(context, ref),
                               onInProgress: () =>
                                   _mark(context, ref, incident, 'inProgress'),
@@ -1181,29 +1420,76 @@ class _SyncIncidentsPanel extends ConsumerWidget {
     );
   }
 
-  Future<void> _showDetails(BuildContext context, SyncIncident incident) async {
+  Future<void> _showDetails(
+    BuildContext context,
+    WidgetRef ref,
+    SyncIncident incident,
+  ) async {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Détails de l’incident'),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
         content: SingleChildScrollView(
-          child: SelectableText(
-            [
-              'Date: ${incident.lastOccurredAt}',
-              'Utilisateur: ${_userLabel(incident)}',
-              'Famille: ${incident.familyId}',
-              'Opération: ${incident.operationType}',
-              'Collection: ${incident.collectionName}',
-              'Document: ${incident.documentId}',
-              'Code: ${incident.errorCode}',
-              'Tentatives: ${incident.attemptCount}',
-              'Gravité: ${incident.severity}',
-              'Statut: ${incident.status}',
-              'Message: ${incident.technicalMessage}',
-            ].join('\n'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectableText(_diagnosticText(incident, includeStack: false)),
+                const SizedBox(height: 12),
+                Text(
+                  'Stack trace',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    incident.stackTrace.trim().isEmpty
+                        ? 'Localisation indisponible dans cette version de production'
+                        : incident.stackTrace,
+                    style: const TextStyle(fontFamily: 'monospace'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () => _copyTrace(context, incident),
+            icon: const Icon(Icons.content_copy_outlined),
+            label: const Text('Copier la trace'),
+          ),
+          TextButton.icon(
+            onPressed: () => _copy(context, incident),
+            icon: const Icon(Icons.assignment_outlined),
+            label: const Text('Copier le diagnostic'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _retry(context, ref);
+            },
+            icon: const Icon(Icons.refresh_outlined),
+            label: const Text('Réessayer'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _mark(context, ref, incident, 'resolved');
+            },
+            icon: const Icon(Icons.check_circle_outline),
+            label: const Text('Résolu'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Fermer'),
@@ -1235,23 +1521,58 @@ class _SyncIncidentsPanel extends ConsumerWidget {
 
   Future<void> _copy(BuildContext context, SyncIncident incident) async {
     await Clipboard.setData(
-      ClipboardData(
-        text: [
-          'incident=${incident.id}',
-          'familyId=${incident.familyId}',
-          'operation=${incident.operationType}',
-          'resource=${incident.collectionName}/${incident.documentId}',
-          'code=${incident.errorCode}',
-          'attempts=${incident.attemptCount}',
-          'severity=${incident.severity}',
-          'message=${incident.technicalMessage}',
-        ].join('\n'),
-      ),
+      ClipboardData(text: _diagnosticText(incident, includeStack: true)),
     );
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Diagnostic copié')));
+  }
+
+  Future<void> _copyTrace(BuildContext context, SyncIncident incident) async {
+    await Clipboard.setData(ClipboardData(text: incident.stackTrace));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Trace copiée')));
+  }
+
+  String _diagnosticText(SyncIncident incident, {required bool includeStack}) {
+    return [
+      'incident=${incident.id}',
+      'date=${incident.lastOccurredAt}',
+      'user=${_userLabel(incident)}',
+      'familyId=${incident.familyId}',
+      'operation=${incident.operationType}',
+      'resource=${incident.collectionName}/${incident.documentId}',
+      'errorType=${incident.errorType}',
+      'errorCode=${incident.errorCode}',
+      'safeMessage=${incident.safeMessage}',
+      'technicalMessage=${incident.technicalMessage}',
+      'source=${_sourceLabel(incident)}',
+      'sourceFunction=${incident.sourceFunction}',
+      'locationPrecision=${incident.locationPrecision}',
+      'route=${incident.routeName}',
+      'platform=${incident.platform}',
+      'appVersion=${incident.appVersion}',
+      'attempts=${incident.attemptCount}',
+      'severity=${incident.severity}',
+      'status=${incident.status}',
+      'firstOccurredAt=${incident.firstOccurredAt}',
+      'lastOccurredAt=${incident.lastOccurredAt}',
+      if (includeStack) 'stackTrace=${incident.stackTrace}',
+    ].join('\n');
+  }
+
+  String _sourceLabel(SyncIncident incident) {
+    if (incident.sourceFile.trim().isEmpty) {
+      return 'Localisation indisponible';
+    }
+    final line = incident.sourceLine;
+    final column = incident.sourceColumn;
+    if (line == null) return incident.sourceFile;
+    if (column == null) return '${incident.sourceFile}:$line';
+    return '${incident.sourceFile}:$line:$column';
   }
 
   String _shortDate(String value) {
@@ -1359,6 +1680,7 @@ class _IncidentTile extends StatelessWidget {
       title: Text('${incident.operationType} ${incident.collectionName}'),
       subtitle: Text(
         '${incident.documentId} - ${incident.errorCode} - '
+        '${incident.sourceFile.isEmpty ? 'Localisation indisponible' : incident.sourceFile} - '
         '${incident.attemptCount} tentative(s)',
       ),
       trailing: _IncidentActions(

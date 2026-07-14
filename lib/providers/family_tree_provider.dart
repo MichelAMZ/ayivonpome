@@ -59,18 +59,19 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     });
   }
 
-  Future<void> syncPendingChanges() async {
+  Future<FamilyTreeData> syncPendingChanges() async {
     final data = await future;
     debugPrint(
       'SYNC PROVIDER syncPendingChanges START '
       'familyId=${data.mainFamilyCode} queue=${data.pendingSyncQueue.length}',
     );
     final synced = await ref.read(syncServiceProvider).syncPendingQueue(data);
-    if (_encode(synced) == _encode(data)) return;
+    if (_encode(synced) == _encode(data)) return data;
     debugPrint('SYNC PROVIDER local save after pending sync START');
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
     debugPrint('SYNC PROVIDER local save after pending sync SUCCESS');
     state = AsyncData(synced);
+    return synced;
   }
 
   Future<void> updateSyncOperationStatus(
@@ -418,14 +419,16 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   }) async {
     final data = await future;
     final now = DateTime.now().toIso8601String();
-    final duplicate = ref
-        .read(personDuplicateServiceProvider)
-        .hasBlockingDuplicate(draft: person, people: data.people);
-    if (duplicate && !allowDuplicate) {
-      throw StateError('duplicate_person');
-    }
     final people = [...data.people];
     final index = people.indexWhere((item) => item.id == person.id);
+    if (index == -1 && !allowDuplicate) {
+      final duplicate = ref
+          .read(personDuplicateServiceProvider)
+          .hasBlockingDuplicate(draft: person, people: data.people);
+      if (duplicate) {
+        throw StateError('duplicate_person');
+      }
+    }
     final preparedPerson = person.copyWith(
       createdAt: index == -1
           ? (person.createdAt.isEmpty ? now : person.createdAt)
@@ -481,14 +484,16 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   }) async {
     final data = await future;
     final now = DateTime.now().toIso8601String();
-    final duplicate = ref
-        .read(personDuplicateServiceProvider)
-        .hasBlockingDuplicate(draft: person, people: data.people);
-    if (duplicate && !allowDuplicate) {
-      throw StateError('duplicate_person');
-    }
     final people = [...data.people];
     final index = people.indexWhere((item) => item.id == person.id);
+    if (index == -1 && !allowDuplicate) {
+      final duplicate = ref
+          .read(personDuplicateServiceProvider)
+          .hasBlockingDuplicate(draft: person, people: data.people);
+      if (duplicate) {
+        throw StateError('duplicate_person');
+      }
+    }
     final preparedPerson = person.copyWith(
       createdAt: index == -1
           ? (person.createdAt.isEmpty ? now : person.createdAt)

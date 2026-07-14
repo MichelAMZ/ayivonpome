@@ -278,6 +278,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         'familyId': _tenantFamilyId,
         'userId': user.uid,
         'firstOccurredAtClient': incident.firstOccurredAt,
+        'occurredAt': FieldValue.serverTimestamp(),
         'lastOccurredAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       _debugFirestoreWriteSuccess('upsertSyncIncident', doc.path);
@@ -340,17 +341,13 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     String personId = '',
   }) async {
     if (Firebase.apps.isEmpty) {
-      if (kDebugMode) {
-        debugPrint('AUTH Firebase not initialized for $operation');
-      }
+      _debugAuthMessage('AUTH Firebase not initialized for $operation');
       return null;
     }
 
     var user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (kDebugMode) {
-        debugPrint('AUTH anonymous sign-in START for $operation');
-      }
+      _debugAuthMessage('AUTH anonymous sign-in START for $operation');
       final credential = await FirebaseAuth.instance.signInAnonymously();
       user = credential.user;
       if (user == null) {
@@ -360,17 +357,19 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       }
     }
 
-    if (kDebugMode) {
-      debugPrint('AUTH UID = ${user.uid}');
-      debugPrint('AUTH ANONYMOUS = ${user.isAnonymous}');
-      debugPrint('AUTH EMAIL = ${user.email}');
-      debugPrint('FAMILY ID = $_tenantFamilyId');
-      if (personId.isNotEmpty) debugPrint('PERSON ID = $personId');
-      debugPrint('FIRESTORE OPERATION = $operation');
-      debugPrint('FIRESTORE PATH = $documentPath');
-      await _debugCurrentRole(user.uid);
-    }
+    _debugAuthMessage('AUTH UID = ${user.uid}');
+    _debugAuthMessage('AUTH ANONYMOUS = ${user.isAnonymous}');
+    _debugAuthMessage('AUTH EMAIL = ${user.email}');
+    _debugAuthMessage('FAMILY ID = $_tenantFamilyId');
+    if (personId.isNotEmpty) _debugAuthMessage('PERSON ID = $personId');
+    _debugAuthMessage('FIRESTORE OPERATION = $operation');
+    _debugAuthMessage('FIRESTORE PATH = $documentPath');
+    await _debugCurrentRole(user.uid);
     return user;
+  }
+
+  void _debugAuthMessage(String message) {
+    debugPrint(message);
   }
 
   Future<void> _debugCurrentRole(String uid) async {

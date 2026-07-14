@@ -19,6 +19,16 @@ class SyncIncident {
     required this.sourceOperationId,
     this.userId = '',
     this.userEmail = '',
+    this.errorType = '',
+    this.stackTrace = '',
+    this.sourceFile = '',
+    this.sourceFunction = '',
+    this.sourceLine,
+    this.sourceColumn,
+    this.routeName = '',
+    this.appVersion = '',
+    this.platform = '',
+    this.locationPrecision = 'unavailable',
     this.emailNotificationSent = false,
     this.whatsappNotificationSent = false,
     this.resolvedAt = '',
@@ -32,9 +42,19 @@ class SyncIncident {
   final String operationType;
   final String collectionName;
   final String documentId;
+  final String errorType;
   final String errorCode;
   final String safeMessage;
   final String technicalMessage;
+  final String stackTrace;
+  final String sourceFile;
+  final String sourceFunction;
+  final int? sourceLine;
+  final int? sourceColumn;
+  final String routeName;
+  final String appVersion;
+  final String platform;
+  final String locationPrecision;
   final int attemptCount;
   final String firstOccurredAt;
   final String lastOccurredAt;
@@ -77,9 +97,12 @@ class SyncIncident {
       operationType: diagnostic.action,
       collectionName: diagnostic.collection,
       documentId: diagnostic.documentId,
+      errorType: 'SyncException',
       errorCode: errorCode,
       safeMessage: 'Echec de synchronisation',
       technicalMessage: item.lastError,
+      stackTrace: '',
+      locationPrecision: 'unavailable',
       attemptCount: item.retryCount,
       firstOccurredAt: item.createdAt.isEmpty ? now : item.createdAt,
       lastOccurredAt: item.updatedAt.isEmpty ? now : item.updatedAt,
@@ -100,9 +123,19 @@ class SyncIncident {
     'operationType': operationType,
     'collectionName': collectionName,
     'documentId': documentId,
+    'errorType': errorType,
     'errorCode': errorCode,
     'safeMessage': safeMessage,
     'technicalMessage': technicalMessage,
+    'stackTrace': stackTrace,
+    'sourceFile': sourceFile.isEmpty ? null : sourceFile,
+    'sourceFunction': sourceFunction.isEmpty ? null : sourceFunction,
+    'sourceLine': sourceLine,
+    'sourceColumn': sourceColumn,
+    'routeName': routeName.isEmpty ? null : routeName,
+    'appVersion': appVersion.isEmpty ? null : appVersion,
+    'platform': platform.isEmpty ? null : platform,
+    'locationPrecision': locationPrecision,
     'attemptCount': attemptCount,
     'lastOccurredAtClient': lastOccurredAt,
     'status': status,

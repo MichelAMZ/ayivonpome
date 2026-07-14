@@ -9,20 +9,24 @@ import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../models/sync_diagnostic.dart';
-import '../models/sync_incident.dart';
 import '../models/sync_state.dart';
 import 'connectivity_service.dart';
 import 'family_repository.dart';
+import 'incident_reporter.dart';
 
 class SyncService {
-  const SyncService({
+  SyncService({
     required ConnectivityService connectivity,
     required FamilyRepository remoteRepository,
+    IncidentReporter? incidentReporter,
   }) : _connectivity = connectivity,
-       _remoteRepository = remoteRepository;
+       _remoteRepository = remoteRepository,
+       _incidentReporter =
+           incidentReporter ?? IncidentReporter(remoteRepository);
 
   final ConnectivityService _connectivity;
   final FamilyRepository _remoteRepository;
+  final IncidentReporter _incidentReporter;
 
   Future<FamilyTreeData> enqueueOrSync(
     FamilyTreeData data, {
@@ -51,6 +55,7 @@ class SyncService {
     }
     final audit = [...data.auditLog];
     final failed = <PendingSyncItem>[];
+    final succeeded = <PendingSyncItem>[];
     await _logSyncStart(data, operations.length);
     try {
       for (final operation in operations) {
@@ -59,6 +64,7 @@ class SyncService {
           debugPrint('SYNC SEND START operationId=${operation.id}');
           await _send(operation);
           debugPrint('SYNC SEND SUCCESS operationId=${operation.id}');
+          succeeded.add(operation);
           audit.add(
             _log(
               'sync_remote_success',
@@ -73,7 +79,13 @@ class SyncService {
             error,
             stackTrace,
           );
-          await _reportIncident(operation, data.mainFamilyCode, lastError);
+          await _reportIncident(
+            operation,
+            data.mainFamilyCode,
+            error,
+            stackTrace,
+            sourceFunction: 'enqueueOrSyncMany',
+          );
           failed.add(operation.copyWith(lastError: lastError));
         } catch (error, stackTrace) {
           final lastError = _logGenericFailure(
@@ -82,21 +94,38 @@ class SyncService {
             error,
             stackTrace,
           );
-          await _reportIncident(operation, data.mainFamilyCode, lastError);
+          await _reportIncident(
+            operation,
+            data.mainFamilyCode,
+            error,
+            stackTrace,
+            sourceFunction: 'enqueueOrSyncMany',
+          );
           failed.add(operation.copyWith(lastError: lastError));
         }
       }
       if (failed.isNotEmpty) {
         return _enqueueAll(
-          data.copyWith(auditLog: audit),
+          data.copyWith(
+            auditLog: audit,
+            pendingSyncQueue: _removeMatchingOperations(
+              data.pendingSyncQueue,
+              succeeded,
+            ),
+          ),
           failed,
           status: 'pending',
           operationStatus: 'failed',
         );
       }
       final now = DateTime.now().toIso8601String();
-      final status = data.pendingSyncQueue.isEmpty ? 'synced' : 'pending';
+      final pendingQueue = _removeMatchingOperations(
+        data.pendingSyncQueue,
+        succeeded,
+      );
+      final status = pendingQueue.isEmpty ? 'synced' : 'pending';
       return data.copyWith(
+        pendingSyncQueue: pendingQueue,
         syncSettings: data.syncSettings.copyWith(
           syncStatus: status,
           lastSyncAt: now,
@@ -180,7 +209,13 @@ class SyncService {
           error,
           stackTrace,
         );
-        await _reportIncident(item, working.mainFamilyCode, lastError);
+        await _reportIncident(
+          item,
+          working.mainFamilyCode,
+          error,
+          stackTrace,
+          sourceFunction: 'syncPendingQueue',
+        );
         hadError = true;
         remaining.add(
           item.copyWith(
@@ -199,7 +234,13 @@ class SyncService {
           error,
           stackTrace,
         );
-        await _reportIncident(item, working.mainFamilyCode, lastError);
+        await _reportIncident(
+          item,
+          working.mainFamilyCode,
+          error,
+          stackTrace,
+          sourceFunction: 'syncPendingQueue',
+        );
         hadError = true;
         remaining.add(
           item.copyWith(
@@ -356,12 +397,7 @@ class SyncService {
     final audit = [...data.auditLog];
     for (final operation in operations) {
       queue = [
-        ...queue.where(
-          (item) =>
-              item.entityType != operation.entityType ||
-              item.entityId != operation.entityId ||
-              item.action != operation.action,
-        ),
+        ..._removeMatchingOperations(queue, [operation]),
         operation.copyWith(status: operationStatus),
       ];
       audit.add(_log('sync_queued', operation.entityId, operation.entityType));
@@ -376,6 +412,22 @@ class SyncService {
       ),
       auditLog: audit,
     );
+  }
+
+  List<PendingSyncItem> _removeMatchingOperations(
+    List<PendingSyncItem> queue,
+    List<PendingSyncItem> operations,
+  ) {
+    if (operations.isEmpty || queue.isEmpty) return queue;
+    return queue
+        .where(
+          (item) => !operations.any((operation) {
+            return item.entityType == operation.entityType &&
+                item.entityId == operation.entityId &&
+                item.action == operation.action;
+          }),
+        )
+        .toList();
   }
 
   FamilyTreeData _markStatus(FamilyTreeData data, String status) {
@@ -495,26 +547,20 @@ class SyncService {
   Future<void> _reportIncident(
     PendingSyncItem item,
     String familyId,
-    String lastError,
-  ) async {
+    Object error,
+    StackTrace stackTrace, {
+    required String sourceFunction,
+  }) async {
     if (Firebase.apps.isEmpty) return;
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      final incident = SyncIncident.fromPendingItem(
-        item.copyWith(lastError: lastError, retryCount: item.retryCount + 1),
-        familyId: familyId,
-        userId: user?.uid ?? '',
-        userEmail: user?.email ?? '',
-      );
-      debugPrint(
-        'SYNC INCIDENT UPSERT START id=${incident.id} '
-        'familyId=${incident.familyId} sourceOperationId=${item.id}',
-      );
-      await _remoteRepository.upsertSyncIncident(incident);
-      debugPrint('SYNC INCIDENT UPSERT SUCCESS id=${incident.id}');
-    } catch (error, stackTrace) {
-      debugPrint('SYNC INCIDENT REPORT SKIPPED: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
+    final user = FirebaseAuth.instance.currentUser;
+    await _incidentReporter.report(
+      item: item.copyWith(retryCount: item.retryCount + 1),
+      familyId: familyId,
+      error: error,
+      stackTrace: stackTrace,
+      userId: user?.uid ?? '',
+      userEmail: user?.email ?? '',
+      sourceFunction: sourceFunction,
+    );
   }
 }
