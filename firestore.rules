@@ -103,6 +103,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /sync_incidents/{incidentId} {
+      allow read: if isAdmin(resource.data.familyId);
+      allow create: if isAuthenticated() &&
+        request.resource.data.familyId == 'ayivon' &&
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin(resource.data.familyId);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if settingId == 'admin_notifications' && isAdmin('ayivon');
+      allow write: if settingId == 'admin_notifications' && isSuperAdmin();
+    }
+
     match /user_roles/{userId} {
       allow read: if isAuthenticated() &&
         (request.auth.uid == userId || isSuperAdmin());

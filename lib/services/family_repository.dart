@@ -3,6 +3,7 @@ import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
+import '../models/sync_incident.dart';
 
 abstract class FamilyRepository {
   Future<FamilyTreeData> loadFamilyTree();
@@ -20,4 +21,5 @@ abstract class FamilyRepository {
   Future<void> updateFamilyLink(FamilyLink link);
 
   Future<void> createAuditLog(AuditLog log);
+  Future<void> upsertSyncIncident(SyncIncident incident);
 }

@@ -21,6 +21,7 @@ import '../models/family_notification.dart';
 import '../models/family_tree_data.dart';
 import '../models/info_news.dart';
 import '../models/marriage_relation.dart';
+import '../models/member_save_result.dart';
 import '../models/modification_code.dart';
 import '../models/person.dart';
 import '../models/sync_state.dart';
@@ -64,6 +65,27 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     if (_encode(synced) == _encode(data)) return;
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
     state = AsyncData(synced);
+  }
+
+  Future<void> updateSyncOperationStatus(
+    String operationId, {
+    required String status,
+    String resolvedBy = '',
+  }) async {
+    final data = await future;
+    final now = DateTime.now().toIso8601String();
+    final queue = data.pendingSyncQueue.map((item) {
+      if (item.id != operationId) return item;
+      return item.copyWith(
+        status: status,
+        updatedAt: now,
+        updatedBy: resolvedBy.isEmpty ? item.updatedBy : resolvedBy,
+        lastError: status == 'resolved' ? '' : item.lastError,
+      );
+    }).toList();
+    final next = data.copyWith(pendingSyncQueue: queue);
+    await ref.read(localJsonRepositoryProvider).saveFamilyTree(next);
+    state = AsyncData(next);
   }
 
   void clearTreeRuntimeState() {
@@ -130,7 +152,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     );
     var pruned = ref
         .read(modificationHistoryServiceProvider)
-        .pruneExpired(parsed);
+        .pruneExpired(_normalizeHomeSyncState(parsed));
     if (pruned.autoCleanupInfoNewsSendHistory) {
       pruned = ref
           .read(historyCleanupServiceProvider)
@@ -160,7 +182,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return pruned;
   }
 
-  Future<void> save(
+  Future<FamilyTreeData> save(
     FamilyTreeData data, {
     PendingSyncItem? syncOperation,
     List<PendingSyncItem> syncOperations = const [],
@@ -182,6 +204,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         .enqueueOrSyncMany(synced, operations: operations);
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
     state = AsyncData(synced);
+    return synced;
   }
 
   Future<String?> createBackup() =>
@@ -367,17 +390,17 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     );
   }
 
-  Future<void> upsertPerson(Person person, String action) async {
+  Future<MemberSaveResult> upsertPerson(
+    Person person,
+    String action, {
+    bool allowDuplicate = false,
+  }) async {
     final data = await future;
     final now = DateTime.now().toIso8601String();
-    final duplicate = data.people.any(
-      (candidate) =>
-          candidate.id != person.id &&
-          candidate.firstName.toLowerCase() == person.firstName.toLowerCase() &&
-          candidate.lastName.toLowerCase() == person.lastName.toLowerCase() &&
-          candidate.birthDate == person.birthDate,
-    );
-    if (duplicate) {
+    final duplicate = ref
+        .read(personDuplicateServiceProvider)
+        .hasBlockingDuplicate(draft: person, people: data.people);
+    if (duplicate && !allowDuplicate) {
       throw StateError('duplicate_person');
     }
     final people = [...data.people];
@@ -413,19 +436,18 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           .read(familyAnnouncementServiceProvider)
           .addBirthAnnouncementIfNeeded(nextData, preparedPerson);
     }
-    await save(
-      nextData,
-      syncOperation: ref
-          .read(syncServiceProvider)
-          .personOperation(
-            person: preparedPerson,
-            action: index == -1 ? 'create' : 'update',
-            updatedBy: action,
-          ),
-    );
+    final operation = ref
+        .read(syncServiceProvider)
+        .personOperation(
+          person: preparedPerson,
+          action: index == -1 ? 'create' : 'update',
+          updatedBy: action,
+        );
+    final saved = await save(nextData, syncOperation: operation);
+    return _memberSaveResult(saved, [operation]);
   }
 
-  Future<void> upsertPersonWithParents(
+  Future<MemberSaveResult> upsertPersonWithParents(
     Person person,
     String action, {
     ParentDraft? fatherDraft,
@@ -434,17 +456,14 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     String parentCoupleStatus = 'unknown',
     String actorRole = '',
     String adminId = '',
+    bool allowDuplicate = false,
   }) async {
     final data = await future;
     final now = DateTime.now().toIso8601String();
-    final duplicate = data.people.any(
-      (candidate) =>
-          candidate.id != person.id &&
-          candidate.firstName.toLowerCase() == person.firstName.toLowerCase() &&
-          candidate.lastName.toLowerCase() == person.lastName.toLowerCase() &&
-          candidate.birthDate == person.birthDate,
-    );
-    if (duplicate) {
+    final duplicate = ref
+        .read(personDuplicateServiceProvider)
+        .hasBlockingDuplicate(draft: person, people: data.people);
+    if (duplicate && !allowDuplicate) {
       throw StateError('duplicate_person');
     }
     final people = [...data.people];
@@ -542,7 +561,8 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       ),
     ];
 
-    await save(nextData, syncOperations: operations);
+    final saved = await save(nextData, syncOperations: operations);
+    return _memberSaveResult(saved, operations);
   }
 
   Future<void> deletePerson(String id) async {
@@ -1812,6 +1832,22 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     }
   }
 
+  FamilyTreeData _normalizeHomeSyncState(FamilyTreeData data) {
+    if (data.syncSettings.syncStatus != 'error') return data;
+    final hasPending = data.pendingSyncQueue.any(
+      (item) => item.status != 'synced' && item.status != 'resolved',
+    );
+    final status = hasPending ? 'pending' : 'synced';
+    return data.copyWith(
+      syncSettings: data.syncSettings.copyWith(syncStatus: status),
+      appSettings: data.appSettings.copyWith(
+        storageSettings: data.appSettings.storageSettings.copyWith(
+          syncStatus: status,
+        ),
+      ),
+    );
+  }
+
   DateTime? _lastUpdatedFromRaw(String raw) {
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
@@ -1897,4 +1933,31 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     familyCode: familyCode,
     description: description.isEmpty ? action : description,
   );
+
+  MemberSaveResult _memberSaveResult(
+    FamilyTreeData data,
+    List<PendingSyncItem> operations,
+  ) {
+    final operationIds = operations.map((item) => item.id).toSet();
+    final queued = data.pendingSyncQueue
+        .where((item) => operationIds.contains(item.id))
+        .toList();
+    if (queued.any((item) => item.status == 'failed')) {
+      return MemberSaveResult(
+        status: MemberSaveStatus.failed,
+        lastError: queued
+            .map((item) => item.lastError)
+            .where((item) => item.trim().isNotEmpty)
+            .join('\n'),
+      );
+    }
+    if (queued.isNotEmpty || data.syncSettings.syncStatus == 'offline') {
+      return const MemberSaveResult(status: MemberSaveStatus.localPending);
+    }
+    final storage = data.appSettings.storageSettings;
+    if (!storage.remoteDatabaseEnabled || storage.mode == 'jsonOnly') {
+      return const MemberSaveResult(status: MemberSaveStatus.localPending);
+    }
+    return const MemberSaveResult(status: MemberSaveStatus.firestoreConfirmed);
+  }
 }

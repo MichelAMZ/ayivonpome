@@ -13,23 +13,20 @@ class SyncStatusBadge extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     final pendingCount = data.pendingSyncQueue
-        .where((item) => item.status != 'synced')
+        .where((item) => item.status != 'synced' && item.status != 'resolved')
         .length;
-    final failedWithDetail = data.pendingSyncQueue
-        .where((item) => item.status == 'failed' && item.lastError.isNotEmpty)
-        .toList();
-    final firstError = failedWithDetail.isEmpty
-        ? ''
-        : failedWithDetail.first.lastError;
-    final status = pendingCount > 0 && data.syncSettings.syncStatus == 'synced'
+    final rawStatus =
+        pendingCount > 0 && data.syncSettings.syncStatus == 'synced'
         ? 'pending'
         : data.syncSettings.syncStatus;
+    final status = rawStatus == 'error' && pendingCount > 0
+        ? 'pending'
+        : rawStatus;
     final label = switch (status) {
       'synced' => 'Synchronisé',
       'offline' => 'Hors ligne',
       'syncing' => 'Synchronisation en cours',
       'pending' => 'Synchronisation en attente',
-      'error' => 'Erreur de synchronisation',
       _ => pendingCount > 0 ? 'Synchronisation en attente' : 'Synchronisé',
     };
     final icon = switch (status) {
@@ -37,7 +34,6 @@ class SyncStatusBadge extends ConsumerWidget {
       'offline' => Icons.cloud_off_outlined,
       'syncing' => Icons.sync_outlined,
       'pending' => Icons.sync_outlined,
-      'error' => Icons.sync_problem_outlined,
       _ => pendingCount > 0 ? Icons.sync_outlined : Icons.cloud_done_outlined,
     };
     final color = switch (status) {
@@ -45,26 +41,16 @@ class SyncStatusBadge extends ConsumerWidget {
       'offline' => const Color(0xFF6D6F75),
       'syncing' => const Color(0xFF1565C0),
       'pending' => const Color(0xFF9A6A00),
-      'error' => const Color(0xFFB3261E),
       _ => pendingCount > 0 ? const Color(0xFF9A6A00) : const Color(0xFF2E7D32),
     };
-    final detail = firstError.isEmpty
-        ? ''
-        : '$pendingCount élément(s) non synchronisé(s) - $firstError';
-    final displayLabel = pendingCount == 0
-        ? label
-        : status == 'error' && detail.isNotEmpty
-        ? detail
-        : '$label ($pendingCount)';
+    final displayLabel = pendingCount == 0 ? label : '$label ($pendingCount)';
 
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
         child: Tooltip(
-          message: detail.isNotEmpty
-              ? detail
-              : pendingCount == 0
+          message: pendingCount == 0
               ? label
               : '$label - $pendingCount modification(s)',
           child: DecoratedBox(

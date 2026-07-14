@@ -40,6 +40,7 @@ import '../services/modification_history_service.dart';
 import '../services/modification_code_service.dart';
 import '../services/notification_service.dart';
 import '../services/parent_auto_creation_service.dart';
+import '../services/person_duplicate_service.dart';
 import '../services/push_notification_provider.dart';
 import '../services/remote_database_repository.dart';
 import '../services/sync_service.dart';
@@ -189,6 +190,10 @@ final familyRelationServiceProvider = Provider<FamilyRelationService>(
 
 final parentAutoCreationServiceProvider = Provider<ParentAutoCreationService>(
   (ref) => const ParentAutoCreationService(),
+);
+
+final personDuplicateServiceProvider = Provider<PersonDuplicateService>(
+  (ref) => const PersonDuplicateService(),
 );
 
 final familyCouncilServiceProvider = Provider<FamilyCouncilService>(

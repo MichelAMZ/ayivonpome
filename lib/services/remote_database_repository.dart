@@ -5,6 +5,7 @@ import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
+import '../models/sync_incident.dart';
 import 'family_repository.dart';
 
 class RemoteDatabaseFamilyRepository implements FamilyRepository {
@@ -51,6 +52,10 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
 
   @override
   Future<void> createAuditLog(AuditLog log) => _client.createAuditLog(log);
+
+  @override
+  Future<void> upsertSyncIncident(SyncIncident incident) =>
+      _client.upsertSyncIncident(incident);
 }
 
 typedef DatabaseFamilyRepository = RemoteDatabaseFamilyRepository;
@@ -68,6 +73,7 @@ abstract class RemoteDatabaseClient {
   Future<void> createFamilyLink(FamilyLink link);
   Future<void> updateFamilyLink(FamilyLink link);
   Future<void> createAuditLog(AuditLog log);
+  Future<void> upsertSyncIncident(SyncIncident incident);
 }
 
 class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
@@ -108,6 +114,9 @@ class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
 
   @override
   Future<void> createAuditLog(AuditLog log) => _notConfigured();
+
+  @override
+  Future<void> upsertSyncIncident(SyncIncident incident) => _notConfigured();
 
   Future<T> _notConfigured<T>() {
     throw const RemoteDatabaseUnavailableException(

@@ -9,6 +9,7 @@ import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../models/sync_diagnostic.dart';
+import '../models/sync_incident.dart';
 import '../models/sync_state.dart';
 import 'connectivity_service.dart';
 import 'family_repository.dart';
@@ -70,6 +71,7 @@ class SyncService {
             error,
             stackTrace,
           );
+          await _reportIncident(operation, data.mainFamilyCode, lastError);
           failed.add(operation.copyWith(lastError: lastError));
         } catch (error, stackTrace) {
           final lastError = _logGenericFailure(
@@ -78,6 +80,7 @@ class SyncService {
             error,
             stackTrace,
           );
+          await _reportIncident(operation, data.mainFamilyCode, lastError);
           failed.add(operation.copyWith(lastError: lastError));
         }
       }
@@ -86,6 +89,7 @@ class SyncService {
           data.copyWith(auditLog: audit),
           failed,
           status: 'pending',
+          operationStatus: 'failed',
         );
       }
       final now = DateTime.now().toIso8601String();
@@ -116,7 +120,12 @@ class SyncService {
             ),
           )
           .toList();
-      return _enqueueAll(data, withError, status: 'pending');
+      return _enqueueAll(
+        data,
+        withError,
+        status: 'pending',
+        operationStatus: 'failed',
+      );
     } catch (error, stackTrace) {
       final withError = operations
           .map(
@@ -130,7 +139,12 @@ class SyncService {
             ),
           )
           .toList();
-      return _enqueueAll(data, withError, status: 'pending');
+      return _enqueueAll(
+        data,
+        withError,
+        status: 'pending',
+        operationStatus: 'failed',
+      );
     }
   }
 
@@ -150,7 +164,7 @@ class SyncService {
     final audit = [...working.auditLog];
     var hadError = false;
     for (final item in working.pendingSyncQueue) {
-      if (item.status == 'synced') continue;
+      if (item.status == 'synced' || item.status == 'resolved') continue;
       _logOperation(item, working.mainFamilyCode);
       try {
         await _send(item);
@@ -162,6 +176,7 @@ class SyncService {
           error,
           stackTrace,
         );
+        await _reportIncident(item, working.mainFamilyCode, lastError);
         hadError = true;
         remaining.add(
           item.copyWith(
@@ -180,6 +195,7 @@ class SyncService {
           error,
           stackTrace,
         );
+        await _reportIncident(item, working.mainFamilyCode, lastError);
         hadError = true;
         remaining.add(
           item.copyWith(
@@ -198,7 +214,7 @@ class SyncService {
     final status = remaining.isEmpty
         ? 'synced'
         : hadError
-        ? 'error'
+        ? 'pending'
         : 'pending';
     working = working.copyWith(
       pendingSyncQueue: remaining,
@@ -327,6 +343,7 @@ class SyncService {
     FamilyTreeData data,
     List<PendingSyncItem> operations, {
     required String status,
+    String operationStatus = 'pending',
   }) {
     var queue = [...data.pendingSyncQueue];
     final audit = [...data.auditLog];
@@ -338,7 +355,7 @@ class SyncService {
               item.entityId != operation.entityId ||
               item.action != operation.action,
         ),
-        operation.copyWith(status: 'pending'),
+        operation.copyWith(status: operationStatus),
       ];
       audit.add(_log('sync_queued', operation.entityId, operation.entityType));
     }
@@ -415,7 +432,10 @@ class SyncService {
       item,
       fallbackFamilyId: familyId,
     );
-    debugPrint('SYNC OPERATION: ${diagnostic.operationSummary}');
+    debugPrint(
+      'SYNC OPERATION: ${DateTime.now().toIso8601String()} '
+      '${diagnostic.operationSummary}',
+    );
   }
 
   String _logFirebaseFailure(
@@ -431,7 +451,10 @@ class SyncService {
     );
     debugPrint('FIREBASE CODE: ${error.code}');
     debugPrint('FIREBASE MESSAGE: ${error.message}');
-    debugPrint('SYNC FAILED: ${diagnostic.operationSummary}');
+    debugPrint(
+      'SYNC FAILED: ${DateTime.now().toIso8601String()} '
+      '${diagnostic.operationSummary}',
+    );
     debugPrintStack(stackTrace: stackTrace);
     return diagnostic.failureSummary;
   }
@@ -447,8 +470,38 @@ class SyncService {
       fallbackFamilyId: familyId,
     );
     debugPrint('SYNC ERROR: $error');
-    debugPrint('SYNC FAILED: ${diagnostic.operationSummary}');
+    debugPrint(
+      'SYNC FAILED: ${DateTime.now().toIso8601String()} '
+      '${diagnostic.operationSummary}',
+    );
     debugPrintStack(stackTrace: stackTrace);
-    return 'sync-error sur ${diagnostic.target} - $error';
+    final message = error.toString();
+    if (message.contains('Dart exception thrown from converted Future')) {
+      return 'sync-error sur ${diagnostic.target} - erreur Firestore Web '
+          'pendant ${diagnostic.action}. Relancez la synchronisation pour '
+          'remplacer ce message générique par le code Firebase exact.';
+    }
+    return 'sync-error sur ${diagnostic.target} - $message';
+  }
+
+  Future<void> _reportIncident(
+    PendingSyncItem item,
+    String familyId,
+    String lastError,
+  ) async {
+    if (Firebase.apps.isEmpty) return;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final incident = SyncIncident.fromPendingItem(
+        item.copyWith(lastError: lastError, retryCount: item.retryCount + 1),
+        familyId: familyId,
+        userId: user?.uid ?? '',
+        userEmail: user?.email ?? '',
+      );
+      await _remoteRepository.upsertSyncIncident(incident);
+    } catch (error, stackTrace) {
+      debugPrint('SYNC INCIDENT REPORT SKIPPED: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 }

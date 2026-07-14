@@ -5,10 +5,12 @@ import '../l10n/app_localizations.dart';
 import '../models/history_event.dart';
 import '../models/important_place.dart';
 import '../models/person.dart';
+import '../models/person_duplicate_match.dart';
 import '../models/person_privacy.dart';
 import '../providers/app_providers.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/parent_auto_creation_service.dart';
+import '../widgets/person_duplicate_dialog.dart';
 
 class PersonEditScreen extends ConsumerStatefulWidget {
   const PersonEditScreen({super.key, this.person});
@@ -86,6 +88,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   late final TextEditingController _historyDescription;
   bool _linkParentsAsCouple = false;
   String _parentCoupleStatus = 'unknown';
+  bool _isSaving = false;
+  String? _draftPersonId;
 
   @override
   void initState() {
@@ -494,9 +498,15 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             _field(_historyDescription, l10n.notes, maxLines: 3),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.save),
-              label: Text(l10n.save),
+              onPressed: _isSaving ? null : _save,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save),
+              label: Text(_isSaving ? 'Enregistrement...' : l10n.save),
             ),
           ],
         ),
@@ -791,11 +801,15 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   }
 
   Future<void> _save() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    setState(() => _isSaving = true);
     final l10n = AppLocalizations.of(context);
-    final id = widget.person?.id ?? 'p${DateTime.now().microsecondsSinceEpoch}';
+    final id =
+        widget.person?.id ??
+        (_draftPersonId ??= 'p${DateTime.now().microsecondsSinceEpoch}');
     final history =
         _historyTitle.text.trim().isEmpty &&
             _historyDate.text.trim().isEmpty &&
@@ -908,12 +922,29 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.invalidRelationship)));
+      if (mounted) setState(() => _isSaving = false);
       return;
     }
-    if (!await _confirmParentCreation(fatherDraft, person)) return;
-    if (!await _confirmParentCreation(motherDraft, person)) return;
     try {
-      await ref
+      if (!await _confirmParentCreation(fatherDraft, person)) return;
+      if (!await _confirmParentCreation(motherDraft, person)) return;
+      final duplicateDecision = await _resolveDuplicateBeforeSave(person);
+      if (duplicateDecision == PersonDuplicateDecision.cancel) return;
+      if (duplicateDecision == PersonDuplicateDecision.openExisting) {
+        final existing = _firstDuplicateFor(person);
+        if (existing != null && mounted) {
+          _loadExistingPerson(existing.person);
+          _showSaveSnackBar(
+            color: const Color(0xFF4F6F2A),
+            icon: Icons.edit_outlined,
+            message:
+                'La fiche existante a été chargée. Vérifiez puis enregistrez.',
+            duration: const Duration(seconds: 4),
+          );
+        }
+        return;
+      }
+      final result = await ref
           .read(familyTreeProvider.notifier)
           .upsertPersonWithParents(
             person,
@@ -922,18 +953,155 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             motherDraft: motherDraft.hasIdentity ? motherDraft : null,
             linkParentsAsCouple: _linkParentsAsCouple,
             parentCoupleStatus: _parentCoupleStatus,
+            allowDuplicate:
+                duplicateDecision == PersonDuplicateDecision.saveAnyway,
           );
-      if (mounted) {
+      if (!mounted) return;
+      if (result.isFirestoreConfirmed) {
+        _showSaveSnackBar(
+          color: Colors.green,
+          icon: Icons.check_circle,
+          message:
+              'Enregistrement effectué avec succès dans la base de données.',
+          duration: const Duration(seconds: 3),
+        );
         Navigator.pop(context);
+        return;
       }
-    } catch (_) {
+      if (result.isLocalPending) {
+        _showSaveSnackBar(
+          color: Colors.orange.shade800,
+          icon: Icons.sync_problem_outlined,
+          message:
+              'Modification enregistrée localement. Synchronisation en attente.',
+          duration: const Duration(seconds: 5),
+        );
+        return;
+      }
+      _showSaveSnackBar(
+        color: Colors.red,
+        icon: Icons.error,
+        message: _databaseErrorMessage(result.lastError),
+        duration: const Duration(seconds: 5),
+      );
+    } on StateError catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.duplicatePerson)));
+        _showSaveSnackBar(
+          color: Colors.red,
+          icon: Icons.error,
+          message: error.message == 'duplicate_person'
+              ? l10n.duplicatePerson
+              : 'Échec de l’enregistrement dans la base de données.',
+          duration: const Duration(seconds: 5),
+        );
       }
+    } catch (error) {
+      if (!mounted) return;
+      _showSaveSnackBar(
+        color: Colors.red,
+        icon: Icons.error,
+        message:
+            'Enregistrement impossible. Vos modifications ont été conservées.',
+        duration: const Duration(seconds: 5),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
+
+  Future<PersonDuplicateDecision> _resolveDuplicateBeforeSave(
+    Person person,
+  ) async {
+    final matches = _duplicateMatchesFor(person);
+    if (matches.isEmpty) return PersonDuplicateDecision.saveAnyway;
+    final decision = await showDialog<PersonDuplicateDecision>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PersonDuplicateDialog(matches: matches),
+    );
+    return decision ?? PersonDuplicateDecision.cancel;
+  }
+
+  PersonDuplicateMatch? _firstDuplicateFor(Person person) {
+    final matches = _duplicateMatchesFor(person);
+    return matches.isEmpty ? null : matches.first;
+  }
+
+  List<PersonDuplicateMatch> _duplicateMatchesFor(Person person) {
+    final data = ref.read(familyTreeProvider).value;
+    if (data == null) return const [];
+    return ref
+        .read(personDuplicateServiceProvider)
+        .findDuplicates(draft: person, people: data.people);
+  }
+
+  void _loadExistingPerson(Person person) {
+    setState(() {
+      _draftPersonId = person.id;
+      _firstName.text = person.firstName;
+      _lastName.text = person.lastName;
+      _birthLastName.text = person.birthLastName;
+      _gender.text = person.gender;
+      _birthDate.text = person.birthDate;
+      _birthPlace.text = person.birthPlace;
+      _deathDate.text = person.deathDate;
+      _deathPlace.text = person.deathPlace;
+      _publicMapLocation.text = person.publicMapLocation;
+      _currentAddress.text = person.currentAddress;
+      _burialPlace.text = person.burialPlace;
+      _latitude.text = person.latitude?.toString() ?? '';
+      _longitude.text = person.longitude?.toString() ?? '';
+      _email.text = person.email;
+      _phoneNumber.text = person.phoneNumber;
+      _whatsappNumber.text = person.whatsappNumber;
+      _allowContact = person.allowContact;
+      _emailVisibility = person.emailVisibility;
+      _phoneVisibility = person.phoneVisibility;
+      _whatsappVisibility = person.whatsappVisibility;
+      _showMapInPublicMode = person.privacy.showMapInPublicMode;
+      _showBirthPlaceInPublicMode = person.privacy.showBirthPlaceInPublicMode;
+      _showCurrentAddressInPublicMode =
+          person.privacy.showCurrentAddressInPublicMode;
+      _showContactInPublicMode = person.privacy.showContactInPublicMode;
+      _showHistoryInPublicMode = person.privacy.showHistoryInPublicMode;
+      _familyCode.text = person.familyCode;
+      _fatherId.text = person.fatherId;
+      _motherId.text = person.motherId;
+      _spouseIds.text = person.spouseIds.join(', ');
+      _childrenIds.text = person.childrenIds.join(', ');
+      _marriageType = person.marriageType;
+      _parents.text = person.parents.join(', ');
+      _spouses.text = person.spouses.join(', ');
+      _children.text = person.children.join(', ');
+      _notes.text = person.notes;
+    });
+  }
+
+  void _showSaveSnackBar({
+    required Color color,
+    required IconData icon,
+    required String message,
+    required Duration duration,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: color,
+        duration: duration,
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(message, style: const TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _databaseErrorMessage(String error) =>
+      'Enregistrement impossible. Vos modifications ont été conservées.';
 
   List<String> _split(String value) => value
       .split(',')

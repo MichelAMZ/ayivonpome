@@ -3,6 +3,7 @@ import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
+import '../models/sync_incident.dart';
 import 'family_repository.dart';
 
 class HybridFamilyRepository implements FamilyRepository {
@@ -59,6 +60,10 @@ class HybridFamilyRepository implements FamilyRepository {
   @override
   Future<void> createAuditLog(AuditLog log) =>
       _writeBoth((repository) => repository.createAuditLog(log));
+
+  @override
+  Future<void> upsertSyncIncident(SyncIncident incident) =>
+      _remoteRepository.upsertSyncIncident(incident);
 
   Future<void> _writeBoth(
     Future<void> Function(FamilyRepository repository) write,

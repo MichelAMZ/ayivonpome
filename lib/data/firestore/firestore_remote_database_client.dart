@@ -5,6 +5,7 @@ import '../../models/family_link.dart';
 import '../../models/family_tree_data.dart';
 import '../../models/marriage_relation.dart';
 import '../../models/person.dart';
+import '../../models/sync_incident.dart';
 import '../../services/remote_database_repository.dart';
 import 'firestore_document_mapper.dart';
 
@@ -32,6 +33,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
   CollectionReference<Map<String, dynamic>> get _activityLogs =>
       _firestore.collection('activity_logs');
+
+  CollectionReference<Map<String, dynamic>> get _syncIncidents =>
+      _firestore.collection('sync_incidents');
 
   @override
   Future<FamilyTreeData> loadFamilyTree() async {
@@ -123,35 +127,32 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   @override
   Future<void> updatePerson(Person person) async {
     final doc = _members.doc(person.id);
-    await _firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(doc);
-      final remote = snapshot.data();
-      final remoteVersion = remote?['version'] as int? ?? 0;
-      if (remoteVersion > person.version) {
-        throw FirestoreConflictException(
-          documentPath: doc.path,
-          localVersion: person.version,
-          remoteVersion: remoteVersion,
-        );
-      }
-
-      final now = DateTime.now().toUtc().toIso8601String();
-      transaction.set(
-        doc,
-        _mapper.toFirestore(
-          person
-              .copyWith(
-                familyId: _effectiveFamilyId(person.familyId),
-                updatedAt: now,
-                version: remoteVersion + 1,
-              )
-              .toJson(),
-          id: person.id,
-          familyId: _effectiveFamilyId(person.familyId),
-        ),
-        SetOptions(merge: true),
+    final snapshot = await doc.get();
+    final remote = snapshot.data();
+    final remoteVersion = remote?['version'] as int? ?? 0;
+    if (remoteVersion > person.version) {
+      throw FirestoreConflictException(
+        documentPath: doc.path,
+        localVersion: person.version,
+        remoteVersion: remoteVersion,
       );
-    });
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    await doc.set(
+      _mapper.toFirestore(
+        person
+            .copyWith(
+              familyId: _effectiveFamilyId(person.familyId),
+              updatedAt: now,
+              version: remoteVersion + 1,
+            )
+            .toJson(),
+        id: person.id,
+        familyId: _effectiveFamilyId(person.familyId),
+      ),
+      SetOptions(merge: true),
+    );
   }
 
   @override
@@ -201,6 +202,17 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     }, SetOptions(merge: true));
   }
 
+  @override
+  Future<void> upsertSyncIncident(SyncIncident incident) async {
+    final doc = _syncIncidents.doc(incident.id);
+    final snapshot = await doc.get();
+    await doc.set({
+      ...incident.toFirestoreUpdate(),
+      if (!snapshot.exists) 'firstOccurredAt': FieldValue.serverTimestamp(),
+      'lastOccurredAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Query<Map<String, dynamic>> _activeByFamily(
     CollectionReference<Map<String, dynamic>> collection,
   ) {
@@ -215,10 +227,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   ) {
     if (collection.path == _members.path) {
       final doc = collection.doc(id);
-      return _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(doc);
+      return doc.get().then((snapshot) {
         final remoteVersion = snapshot.data()?['version'] as int? ?? 0;
-        transaction.set(doc, {
+        return doc.set({
           'familyId': _familyId,
           'deletedAt': DateTime.now().toUtc().toIso8601String(),
           'updatedAt': FieldValue.serverTimestamp(),

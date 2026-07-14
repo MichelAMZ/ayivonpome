@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/access_code.dart';
+import '../models/admin_notification_settings.dart';
 import '../models/app_settings.dart';
 import '../models/bug_report.dart';
 import '../models/family_announcement.dart';
@@ -15,6 +16,7 @@ import '../models/family_leadership.dart';
 import '../models/family_tree_data.dart';
 import '../models/firebase_user_role.dart';
 import '../models/info_news.dart';
+import '../models/sync_incident.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
@@ -893,7 +895,25 @@ class _SyncManagementSection extends ConsumerWidget {
     final pending = data.pendingSyncQueue
         .where((item) => item.status != 'synced')
         .toList();
-    final errors = pending.where((item) => item.status == 'failed').toList();
+    final incidentItems = pending
+        .where(
+          (item) =>
+              (item.status == 'failed' ||
+                  item.status == 'inProgress' ||
+                  item.status == 'resolved') &&
+              item.lastError.isNotEmpty,
+        )
+        .toList();
+    final incidents = incidentItems
+        .map(
+          (item) =>
+              SyncIncident.fromPendingItem(item, familyId: data.mainFamilyCode),
+        )
+        .toList();
+    final criticalCount = incidents
+        .where((item) => item.severity == 'critical')
+        .length;
+    const notificationSettings = AdminNotificationSettings();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -916,7 +936,14 @@ class _SyncManagementSection extends ConsumerWidget {
                 ),
                 _InfoRow(
                   label: 'Erreurs de synchronisation',
-                  value: errors.length.toString(),
+                  value: incidents.length.toString(),
+                ),
+                _InfoRow(
+                  label: 'Incidents critiques',
+                  value: criticalCount.toString(),
+                ),
+                const _ExternalNotificationsDisabledBanner(
+                  settings: notificationSettings,
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -1004,35 +1031,391 @@ class _SyncManagementSection extends ConsumerWidget {
                     ),
                   ],
                 ),
-                if (errors.isNotEmpty) ...[
+                if (incidents.isNotEmpty) ...[
                   const Divider(height: 28),
-                  for (final item in errors.take(5))
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.sync_problem_outlined),
-                      title: Text(
-                        '${item.action} ${item.entityType}:${item.entityId}',
-                      ),
-                      subtitle: SelectableText(item.lastError),
-                      trailing: IconButton(
-                        tooltip: 'Copier le diagnostic',
-                        icon: const Icon(Icons.copy_outlined),
-                        onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: item.lastError),
-                          );
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Diagnostic copié')),
-                          );
-                        },
-                      ),
-                    ),
+                  _SyncIncidentsPanel(incidents: incidents),
                 ],
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SyncIncidentsPanel extends ConsumerWidget {
+  const _SyncIncidentsPanel({required this.incidents});
+
+  final List<SyncIncident> incidents;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final newCount = incidents.where((item) => item.status == 'new').length;
+    final inProgressCount = incidents
+        .where((item) => item.status == 'inProgress')
+        .length;
+    final resolvedCount = incidents
+        .where((item) => item.status == 'resolved')
+        .length;
+    final criticalCount = incidents
+        .where((item) => item.severity == 'critical')
+        .length;
+    final lastIncident = incidents.isEmpty ? null : incidents.last;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.warning_amber_outlined),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Incidents de synchronisation',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _IncidentChip(label: 'Nouveaux', value: newCount),
+            _IncidentChip(label: 'En cours', value: inProgressCount),
+            _IncidentChip(label: 'Résolus', value: resolvedCount),
+            _IncidentChip(label: 'Critiques', value: criticalCount),
+          ],
+        ),
+        if (lastIncident != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Dernière erreur : ${lastIncident.errorCode} sur '
+            '${lastIncident.collectionName}/${lastIncident.documentId}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 720) {
+              return Column(
+                children: [
+                  for (final incident in incidents)
+                    _IncidentTile(
+                      incident: incident,
+                      onDetails: () => _showDetails(context, incident),
+                      onRetry: () => _retry(context, ref),
+                      onInProgress: () =>
+                          _mark(context, ref, incident, 'inProgress'),
+                      onResolved: () =>
+                          _mark(context, ref, incident, 'resolved'),
+                      onCopy: () => _copy(context, incident),
+                    ),
+                ],
+              );
+            }
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: const [
+                  DataColumn(label: Text('Date')),
+                  DataColumn(label: Text('Utilisateur')),
+                  DataColumn(label: Text('Opération')),
+                  DataColumn(label: Text('Collection')),
+                  DataColumn(label: Text('Document')),
+                  DataColumn(label: Text('Code')),
+                  DataColumn(label: Text('Tentatives')),
+                  DataColumn(label: Text('Gravité')),
+                  DataColumn(label: Text('Statut')),
+                  DataColumn(label: Text('Actions')),
+                ],
+                rows: incidents
+                    .map(
+                      (incident) => DataRow(
+                        cells: [
+                          DataCell(Text(_shortDate(incident.lastOccurredAt))),
+                          DataCell(Text(_userLabel(incident))),
+                          DataCell(Text(incident.operationType)),
+                          DataCell(Text(incident.collectionName)),
+                          DataCell(
+                            Text(
+                              incident.documentId,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          DataCell(Text(incident.errorCode)),
+                          DataCell(Text(incident.attemptCount.toString())),
+                          DataCell(Text(incident.severity)),
+                          DataCell(Text(incident.status)),
+                          DataCell(
+                            _IncidentActions(
+                              onDetails: () => _showDetails(context, incident),
+                              onRetry: () => _retry(context, ref),
+                              onInProgress: () =>
+                                  _mark(context, ref, incident, 'inProgress'),
+                              onResolved: () =>
+                                  _mark(context, ref, incident, 'resolved'),
+                              onCopy: () => _copy(context, incident),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _retry(BuildContext context, WidgetRef ref) async {
+    await ref.read(familyTreeProvider.notifier).syncPendingChanges();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Nouvelle tentative de synchronisation.')),
+    );
+  }
+
+  Future<void> _showDetails(BuildContext context, SyncIncident incident) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Détails de l’incident'),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            [
+              'Date: ${incident.lastOccurredAt}',
+              'Utilisateur: ${_userLabel(incident)}',
+              'Famille: ${incident.familyId}',
+              'Opération: ${incident.operationType}',
+              'Collection: ${incident.collectionName}',
+              'Document: ${incident.documentId}',
+              'Code: ${incident.errorCode}',
+              'Tentatives: ${incident.attemptCount}',
+              'Gravité: ${incident.severity}',
+              'Statut: ${incident.status}',
+              'Message: ${incident.technicalMessage}',
+            ].join('\n'),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _mark(
+    BuildContext context,
+    WidgetRef ref,
+    SyncIncident incident,
+    String status,
+  ) async {
+    final auth = ref.read(authSessionProvider);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .updateSyncOperationStatus(
+          incident.sourceOperationId,
+          status: status,
+          resolvedBy: auth.session?.familyCode ?? '',
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Incident marqué $status.')));
+  }
+
+  Future<void> _copy(BuildContext context, SyncIncident incident) async {
+    await Clipboard.setData(
+      ClipboardData(
+        text: [
+          'incident=${incident.id}',
+          'familyId=${incident.familyId}',
+          'operation=${incident.operationType}',
+          'resource=${incident.collectionName}/${incident.documentId}',
+          'code=${incident.errorCode}',
+          'attempts=${incident.attemptCount}',
+          'severity=${incident.severity}',
+          'message=${incident.technicalMessage}',
+        ].join('\n'),
+      ),
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Diagnostic copié')));
+  }
+
+  String _shortDate(String value) {
+    final date = DateTime.tryParse(value);
+    if (date == null) return '-';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month ${hour}h$minute';
+  }
+
+  String _userLabel(SyncIncident incident) {
+    if (incident.userEmail.trim().isNotEmpty) return incident.userEmail;
+    if (incident.userId.trim().isNotEmpty) return incident.userId;
+    return '-';
+  }
+}
+
+class _ExternalNotificationsDisabledBanner extends StatelessWidget {
+  const _ExternalNotificationsDisabledBanner({required this.settings});
+
+  final AdminNotificationSettings settings;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Icon(Icons.notifications_off_outlined),
+              Text(
+                'Notifications externes désactivées',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              Chip(
+                label: Text('Email: ${settings.emailEnabled ? 'on' : 'off'}'),
+              ),
+              const SizedBox(width: 6),
+              Chip(
+                label: Text(
+                  'WhatsApp: ${settings.whatsappEnabled ? 'on' : 'off'}',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IncidentChip extends StatelessWidget {
+  const _IncidentChip({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(label: Text('$label : $value'));
+  }
+}
+
+class _IncidentTile extends StatelessWidget {
+  const _IncidentTile({
+    required this.incident,
+    required this.onDetails,
+    required this.onRetry,
+    required this.onInProgress,
+    required this.onResolved,
+    required this.onCopy,
+  });
+
+  final SyncIncident incident;
+  final VoidCallback onDetails;
+  final VoidCallback onRetry;
+  final VoidCallback onInProgress;
+  final VoidCallback onResolved;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        incident.severity == 'critical'
+            ? Icons.report_problem_outlined
+            : Icons.sync_problem_outlined,
+      ),
+      title: Text('${incident.operationType} ${incident.collectionName}'),
+      subtitle: Text(
+        '${incident.documentId} - ${incident.errorCode} - '
+        '${incident.attemptCount} tentative(s)',
+      ),
+      trailing: _IncidentActions(
+        onDetails: onDetails,
+        onRetry: onRetry,
+        onInProgress: onInProgress,
+        onResolved: onResolved,
+        onCopy: onCopy,
+      ),
+    );
+  }
+}
+
+class _IncidentActions extends StatelessWidget {
+  const _IncidentActions({
+    required this.onDetails,
+    required this.onRetry,
+    required this.onInProgress,
+    required this.onResolved,
+    required this.onCopy,
+  });
+
+  final VoidCallback onDetails;
+  final VoidCallback onRetry;
+  final VoidCallback onInProgress;
+  final VoidCallback onResolved;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 2,
+      children: [
+        IconButton(
+          tooltip: 'Voir les détails',
+          icon: const Icon(Icons.info_outline),
+          onPressed: onDetails,
+        ),
+        IconButton(
+          tooltip: 'Réessayer',
+          icon: const Icon(Icons.refresh_outlined),
+          onPressed: onRetry,
+        ),
+        IconButton(
+          tooltip: 'Marquer en cours',
+          icon: const Icon(Icons.pending_actions_outlined),
+          onPressed: onInProgress,
+        ),
+        IconButton(
+          tooltip: 'Marquer résolu',
+          icon: const Icon(Icons.check_circle_outline),
+          onPressed: onResolved,
+        ),
+        IconButton(
+          tooltip: 'Copier le diagnostic',
+          icon: const Icon(Icons.copy_outlined),
+          onPressed: onCopy,
         ),
       ],
     );

@@ -5,6 +5,7 @@ import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
+import '../models/sync_incident.dart';
 import 'family_repository.dart';
 import 'json_storage_service.dart';
 
@@ -72,6 +73,9 @@ class JsonFamilyRepository implements FamilyRepository {
     final data = await loadFamilyTree();
     await _write(data.copyWith(auditLog: [...data.auditLog, log]));
   }
+
+  @override
+  Future<void> upsertSyncIncident(SyncIncident incident) async {}
 
   Future<void> _upsertPerson(Person person) async {
     final data = await loadFamilyTree();
