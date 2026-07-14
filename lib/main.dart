@@ -7,9 +7,14 @@ import 'core/firebase/firebase_runtime_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FirebaseBootstrap(
-    config: FirebaseRuntimeConfig.fromEnvironment(),
-  ).initialize();
+  try {
+    await FirebaseBootstrap(
+      config: FirebaseRuntimeConfig.fromEnvironment(),
+    ).initialize();
+  } catch (error, stackTrace) {
+    debugPrint('Firebase bootstrap failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
 
   runApp(const ProviderScope(child: FamilyTreeApp()));
 }

@@ -1,8 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
+
 import '../models/audit_log.dart';
 import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
+import '../models/sync_diagnostic.dart';
 import '../models/sync_state.dart';
 import 'connectivity_service.dart';
 import 'family_repository.dart';
@@ -44,8 +50,10 @@ class SyncService {
     }
     final audit = [...data.auditLog];
     final failed = <PendingSyncItem>[];
+    await _logSyncStart(data, operations.length);
     try {
       for (final operation in operations) {
+        _logOperation(operation, data.mainFamilyCode);
         try {
           await _send(operation);
           audit.add(
@@ -55,8 +63,22 @@ class SyncService {
               operation.entityType,
             ),
           );
-        } catch (error) {
-          failed.add(operation.copyWith(lastError: error.toString()));
+        } on FirebaseException catch (error, stackTrace) {
+          final lastError = _logFirebaseFailure(
+            operation,
+            data.mainFamilyCode,
+            error,
+            stackTrace,
+          );
+          failed.add(operation.copyWith(lastError: lastError));
+        } catch (error, stackTrace) {
+          final lastError = _logGenericFailure(
+            operation,
+            data.mainFamilyCode,
+            error,
+            stackTrace,
+          );
+          failed.add(operation.copyWith(lastError: lastError));
         }
       }
       if (failed.isNotEmpty) {
@@ -81,9 +103,32 @@ class SyncService {
         ),
         auditLog: audit,
       );
-    } catch (error) {
+    } on FirebaseException catch (error, stackTrace) {
       final withError = operations
-          .map((operation) => operation.copyWith(lastError: error.toString()))
+          .map(
+            (operation) => operation.copyWith(
+              lastError: _logFirebaseFailure(
+                operation,
+                data.mainFamilyCode,
+                error,
+                stackTrace,
+              ),
+            ),
+          )
+          .toList();
+      return _enqueueAll(data, withError, status: 'pending');
+    } catch (error, stackTrace) {
+      final withError = operations
+          .map(
+            (operation) => operation.copyWith(
+              lastError: _logGenericFailure(
+                operation,
+                data.mainFamilyCode,
+                error,
+                stackTrace,
+              ),
+            ),
+          )
           .toList();
       return _enqueueAll(data, withError, status: 'pending');
     }
@@ -100,21 +145,47 @@ class SyncService {
     if (!online) return _markStatus(data, 'offline');
 
     var working = _markStatus(data, 'syncing');
+    await _logSyncStart(working, working.pendingSyncQueue.length);
     final remaining = <PendingSyncItem>[];
     final audit = [...working.auditLog];
     var hadError = false;
     for (final item in working.pendingSyncQueue) {
       if (item.status == 'synced') continue;
+      _logOperation(item, working.mainFamilyCode);
       try {
         await _send(item);
         audit.add(_log('sync_queue_item_sent', item.entityId, item.entityType));
-      } catch (error) {
+      } on FirebaseException catch (error, stackTrace) {
+        final lastError = _logFirebaseFailure(
+          item,
+          working.mainFamilyCode,
+          error,
+          stackTrace,
+        );
         hadError = true;
         remaining.add(
           item.copyWith(
             status: 'failed',
             retryCount: item.retryCount + 1,
-            lastError: error.toString(),
+            lastError: lastError,
+          ),
+        );
+        audit.add(
+          _log('sync_queue_item_failed', item.entityId, item.entityType),
+        );
+      } catch (error, stackTrace) {
+        final lastError = _logGenericFailure(
+          item,
+          working.mainFamilyCode,
+          error,
+          stackTrace,
+        );
+        hadError = true;
+        remaining.add(
+          item.copyWith(
+            status: 'failed',
+            retryCount: item.retryCount + 1,
+            lastError: lastError,
           ),
         );
         audit.add(
@@ -302,5 +373,82 @@ class SyncService {
       personId: entityType == 'person' ? entityId : '',
       description: '$entityType:$entityId',
     );
+  }
+
+  Future<void> _logSyncStart(FamilyTreeData data, int operationCount) async {
+    debugPrint(
+      'SYNC START familyId=${data.mainFamilyCode} operations=$operationCount',
+    );
+    if (Firebase.apps.isEmpty) {
+      debugPrint('AUTH UID: <firebase-not-initialized>');
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    debugPrint('AUTH UID: ${user?.uid}');
+    debugPrint('AUTH EMAIL: ${user?.email}');
+    debugPrint('AUTH ANONYMOUS: ${user?.isAnonymous}');
+    if (user == null) return;
+
+    try {
+      final role = await FirebaseFirestore.instance
+          .collection('user_roles')
+          .doc(user.uid)
+          .get();
+      final data = role.data();
+      debugPrint('AUTH ROLE EXISTS: ${role.exists}');
+      debugPrint('AUTH ROLE: ${data?['role']}');
+      debugPrint('AUTH ACTIVE: ${data?['active']}');
+      debugPrint('AUTH FAMILY_IDS: ${data?['familyIds']}');
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint('AUTH ROLE FIREBASE CODE: ${error.code}');
+      debugPrint('AUTH ROLE FIREBASE MESSAGE: ${error.message}');
+      debugPrintStack(stackTrace: stackTrace);
+    } catch (error, stackTrace) {
+      debugPrint('AUTH ROLE ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  void _logOperation(PendingSyncItem item, String familyId) {
+    final diagnostic = SyncOperationDiagnostic.fromItem(
+      item,
+      fallbackFamilyId: familyId,
+    );
+    debugPrint('SYNC OPERATION: ${diagnostic.operationSummary}');
+  }
+
+  String _logFirebaseFailure(
+    PendingSyncItem item,
+    String familyId,
+    FirebaseException error,
+    StackTrace stackTrace,
+  ) {
+    final diagnostic = SyncOperationDiagnostic.fromItem(
+      item,
+      fallbackFamilyId: familyId,
+      firebaseException: error,
+    );
+    debugPrint('FIREBASE CODE: ${error.code}');
+    debugPrint('FIREBASE MESSAGE: ${error.message}');
+    debugPrint('SYNC FAILED: ${diagnostic.operationSummary}');
+    debugPrintStack(stackTrace: stackTrace);
+    return diagnostic.failureSummary;
+  }
+
+  String _logGenericFailure(
+    PendingSyncItem item,
+    String familyId,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    final diagnostic = SyncOperationDiagnostic.fromItem(
+      item,
+      fallbackFamilyId: familyId,
+    );
+    debugPrint('SYNC ERROR: $error');
+    debugPrint('SYNC FAILED: ${diagnostic.operationSummary}');
+    debugPrintStack(stackTrace: stackTrace);
+    return 'sync-error sur ${diagnostic.target} - $error';
   }
 }

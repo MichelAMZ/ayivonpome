@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import 'firebase_runtime_config.dart';
 
@@ -27,10 +28,18 @@ class FirebaseBootstrap {
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
 
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
+    await _tryAnonymousSignIn();
 
     return app;
+  }
+
+  Future<void> _tryAnonymousSignIn() async {
+    if (FirebaseAuth.instance.currentUser != null) return;
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+    } catch (error, stackTrace) {
+      debugPrint('Anonymous Firebase sign-in skipped: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 }

@@ -391,14 +391,34 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     }
     final box = context.findRenderObject() as RenderBox;
     final offset = box.localToGlobal(Offset.zero);
+    final viewport = MediaQuery.sizeOf(context);
+    const margin = 12.0;
+    final popupWidth = (viewport.width - margin * 2).clamp(240.0, 320.0);
+    final popupMaxHeight = (viewport.height - margin * 2).clamp(220.0, 520.0);
+    final rightSideLeft = offset.dx + box.size.width + margin;
+    final leftSideLeft = offset.dx - popupWidth - margin;
+    final left = rightSideLeft + popupWidth <= viewport.width - margin
+        ? rightSideLeft
+        : leftSideLeft >= margin
+        ? leftSideLeft
+        : margin;
+    final top = offset.dy.clamp(
+      margin,
+      (viewport.height - popupMaxHeight - margin).clamp(
+        margin,
+        viewport.height,
+      ),
+    );
     _entry = OverlayEntry(
       builder: (context) => Positioned(
-        left: offset.dx + box.size.width + 12,
-        top: offset.dy,
+        left: left,
+        top: top,
         child: PersonPreviewPopup(
           person: widget.person,
           data: widget.data,
           authMode: widget.authMode,
+          maxWidth: popupWidth,
+          maxHeight: popupMaxHeight,
           onViewProfile: () {
             _remove();
             widget.onOpen();

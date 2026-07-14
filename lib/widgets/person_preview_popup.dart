@@ -16,12 +16,16 @@ class PersonPreviewPopup extends ConsumerWidget {
     required this.data,
     required this.authMode,
     required this.onViewProfile,
+    this.maxWidth = 320,
+    this.maxHeight,
   });
 
   final Person person;
   final FamilyTreeData data;
   final AuthMode authMode;
   final VoidCallback onViewProfile;
+  final double maxWidth;
+  final double? maxHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,8 +48,11 @@ class PersonPreviewPopup extends ConsumerWidget {
       borderRadius: BorderRadius.circular(8),
       color: Theme.of(context).colorScheme.surface,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320),
-        child: Padding(
+        constraints: BoxConstraints(
+          maxWidth: maxWidth,
+          maxHeight: maxHeight ?? double.infinity,
+        ),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,

@@ -30,6 +30,7 @@ import 'family_history_button.dart';
 import 'family_leader_premium_badge.dart';
 import 'info_news_bar.dart';
 import 'language_selector_button.dart';
+import 'mobile_title_member_count_badge.dart';
 import 'responsive.dart';
 import 'secure_code_text_field.dart';
 import 'sync_status_badge.dart';
@@ -661,7 +662,10 @@ class _BrandTitle extends ConsumerWidget {
                 _handleLeaderMenuAction(context, ref, leader, action),
           )
         : null;
+    final showMobileTitleCounter =
+        mobile && appSettings.treeSettings.showMembersCounter;
     final showTitleCounter =
+        !showMobileTitleCounter &&
         appSettings.treeSettings.showMembersCounter &&
         branding.memberCountDisplayMode == 'superscriptTitle';
     final titleBlock = Column(
@@ -702,6 +706,10 @@ class _BrandTitle extends ConsumerWidget {
                   ),
                 ),
               ),
+            ],
+            if (showMobileTitleCounter) ...[
+              const SizedBox(width: 6),
+              MobileTitleMemberCountBadge(count: membersCount),
             ],
           ],
         ),

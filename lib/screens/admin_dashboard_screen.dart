@@ -688,34 +688,53 @@ class _ApplicationSettingsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                l10n.applicationSettings,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: canEdit ? () => _edit(context, ref) : null,
-              icon: const Icon(Icons.edit_outlined),
-              label: Text(l10n.editApplicationTitle),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: canEdit
-                  ? () => _recalculateGenerations(context, ref)
-                  : null,
-              icon: const Icon(Icons.family_restroom_outlined),
-              label: Text(l10n.recalculateGenerations),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: canEdit ? () => _reloadData(context, ref) : null,
-              icon: const Icon(Icons.refresh_outlined),
-              label: const Text('Recharger les données'),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 760;
+            final title = Text(
+              l10n.applicationSettings,
+              maxLines: compact ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge,
+            );
+            final actions = Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: canEdit ? () => _edit(context, ref) : null,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: Text(l10n.editApplicationTitle),
+                ),
+                OutlinedButton.icon(
+                  onPressed: canEdit
+                      ? () => _recalculateGenerations(context, ref)
+                      : null,
+                  icon: const Icon(Icons.family_restroom_outlined),
+                  label: Text(l10n.recalculateGenerations),
+                ),
+                FilledButton.icon(
+                  onPressed: canEdit ? () => _reloadData(context, ref) : null,
+                  icon: const Icon(Icons.refresh_outlined),
+                  label: const Text('Recharger les données'),
+                ),
+              ],
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [title, const SizedBox(height: 10), actions],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: title),
+                const SizedBox(width: 12),
+                Flexible(child: actions),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 8),
         Card(
@@ -992,8 +1011,23 @@ class _SyncManagementSection extends ConsumerWidget {
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.sync_problem_outlined),
-                      title: Text('${item.entityType}:${item.entityId}'),
-                      subtitle: Text(item.lastError),
+                      title: Text(
+                        '${item.action} ${item.entityType}:${item.entityId}',
+                      ),
+                      subtitle: SelectableText(item.lastError),
+                      trailing: IconButton(
+                        tooltip: 'Copier le diagnostic',
+                        icon: const Icon(Icons.copy_outlined),
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: item.lastError),
+                          );
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Diagnostic copié')),
+                          );
+                        },
+                      ),
                     ),
                 ],
               ],
@@ -1893,120 +1927,301 @@ class _AccessCodeManagementSectionState
         ),
         const SizedBox(height: 8),
         Card(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: [
-                DataColumn(label: Text(l10n.codeType)),
-                DataColumn(label: Text(l10n.codeRole)),
-                DataColumn(label: Text(l10n.accessCodes)),
-                DataColumn(label: Text(l10n.codeStatus)),
-                DataColumn(label: Text(l10n.codeExpiration)),
-                DataColumn(label: Text(l10n.codeUsage)),
-                DataColumn(label: Text(l10n.createdBy)),
-                const DataColumn(label: Text('Actions')),
-              ],
-              rows: codes
-                  .map(
-                    (code) => DataRow(
-                      cells: [
-                        DataCell(Text(_typeLabel(l10n, code.type))),
-                        DataCell(Text(code.role)),
-                        DataCell(
-                          Text(
-                            _visibleCodes.contains(code.id)
-                                ? code.code
-                                : '********',
-                          ),
-                        ),
-                        DataCell(
-                          Text(code.enabled ? l10n.accepted : l10n.refused),
-                        ),
-                        DataCell(
-                          Text(
-                            code.expiresAt.isEmpty
-                                ? '-'
-                                : _formatDate(code.expiresAt),
-                          ),
-                        ),
-                        DataCell(
-                          Text('${code.usedCount}/${code.maxUses ?? '∞'}'),
-                        ),
-                        DataCell(
-                          Text(
-                            code.createdByName.isEmpty
-                                ? '-'
-                                : code.createdByName,
-                          ),
-                        ),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: _visibleCodes.contains(code.id)
-                                    ? l10n.hideCode
-                                    : l10n.showCode,
-                                icon: Icon(
-                                  _visibleCodes.contains(code.id)
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                ),
-                                onPressed: () => _toggleVisibility(code),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 720;
+              if (compact) {
+                return _buildCompactCodeList(
+                  context,
+                  l10n,
+                  codes,
+                  actorRole: actorRole,
+                  adminId: adminId,
+                );
+              }
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: [
+                    DataColumn(label: Text(l10n.codeType)),
+                    DataColumn(label: Text(l10n.codeRole)),
+                    DataColumn(label: Text(l10n.accessCodes)),
+                    DataColumn(label: Text(l10n.codeStatus)),
+                    DataColumn(label: Text(l10n.codeExpiration)),
+                    DataColumn(label: Text(l10n.codeUsage)),
+                    DataColumn(label: Text(l10n.createdBy)),
+                    const DataColumn(label: Text('Actions')),
+                  ],
+                  rows: codes
+                      .map(
+                        (code) => DataRow(
+                          cells: [
+                            DataCell(Text(_typeLabel(l10n, code.type))),
+                            DataCell(Text(code.role)),
+                            DataCell(Text(_displayedCode(code))),
+                            DataCell(
+                              Text(code.enabled ? l10n.accepted : l10n.refused),
+                            ),
+                            DataCell(
+                              Text(
+                                code.expiresAt.isEmpty
+                                    ? '-'
+                                    : _formatDate(code.expiresAt),
                               ),
-                              IconButton(
-                                tooltip: l10n.copyCode,
-                                icon: const Icon(Icons.copy),
-                                onPressed: () => _copyCode(code),
+                            ),
+                            DataCell(
+                              Text('${code.usedCount}/${code.maxUses ?? '∞'}'),
+                            ),
+                            DataCell(
+                              Text(
+                                code.createdByName.isEmpty
+                                    ? '-'
+                                    : code.createdByName,
                               ),
-                              IconButton(
-                                tooltip: l10n.editAccessCode,
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () =>
-                                    _showCodeDialog(context, code: code),
+                            ),
+                            DataCell(
+                              _buildCodeActions(
+                                context,
+                                l10n,
+                                code,
+                                actorRole: actorRole,
+                                adminId: adminId,
+                                compact: false,
                               ),
-                              IconButton(
-                                tooltip: code.enabled
-                                    ? l10n.disableAccessCode
-                                    : l10n.enableAccessCode,
-                                icon: Icon(
-                                  code.enabled
-                                      ? Icons.block_outlined
-                                      : Icons.check_circle_outline,
-                                ),
-                                onPressed: () =>
-                                    _setEnabled(code, !code.enabled),
-                              ),
-                              IconButton(
-                                tooltip: l10n.deleteAccessCode,
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _deleteCode(code),
-                              ),
-                              IconButton(
-                                tooltip: l10n.regenerateCode,
-                                icon: const Icon(Icons.autorenew),
-                                onPressed:
-                                    accessCodeService.canRegenerate(
-                                      code,
-                                      actorRole: actorRole,
-                                      adminId: adminId,
-                                    )
-                                    ? () => _regenerateCode(code)
-                                    : null,
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  )
-                  .toList(),
-            ),
+                      )
+                      .toList(),
+                ),
+              );
+            },
           ),
         ),
       ],
     );
   }
+
+  Widget _buildCompactCodeList(
+    BuildContext context,
+    AppLocalizations l10n,
+    List<AccessCode> codes, {
+    required String actorRole,
+    required String adminId,
+  }) {
+    if (codes.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(l10n.accessCodes),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        children: [
+          for (final code in codes)
+            _buildCompactCodeTile(
+              context,
+              l10n,
+              code,
+              actorRole: actorRole,
+              adminId: adminId,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactCodeTile(
+    BuildContext context,
+    AppLocalizations l10n,
+    AccessCode code, {
+    required String actorRole,
+    required String adminId,
+  }) {
+    final visible = _visibleCodes.contains(code.id);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _typeLabel(l10n, code.type),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            code.role,
+                            code.enabled ? l10n.accepted : l10n.refused,
+                          ].join(' · '),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildCodeActions(
+                    context,
+                    l10n,
+                    code,
+                    actorRole: actorRole,
+                    adminId: adminId,
+                    compact: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SelectableText(
+                visible ? code.code : '********',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: visible ? 0 : 1.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    '${l10n.codeUsage}: ${code.usedCount}/${code.maxUses ?? '∞'}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Text(
+                    '${l10n.codeExpiration}: ${code.expiresAt.isEmpty ? '-' : _formatDate(code.expiresAt)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCodeActions(
+    BuildContext context,
+    AppLocalizations l10n,
+    AccessCode code, {
+    required String actorRole,
+    required String adminId,
+    required bool compact,
+  }) {
+    final accessCodeService = ref.watch(accessCodeServiceProvider);
+    return Wrap(
+      spacing: compact ? 0 : 2,
+      children: [
+        IconButton(
+          tooltip: _visibleCodes.contains(code.id)
+              ? l10n.hideCode
+              : l10n.showCode,
+          icon: Icon(
+            _visibleCodes.contains(code.id)
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+          ),
+          onPressed: () => _toggleVisibility(code),
+        ),
+        IconButton(
+          tooltip: l10n.copyCode,
+          icon: const Icon(Icons.copy),
+          onPressed: () => _copyCode(code),
+        ),
+        IconButton(
+          tooltip: l10n.editAccessCode,
+          icon: const Icon(Icons.edit_outlined),
+          onPressed: () => _showCodeDialog(context, code: code),
+        ),
+        if (!compact) ...[
+          IconButton(
+            tooltip: code.enabled
+                ? l10n.disableAccessCode
+                : l10n.enableAccessCode,
+            icon: Icon(
+              code.enabled ? Icons.block_outlined : Icons.check_circle_outline,
+            ),
+            onPressed: () => _setEnabled(code, !code.enabled),
+          ),
+          IconButton(
+            tooltip: l10n.deleteAccessCode,
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () => _deleteCode(code),
+          ),
+          IconButton(
+            tooltip: l10n.regenerateCode,
+            icon: const Icon(Icons.autorenew),
+            onPressed:
+                accessCodeService.canRegenerate(
+                  code,
+                  actorRole: actorRole,
+                  adminId: adminId,
+                )
+                ? () => _regenerateCode(code)
+                : null,
+          ),
+        ],
+        if (compact)
+          PopupMenuButton<String>(
+            tooltip: 'Actions',
+            onSelected: (value) {
+              switch (value) {
+                case 'toggle':
+                  _setEnabled(code, !code.enabled);
+                  return;
+                case 'delete':
+                  _deleteCode(code);
+                  return;
+                case 'regenerate':
+                  _regenerateCode(code);
+                  return;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'toggle',
+                child: Text(
+                  code.enabled ? l10n.disableAccessCode : l10n.enableAccessCode,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(l10n.deleteAccessCode),
+              ),
+              PopupMenuItem(
+                value: 'regenerate',
+                enabled: accessCodeService.canRegenerate(
+                  code,
+                  actorRole: actorRole,
+                  adminId: adminId,
+                ),
+                child: Text(l10n.regenerateCode),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  String _displayedCode(AccessCode code) =>
+      _visibleCodes.contains(code.id) ? code.code : '********';
 
   Future<void> _showCodeDialog(BuildContext context, {AccessCode? code}) async {
     final l10n = AppLocalizations.of(context);

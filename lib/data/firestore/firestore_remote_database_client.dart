@@ -213,6 +213,19 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     CollectionReference<Map<String, dynamic>> collection,
     String id,
   ) {
+    if (collection.path == _members.path) {
+      final doc = collection.doc(id);
+      return _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(doc);
+        final remoteVersion = snapshot.data()?['version'] as int? ?? 0;
+        transaction.set(doc, {
+          'familyId': _familyId,
+          'deletedAt': DateTime.now().toUtc().toIso8601String(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'version': remoteVersion + 1,
+        }, SetOptions(merge: true));
+      });
+    }
     return collection.doc(id).set({
       'familyId': _familyId,
       'deletedAt': DateTime.now().toUtc().toIso8601String(),

@@ -15,6 +15,12 @@ class SyncStatusBadge extends ConsumerWidget {
     final pendingCount = data.pendingSyncQueue
         .where((item) => item.status != 'synced')
         .length;
+    final failedWithDetail = data.pendingSyncQueue
+        .where((item) => item.status == 'failed' && item.lastError.isNotEmpty)
+        .toList();
+    final firstError = failedWithDetail.isEmpty
+        ? ''
+        : failedWithDetail.first.lastError;
     final status = pendingCount > 0 && data.syncSettings.syncStatus == 'synced'
         ? 'pending'
         : data.syncSettings.syncStatus;
@@ -42,13 +48,23 @@ class SyncStatusBadge extends ConsumerWidget {
       'error' => const Color(0xFFB3261E),
       _ => pendingCount > 0 ? const Color(0xFF9A6A00) : const Color(0xFF2E7D32),
     };
+    final detail = firstError.isEmpty
+        ? ''
+        : '$pendingCount élément(s) non synchronisé(s) - $firstError';
+    final displayLabel = pendingCount == 0
+        ? label
+        : status == 'error' && detail.isNotEmpty
+        ? detail
+        : '$label ($pendingCount)';
 
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
         child: Tooltip(
-          message: pendingCount == 0
+          message: detail.isNotEmpty
+              ? detail
+              : pendingCount == 0
               ? label
               : '$label - $pendingCount modification(s)',
           child: DecoratedBox(
@@ -64,11 +80,18 @@ class SyncStatusBadge extends ConsumerWidget {
                 children: [
                   Icon(icon, size: 16, color: color),
                   const SizedBox(width: 6),
-                  Text(
-                    pendingCount == 0 ? label : '$label ($pendingCount)',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w700,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width - 82,
+                    ),
+                    child: Text(
+                      displayLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
