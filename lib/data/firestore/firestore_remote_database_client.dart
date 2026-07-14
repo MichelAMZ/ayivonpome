@@ -72,7 +72,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         _mapper.toFirestore(
           person.toJson(),
           id: person.id,
-          familyId: _familyId,
+          familyId: _tenantFamilyId,
         ),
         SetOptions(merge: true),
       );
@@ -111,14 +111,13 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           _mapper.toFirestore(
             person
                 .copyWith(
-                  familyId: _effectiveFamilyId(person.familyId),
                   createdAt: person.createdAt.isEmpty ? now : person.createdAt,
                   updatedAt: now,
                   version: person.version <= 0 ? 1 : person.version,
                 )
                 .toJson(),
             id: person.id,
-            familyId: _effectiveFamilyId(person.familyId),
+            familyId: _tenantFamilyId,
           ),
           SetOptions(merge: true),
         );
@@ -141,15 +140,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final now = DateTime.now().toUtc().toIso8601String();
     await doc.set(
       _mapper.toFirestore(
-        person
-            .copyWith(
-              familyId: _effectiveFamilyId(person.familyId),
-              updatedAt: now,
-              version: remoteVersion + 1,
-            )
-            .toJson(),
+        person.copyWith(updatedAt: now, version: remoteVersion + 1).toJson(),
         id: person.id,
-        familyId: _effectiveFamilyId(person.familyId),
+        familyId: _tenantFamilyId,
       ),
       SetOptions(merge: true),
     );
@@ -197,7 +190,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> createAuditLog(AuditLog log) {
     return _activityLogs.doc(log.id).set({
       ...log.toJson(),
-      'familyId': log.familyCode.isEmpty ? _familyId : log.familyCode,
+      'familyId': _tenantFamilyId,
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -244,7 +237,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     }, SetOptions(merge: true));
   }
 
-  String _effectiveFamilyId(String value) => value.isEmpty ? _familyId : value;
+  String get _tenantFamilyId => _familyId;
 }
 
 class FirestoreConflictException implements Exception {
