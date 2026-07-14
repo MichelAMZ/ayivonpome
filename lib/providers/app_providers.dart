@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import '../core/firebase/firebase_runtime_config.dart';
 import '../data/firestore/firestore_remote_database_client.dart';
 import '../models/family_tree_data.dart';
+import '../models/firebase_user_role.dart';
 import '../services/auth_code_service.dart';
 import '../services/backup_service.dart';
 import '../services/change_notification_service.dart';
@@ -20,6 +22,8 @@ import '../services/app_settings_service.dart';
 import '../services/family_relation_service.dart';
 import '../services/family_council_service.dart';
 import '../services/family_announcement_service.dart';
+import '../services/firebase_admin_auth_service.dart';
+import '../services/firebase_user_role_service.dart';
 import '../services/genealogy_statistics_service.dart';
 import '../services/genealogy_generation_service.dart';
 import '../services/history_cleanup_service.dart';
@@ -94,6 +98,36 @@ final conflictResolutionServiceProvider = Provider<ConflictResolutionService>(
 final authCodeServiceProvider = Provider<AuthCodeService>(
   (ref) => AuthCodeService(),
 );
+
+final firebaseAdminAuthServiceProvider = Provider<FirebaseAdminAuthService?>((
+  ref,
+) {
+  final config = FirebaseRuntimeConfig.fromEnvironment();
+  if (!config.enabled || Firebase.apps.isEmpty) return null;
+  return FirebaseAdminAuthService(
+    auth: FirebaseAuth.instance,
+    firestore: FirebaseFirestore.instance,
+    familyId: config.familyId,
+  );
+});
+
+final firebaseUserRoleServiceProvider = Provider<FirebaseUserRoleService?>((
+  ref,
+) {
+  final config = FirebaseRuntimeConfig.fromEnvironment();
+  if (!config.enabled || Firebase.apps.isEmpty) return null;
+  return FirebaseUserRoleService(
+    firestore: FirebaseFirestore.instance,
+    auth: FirebaseAuth.instance,
+    familyId: config.familyId,
+  );
+});
+
+final firebaseUserRolesProvider = StreamProvider<List<FirebaseUserRole>>((ref) {
+  final service = ref.watch(firebaseUserRoleServiceProvider);
+  if (service == null) return Stream.value(const <FirebaseUserRole>[]);
+  return service.watchRoles();
+});
 
 final importExportServiceProvider = Provider<ImportExportService>(
   (ref) => ImportExportService(),

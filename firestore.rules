@@ -6,72 +6,111 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function currentUser() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    function isPublicFamily(familyId) {
+      return familyId == 'ayivon';
+    }
+
+    function hasRoleDocument() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/user_roles/$(request.auth.uid));
+    }
+
+    function currentRole() {
+      return get(
+        /databases/$(database)/documents/user_roles/$(request.auth.uid)
+      ).data;
+    }
+
+    function isActiveUser() {
+      return hasRoleDocument() && currentRole().active == true;
     }
 
     function hasFamilyAccess(familyId) {
-      return isAuthenticated() &&
-        currentUser().data.active == true &&
-        currentUser().data.familyId == familyId;
+      return isActiveUser() && familyId in currentRole().familyIds;
+    }
+
+    function hasAnyRole(roles) {
+      return isActiveUser() && currentRole().role in roles;
+    }
+
+    function isEditor(familyId) {
+      return hasFamilyAccess(familyId) &&
+        hasAnyRole(['editor', 'admin', 'superAdmin']);
     }
 
     function isAdmin(familyId) {
       return hasFamilyAccess(familyId) &&
-        currentUser().data.role in ['admin', 'super_admin'];
+        hasAnyRole(['admin', 'superAdmin']);
     }
 
-    function isSuperAdmin(familyId) {
-      return hasFamilyAccess(familyId) &&
-        currentUser().data.role == 'super_admin';
+    function isSuperAdmin() {
+      return hasAnyRole(['superAdmin']);
+    }
+
+    function hasValidNextVersion() {
+      return (
+        !('version' in resource.data) &&
+        request.resource.data.version == 1
+      ) || request.resource.data.version == resource.data.version + 1;
     }
 
     match /families/{familyId} {
-      allow read: if hasFamilyAccess(familyId);
-      allow create, update: if isAdmin(familyId);
-      allow delete: if isSuperAdmin(familyId);
+      allow read: if isPublicFamily(familyId) || hasFamilyAccess(familyId);
+      allow create, update: if isEditor(familyId);
+      allow delete: if isSuperAdmin();
     }
 
     match /members/{memberId} {
-      allow read: if hasFamilyAccess(resource.data.familyId);
-      allow create: if isAdmin(request.resource.data.familyId);
-      allow update: if isAdmin(resource.data.familyId) &&
+      allow read: if isPublicFamily(resource.data.familyId) ||
+        hasFamilyAccess(resource.data.familyId);
+      allow create: if isEditor(request.resource.data.familyId);
+      allow update: if isEditor(resource.data.familyId) &&
         request.resource.data.familyId == resource.data.familyId &&
-        request.resource.data.version == resource.data.version + 1;
-      allow delete: if false;
+        hasValidNextVersion();
+      allow delete: if isAdmin(resource.data.familyId);
     }
 
     match /relationships/{relationshipId} {
-      allow read: if hasFamilyAccess(resource.data.familyId);
-      allow create: if isAdmin(request.resource.data.familyId);
-      allow update: if isAdmin(resource.data.familyId) &&
+      allow read: if isPublicFamily(resource.data.familyId) ||
+        hasFamilyAccess(resource.data.familyId);
+      allow create: if isEditor(request.resource.data.familyId);
+      allow update: if isEditor(resource.data.familyId) &&
         request.resource.data.familyId == resource.data.familyId;
-      allow delete: if false;
+      allow delete: if isAdmin(resource.data.familyId);
     }
 
     match /family_tree_links/{linkId} {
-      allow read: if hasFamilyAccess(resource.data.familyId);
-      allow create: if isAdmin(request.resource.data.familyId);
-      allow update: if isAdmin(resource.data.familyId) &&
+      allow read: if isPublicFamily(resource.data.familyId) ||
+        hasFamilyAccess(resource.data.familyId);
+      allow create: if isEditor(request.resource.data.familyId);
+      allow update: if isEditor(resource.data.familyId) &&
         request.resource.data.familyId == resource.data.familyId;
-      allow delete: if false;
+      allow delete: if isAdmin(resource.data.familyId);
     }
 
     match /notifications/{notificationId} {
-      allow read: if hasFamilyAccess(resource.data.familyId);
-      allow create, update: if isAdmin(request.resource.data.familyId);
-      allow delete: if isSuperAdmin(resource.data.familyId);
+      allow read: if isPublicFamily(resource.data.familyId) ||
+        hasFamilyAccess(resource.data.familyId);
+      allow create: if isEditor(request.resource.data.familyId);
+      allow update: if isEditor(resource.data.familyId) &&
+        request.resource.data.familyId == resource.data.familyId;
+      allow delete: if isAdmin(resource.data.familyId);
     }
 
     match /activity_logs/{logId} {
       allow read: if isAdmin(resource.data.familyId);
-      allow create: if isAdmin(request.resource.data.familyId);
+      allow create: if isEditor(request.resource.data.familyId);
       allow update, delete: if false;
     }
 
-    match /users/{userId} {
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      allow write: if false;
+    match /user_roles/{userId} {
+      allow read: if isAuthenticated() &&
+        (request.auth.uid == userId || isSuperAdmin());
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

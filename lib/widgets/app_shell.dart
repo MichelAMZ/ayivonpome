@@ -381,7 +381,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final l10n = AppLocalizations.of(context);
     await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => _CodeEntryDialog(
+      builder: (dialogContext) => _AccessEntryDialog(
         title: l10n.enterAccessCode,
         label: l10n.familyCode,
         invalidMessage: l10n.invalidCode,
@@ -845,6 +845,272 @@ class _BrandTitle extends ConsumerWidget {
               longitude: leader.longitude,
             );
     }
+  }
+}
+
+class _AccessEntryDialog extends ConsumerStatefulWidget {
+  const _AccessEntryDialog({
+    required this.title,
+    required this.label,
+    required this.invalidMessage,
+    required this.cancelLabel,
+    required this.submitLabel,
+    required this.onValidate,
+  });
+
+  final String title;
+  final String label;
+  final String invalidMessage;
+  final String cancelLabel;
+  final String submitLabel;
+  final Future<bool> Function(String code) onValidate;
+
+  @override
+  ConsumerState<_AccessEntryDialog> createState() => _AccessEntryDialogState();
+}
+
+class _AccessEntryDialogState extends ConsumerState<_AccessEntryDialog> {
+  final _codeController = TextEditingController();
+  final _adminEmailController = TextEditingController();
+  final _adminPasswordController = TextEditingController();
+  String? _codeError;
+  String? _adminError;
+  String? _adminMessage;
+  var _submittingCode = false;
+  var _submittingAdmin = false;
+  var _hasCodeInput = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _codeController.addListener(_syncCodeInputState);
+  }
+
+  @override
+  void dispose() {
+    _codeController.removeListener(_syncCodeInputState);
+    _codeController.dispose();
+    _adminEmailController.dispose();
+    _adminPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _syncCodeInputState() {
+    final hasInput = _codeController.text.trim().isNotEmpty;
+    if (hasInput == _hasCodeInput) return;
+    setState(() {
+      _hasCodeInput = hasInput;
+      if (hasInput) _codeError = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SecureCodeTextField(
+              controller: _codeController,
+              label: widget.label,
+              autofocus: true,
+              enabled: !_submittingCode && !_submittingAdmin,
+              errorText: _codeError,
+              onSubmitted: (_) {
+                if (_hasCodeInput) _submitCode();
+              },
+            ),
+            const SizedBox(height: 12),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.admin_panel_settings_outlined),
+              title: const Text('Connexion administrateur Firebase'),
+              children: [
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _adminEmailController,
+                  enabled: !_submittingCode && !_submittingAdmin,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email administrateur',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _adminPasswordController,
+                  enabled: !_submittingCode && !_submittingAdmin,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Mot de passe',
+                    errorText: _adminError,
+                    prefixIcon: const Icon(Icons.lock_outline),
+                  ),
+                  onSubmitted: (_) => _submitFirebaseAdmin(),
+                ),
+                if (_adminMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _adminMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _submittingCode || _submittingAdmin
+                            ? null
+                            : _sendFirebasePasswordReset,
+                        icon: const Icon(Icons.mark_email_read_outlined),
+                        label: const Text('Réinitialiser'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _submittingCode || _submittingAdmin
+                            ? null
+                            : _submitFirebaseAdmin,
+                        icon: const Icon(Icons.verified_user_outlined),
+                        label: const Text('Se connecter'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submittingCode || _submittingAdmin
+              ? null
+              : () => Navigator.pop(context, false),
+          child: Text(widget.cancelLabel),
+        ),
+        FilledButton(
+          onPressed: _submittingCode || _submittingAdmin || !_hasCodeInput
+              ? null
+              : _submitCode,
+          child: Text(widget.submitLabel),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _submitCode() async {
+    if (_submittingCode || !_hasCodeInput) return;
+    setState(() {
+      _submittingCode = true;
+      _codeError = null;
+    });
+    try {
+      final ok = await widget.onValidate(_codeController.text);
+      if (!mounted) return;
+      if (ok) {
+        Navigator.pop(context, true);
+        return;
+      }
+      setState(() {
+        _submittingCode = false;
+        _codeError = widget.invalidMessage;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submittingCode = false;
+        _codeError = widget.invalidMessage;
+      });
+    }
+  }
+
+  Future<void> _submitFirebaseAdmin() async {
+    final email = _adminEmailController.text.trim();
+    final password = _adminPasswordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        _adminError = 'Email et mot de passe requis.';
+        _adminMessage = null;
+      });
+      return;
+    }
+    setState(() {
+      _submittingAdmin = true;
+      _adminError = null;
+      _adminMessage = null;
+    });
+    try {
+      await ref
+          .read(authSessionProvider.notifier)
+          .loginFirebaseAdmin(email: email, password: password);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _submittingAdmin = false;
+        _adminError = _friendlyFirebaseError(error);
+      });
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pop(context, true);
+  }
+
+  Future<void> _sendFirebasePasswordReset() async {
+    final email = _adminEmailController.text.trim();
+    if (email.isEmpty) {
+      setState(() {
+        _adminError = 'Email administrateur requis.';
+        _adminMessage = null;
+      });
+      return;
+    }
+    setState(() {
+      _submittingAdmin = true;
+      _adminError = null;
+      _adminMessage = null;
+    });
+    try {
+      await ref
+          .read(authSessionProvider.notifier)
+          .sendFirebasePasswordReset(email);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _submittingAdmin = false;
+        _adminError = _friendlyFirebaseError(error);
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _submittingAdmin = false;
+      _adminMessage = 'Email de réinitialisation envoyé.';
+    });
+  }
+
+  String _friendlyFirebaseError(Object error) {
+    final message = error.toString();
+    if (message.contains('user-not-found') ||
+        message.contains('wrong-password') ||
+        message.contains('invalid-credential')) {
+      return 'Identifiants administrateur invalides.';
+    }
+    if (message.contains('permission-denied')) {
+      return 'Rôle Firestore inaccessible pour ce compte.';
+    }
+    return message.replaceFirst('Exception: ', '');
   }
 }
 

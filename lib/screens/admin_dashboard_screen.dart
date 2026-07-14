@@ -13,6 +13,7 @@ import '../models/family_announcement.dart';
 import '../models/family_honor.dart';
 import '../models/family_leadership.dart';
 import '../models/family_tree_data.dart';
+import '../models/firebase_user_role.dart';
 import '../models/info_news.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
@@ -212,6 +213,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
+          if (auth.isSuperAdmin) ...[
+            _FirebaseRoleManagementSection(auth: auth),
+            const SizedBox(height: 12),
+          ],
           ...data.admins.map((admin) => AdminContactCard(admin: admin)),
           Text(l10n.activityLog, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
@@ -343,6 +348,328 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     return '$day/$month/${date.year}';
+  }
+}
+
+class _FirebaseRoleManagementSection extends ConsumerWidget {
+  const _FirebaseRoleManagementSection({required this.auth});
+
+  final AuthState auth;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rolesState = ref.watch(firebaseUserRolesProvider);
+    final canManageRemoteRoles = auth.firebaseRole == 'superAdmin';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.verified_user_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Rôles Firebase',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: canManageRemoteRoles
+                      ? () => _showRoleDialog(context, ref)
+                      : null,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Ajouter'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              canManageRemoteRoles
+                  ? 'Gestion des documents user_roles pour les comptes Firebase Auth existants.'
+                  : 'Connectez-vous avec le compte Firebase Super Admin pour gérer les rôles Firestore.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            rolesState.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (error, stackTrace) => Text(
+                'Rôles Firebase indisponibles : $error',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              data: (roles) {
+                if (roles.isEmpty) {
+                  return const Text('Aucun rôle Firebase trouvé pour ayivon.');
+                }
+                return Column(
+                  children: [
+                    for (final role in roles)
+                      _FirebaseRoleTile(
+                        role: role,
+                        canManage: canManageRemoteRoles,
+                        onEdit: () =>
+                            _showRoleDialog(context, ref, existing: role),
+                        onToggleActive: () => _toggleActive(context, ref, role),
+                        onDelete: role.uid == auth.firebaseUid
+                            ? null
+                            : () => _deleteRole(context, ref, role),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRoleDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    FirebaseUserRole? existing,
+  }) async {
+    final uidController = TextEditingController(text: existing?.uid ?? '');
+    final emailController = TextEditingController(text: existing?.email ?? '');
+    var selectedRole = existing?.role ?? 'editor';
+    var active = existing?.active ?? true;
+    String? error;
+    var submitting = false;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            existing == null ? 'Ajouter un rôle' : 'Modifier le rôle',
+          ),
+          content: SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: uidController,
+                  enabled: existing == null && !submitting,
+                  decoration: const InputDecoration(
+                    labelText: 'UID Firebase Auth',
+                    prefixIcon: Icon(Icons.fingerprint),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailController,
+                  enabled: !submitting,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: 'Rôle',
+                    prefixIcon: Icon(Icons.admin_panel_settings_outlined),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'editor', child: Text('editor')),
+                    DropdownMenuItem(value: 'admin', child: Text('admin')),
+                    DropdownMenuItem(
+                      value: 'superAdmin',
+                      child: Text('superAdmin'),
+                    ),
+                  ],
+                  onChanged: submitting
+                      ? null
+                      : (value) => setDialogState(() {
+                          selectedRole = value ?? 'editor';
+                        }),
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: active,
+                  onChanged: submitting
+                      ? null
+                      : (value) => setDialogState(() => active = value),
+                  title: const Text('Actif'),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: submitting ? null : () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: submitting
+                  ? null
+                  : () async {
+                      setDialogState(() {
+                        submitting = true;
+                        error = null;
+                      });
+                      try {
+                        final service = ref.read(
+                          firebaseUserRoleServiceProvider,
+                        );
+                        if (service == null) {
+                          throw StateError('Firebase non initialisé.');
+                        }
+                        await service.upsertRole(
+                          uid: uidController.text,
+                          email: emailController.text,
+                          role: selectedRole,
+                          active: active,
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } catch (e) {
+                        setDialogState(() {
+                          submitting = false;
+                          error = e.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    },
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    uidController.dispose();
+    emailController.dispose();
+    if (saved == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rôle Firebase enregistré.')),
+      );
+    }
+  }
+
+  Future<void> _toggleActive(
+    BuildContext context,
+    WidgetRef ref,
+    FirebaseUserRole role,
+  ) async {
+    try {
+      final service = ref.read(firebaseUserRoleServiceProvider);
+      if (service == null) throw StateError('Firebase non initialisé.');
+      await service.setActive(role.uid, !role.active);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _deleteRole(
+    BuildContext context,
+    WidgetRef ref,
+    FirebaseUserRole role,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer le rôle Firebase'),
+        content: Text('Supprimer le rôle de ${role.email} ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final service = ref.read(firebaseUserRoleServiceProvider);
+      if (service == null) throw StateError('Firebase non initialisé.');
+      await service.deleteRole(role.uid);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+}
+
+class _FirebaseRoleTile extends StatelessWidget {
+  const _FirebaseRoleTile({
+    required this.role,
+    required this.canManage,
+    required this.onEdit,
+    required this.onToggleActive,
+    required this.onDelete,
+  });
+
+  final FirebaseUserRole role;
+  final bool canManage;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleActive;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        role.active ? Icons.verified_user : Icons.block,
+        color: role.active
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.error,
+      ),
+      title: Text(role.email.isEmpty ? role.uid : role.email),
+      subtitle: Text(
+        [
+          'UID: ${role.uid}',
+          'role: ${role.role}',
+          'familyIds: ${role.familyIds.join(', ')}',
+          'active: ${role.active}',
+        ].join('\n'),
+      ),
+      isThreeLine: true,
+      trailing: Wrap(
+        spacing: 4,
+        children: [
+          IconButton(
+            tooltip: 'Modifier',
+            onPressed: canManage ? onEdit : null,
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          IconButton(
+            tooltip: role.active ? 'Désactiver' : 'Activer',
+            onPressed: canManage ? onToggleActive : null,
+            icon: Icon(role.active ? Icons.toggle_on : Icons.toggle_off),
+          ),
+          IconButton(
+            tooltip: 'Supprimer',
+            onPressed: canManage ? onDelete : null,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/auth_code_service.dart';
+import '../services/firebase_admin_auth_service.dart';
 import 'app_providers.dart';
 import 'family_tree_provider.dart';
 
@@ -11,16 +12,31 @@ class AuthState {
     this.mode = AuthMode.publicLimited,
     this.session,
     this.hasModificationAccess = false,
+    this.firebaseUid,
+    this.firebaseEmail,
+    this.firebaseRole,
   });
 
   final AuthMode mode;
   final AuthSession? session;
   final bool hasModificationAccess;
+  final String? firebaseUid;
+  final String? firebaseEmail;
+  final String? firebaseRole;
 
   bool get isAuthenticated => mode == AuthMode.authenticated && session != null;
-  bool get canModify => isAuthenticated && hasModificationAccess;
-  bool get isSuperAdmin => session?.isSuperAdmin == true;
-  bool get isAdmin => session?.isAdmin == true;
+  bool get hasFirebaseWriteAccess =>
+      firebaseRole == 'editor' ||
+      firebaseRole == 'admin' ||
+      firebaseRole == 'superAdmin';
+  bool get canModify =>
+      (isAuthenticated && hasModificationAccess) || hasFirebaseWriteAccess;
+  bool get isSuperAdmin =>
+      session?.isSuperAdmin == true || firebaseRole == 'superAdmin';
+  bool get isAdmin =>
+      session?.isAdmin == true ||
+      firebaseRole == 'admin' ||
+      firebaseRole == 'superAdmin';
 }
 
 final authSessionProvider = NotifierProvider<AuthController, AuthState>(
@@ -42,6 +58,45 @@ class AuthController extends Notifier<AuthState> {
     state = AuthState(mode: AuthMode.authenticated, session: session);
     await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
     return true;
+  }
+
+  Future<void> loginFirebaseAdmin({
+    required String email,
+    required String password,
+  }) async {
+    final service = ref.read(firebaseAdminAuthServiceProvider);
+    if (service == null) {
+      throw const FirebaseAdminAuthException(
+        'Firebase n’est pas initialisé pour cet environnement.',
+      );
+    }
+    final firebaseSession = await service.signIn(
+      email: email,
+      password: password,
+    );
+    final session = AuthSession(
+      familyCode: firebaseSession.familyIds.first,
+      role: firebaseSession.role,
+    );
+    state = AuthState(
+      mode: AuthMode.authenticated,
+      session: session,
+      hasModificationAccess: firebaseSession.isEditor,
+      firebaseUid: firebaseSession.uid,
+      firebaseEmail: firebaseSession.email,
+      firebaseRole: firebaseSession.role,
+    );
+    await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
+  }
+
+  Future<void> sendFirebasePasswordReset(String email) async {
+    final service = ref.read(firebaseAdminAuthServiceProvider);
+    if (service == null) {
+      throw const FirebaseAdminAuthException(
+        'Firebase n’est pas initialisé pour cet environnement.',
+      );
+    }
+    await service.sendPasswordReset(email);
   }
 
   Future<bool> unlockModification(String code) async {
@@ -68,9 +123,18 @@ class AuthController extends Notifier<AuthState> {
       mode: AuthMode.authenticated,
       session: state.session,
       hasModificationAccess: true,
+      firebaseUid: state.firebaseUid,
+      firebaseEmail: state.firebaseEmail,
+      firebaseRole: state.firebaseRole,
     );
     return true;
   }
 
-  void logout() => state = const AuthState();
+  Future<void> logout() async {
+    final service = ref.read(firebaseAdminAuthServiceProvider);
+    if (service != null && state.firebaseUid != null) {
+      await service.signOut();
+    }
+    state = const AuthState();
+  }
 }
