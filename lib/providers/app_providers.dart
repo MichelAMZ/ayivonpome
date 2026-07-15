@@ -46,6 +46,7 @@ import '../services/parent_auto_creation_service.dart';
 import '../services/person_duplicate_service.dart';
 import '../services/push_notification_provider.dart';
 import '../services/remote_database_repository.dart';
+import '../services/session_storage_service.dart';
 import '../services/sync_service.dart';
 import '../services/tree_view_settings_service.dart';
 import '../services/super_admin_recovery_service.dart';
@@ -112,6 +113,10 @@ final conflictResolutionServiceProvider = Provider<ConflictResolutionService>(
 
 final authCodeServiceProvider = Provider<AuthCodeService>(
   (ref) => AuthCodeService(),
+);
+
+final sessionStorageServiceProvider = Provider<SessionStorageService>(
+  (ref) => const SessionStorageService(),
 );
 
 final firebaseAdminAuthServiceProvider = Provider<FirebaseAdminAuthService?>((

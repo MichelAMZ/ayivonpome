@@ -24,6 +24,21 @@ class FirebaseAccessCodeAuthService {
   final FirebaseFunctions _functions;
   final String _familyId;
 
+  Future<FirebaseAdminSession?> restoreCurrentSession() async {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous) return null;
+
+    final roleSnapshot = await _firestore
+        .collection('user_roles')
+        .doc(user.uid)
+        .get();
+    final session = _sessionFromRoleSnapshot(user, roleSnapshot);
+    if (session == null) {
+      await _auth.signOut();
+    }
+    return session;
+  }
+
   Future<FirebaseAdminSession> signInWithAccessCode(String accessCode) async {
     final deviceId = await _deviceId();
     final callable = _functions.httpsCallable('authenticateWithAccessCode');
@@ -54,33 +69,60 @@ class FirebaseAccessCodeAuthService {
         .collection('user_roles')
         .doc(user.uid)
         .get();
-    final roleData = roleSnapshot.data();
-    if (roleData == null) {
-      await _auth.signOut();
-      throw const FirebaseAdminAuthException(
-        'Aucun rôle applicatif Firestore n’est associé à cette session.',
-      );
-    }
-
-    final role = roleData['role'] as String? ?? '';
-    final active = roleData['active'] == true;
-    final familyIds = (roleData['familyIds'] as List<dynamic>? ?? const [])
-        .whereType<String>()
-        .toList(growable: false);
-    if (!active || role != expectedRole || !familyIds.contains(_familyId)) {
+    final session = _sessionFromRoleSnapshot(
+      user,
+      roleSnapshot,
+      expectedRole: expectedRole,
+      expiresAt: DateTime.tryParse(data['expiresAt'] as String? ?? ''),
+    );
+    if (session == null) {
       await _auth.signOut();
       throw const FirebaseAdminAuthException(
         'La session Firebase ne correspond pas au rôle demandé.',
       );
     }
 
+    return session;
+  }
+
+  FirebaseAdminSession? _sessionFromRoleSnapshot(
+    User user,
+    DocumentSnapshot<Map<String, dynamic>> roleSnapshot, {
+    String? expectedRole,
+    DateTime? expiresAt,
+  }) {
+    final roleData = roleSnapshot.data();
+    if (roleData == null) return null;
+
+    final role = roleData['role'] as String? ?? '';
+    final authMethod =
+        roleData['authMethod'] as String? ??
+        (user.email == null || user.email!.isEmpty ? 'accessCode' : 'password');
+    final active = roleData['active'] == true;
+    final sessionExpiresAt = _readDateTime(roleData['sessionExpiresAt']);
+    final familyIds = (roleData['familyIds'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .toList(growable: false);
+    if (!active || !familyIds.contains(_familyId)) return null;
+    if (sessionExpiresAt != null && !sessionExpiresAt.isAfter(DateTime.now())) {
+      return null;
+    }
+    if (expectedRole != null && role != expectedRole) return null;
+
     return FirebaseAdminSession(
       uid: user.uid,
       email: user.email ?? '',
       role: role,
       familyIds: familyIds,
-      authMethod: 'accessCode',
+      authMethod: authMethod,
+      expiresAt: expiresAt ?? sessionExpiresAt,
     );
+  }
+
+  DateTime? _readDateTime(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   Future<String> _deviceId() async {

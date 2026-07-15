@@ -47,6 +47,7 @@ exports.authenticateWithAccessCode = onCall(async (request) => {
     accessCodeId,
     authMethod: "accessCode",
     deviceFingerprintHash: deviceHash,
+    appVersion,
   });
 
   const customToken = await admin.auth().createCustomToken(uid, {
@@ -69,7 +70,7 @@ exports.authenticateWithAccessCode = onCall(async (request) => {
     customToken,
     role: data.role,
     familyId,
-    expiresAt: data.expiresAt ? data.expiresAt.toDate().toISOString() : null,
+    expiresAt: sessionExpiryDate().toISOString(),
   };
 });
 
@@ -183,6 +184,7 @@ async function upsertUserRole({
   accessCodeId,
   authMethod,
   deviceFingerprintHash,
+  appVersion,
 }) {
   await db.collection("user_roles").doc(uid).set(
     {
@@ -192,6 +194,8 @@ async function upsertUserRole({
       authMethod,
       accessCodeId,
       deviceFingerprintHash,
+      appVersion,
+      sessionExpiresAt: admin.firestore.Timestamp.fromDate(sessionExpiryDate()),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       lastAuthenticatedAt: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -259,6 +263,12 @@ function stableTechnicalUid(familyId, role, codeId, deviceHash) {
 
 function hashValue(value) {
   return crypto.createHash("sha256").update(String(value)).digest("hex");
+}
+
+function sessionExpiryDate() {
+  const expiry = new Date();
+  expiry.setDate(expiry.getDate() + 30);
+  return expiry;
 }
 
 function isStrongAccessCode(value) {

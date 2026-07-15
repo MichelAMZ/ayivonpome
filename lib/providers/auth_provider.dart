@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/session_metadata.dart';
 import '../services/auth_code_service.dart';
 import '../services/firebase_admin_auth_service.dart';
 import 'app_providers.dart';
@@ -47,12 +48,37 @@ final authSessionProvider = NotifierProvider<AuthController, AuthState>(
 
 class AuthController extends Notifier<AuthState> {
   @override
-  AuthState build() => const AuthState();
+  AuthState build() {
+    Future.microtask(restoreSession);
+    return const AuthState();
+  }
+
+  Future<bool> restoreSession() async {
+    final service = ref.read(firebaseAccessCodeAuthServiceProvider);
+    if (service == null) return false;
+    try {
+      final storedSession = await ref
+          .read(sessionStorageServiceProvider)
+          .readSession();
+      if (storedSession == null) return false;
+      final firebaseSession = await service.restoreCurrentSession();
+      if (firebaseSession == null) return false;
+      if (firebaseSession.uid != storedSession.uid ||
+          !firebaseSession.familyIds.contains(storedSession.familyId)) {
+        await ref.read(sessionStorageServiceProvider).clearSession();
+        return false;
+      }
+      _applyFirebaseSession(firebaseSession);
+      await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<bool> login(String code) async {
     final firebaseSession = await _tryFirebaseAccessCodeLogin(code);
     if (firebaseSession != null) {
-      await ref.read(authCodeServiceProvider).saveLastCode(code);
       await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
       return true;
     }
@@ -63,7 +89,6 @@ class AuthController extends Notifier<AuthState> {
     if (session == null) {
       return false;
     }
-    await service.saveLastCode(code);
     state = AuthState(mode: AuthMode.authenticated, session: session);
     await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
     return true;
@@ -83,19 +108,8 @@ class AuthController extends Notifier<AuthState> {
       email: email,
       password: password,
     );
-    final session = AuthSession(
-      familyCode: firebaseSession.familyIds.first,
-      role: firebaseSession.role,
-    );
-    state = AuthState(
-      mode: AuthMode.authenticated,
-      session: session,
-      hasModificationAccess: firebaseSession.isEditor,
-      firebaseUid: firebaseSession.uid,
-      firebaseEmail: firebaseSession.email,
-      firebaseRole: firebaseSession.role,
-      firebaseAuthMethod: firebaseSession.authMethod,
-    );
+    _applyFirebaseSession(firebaseSession);
+    await _saveSessionMetadata(firebaseSession);
     await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
   }
 
@@ -147,6 +161,7 @@ class AuthController extends Notifier<AuthState> {
     if (service != null && state.firebaseUid != null) {
       await service.signOut();
     }
+    await ref.read(sessionStorageServiceProvider).clearSession();
     state = const AuthState();
   }
 
@@ -159,22 +174,49 @@ class AuthController extends Notifier<AuthState> {
     try {
       final firebaseSession = await service.signInWithAccessCode(code);
       if (requireEditor && !firebaseSession.isEditor) return null;
-      final session = AuthSession(
-        familyCode: firebaseSession.familyIds.first,
-        role: firebaseSession.role,
-      );
-      state = AuthState(
-        mode: AuthMode.authenticated,
-        session: session,
-        hasModificationAccess: firebaseSession.isEditor,
-        firebaseUid: firebaseSession.uid,
-        firebaseEmail: firebaseSession.email,
-        firebaseRole: firebaseSession.role,
-        firebaseAuthMethod: firebaseSession.authMethod,
-      );
+      _applyFirebaseSession(firebaseSession);
+      await _saveSessionMetadata(firebaseSession);
       return firebaseSession;
     } catch (_) {
       return null;
     }
+  }
+
+  void _applyFirebaseSession(FirebaseAdminSession firebaseSession) {
+    final session = AuthSession(
+      familyCode: firebaseSession.familyIds.first,
+      role: firebaseSession.role,
+    );
+    state = AuthState(
+      mode: AuthMode.authenticated,
+      session: session,
+      hasModificationAccess: firebaseSession.isEditor,
+      firebaseUid: firebaseSession.uid,
+      firebaseEmail: firebaseSession.email,
+      firebaseRole: firebaseSession.role,
+      firebaseAuthMethod: firebaseSession.authMethod,
+    );
+  }
+
+  Future<void> _saveSessionMetadata(
+    FirebaseAdminSession firebaseSession,
+  ) async {
+    await ref
+        .read(sessionStorageServiceProvider)
+        .saveSession(
+          SessionMetadata(
+            uid: firebaseSession.uid,
+            familyId: firebaseSession.familyIds.first,
+            role: firebaseSession.role,
+            signedInAt: DateTime.now(),
+            expiresAt: firebaseSession.expiresAt ?? _defaultSessionExpiry(),
+            appVersion: '1.0.0+1',
+            authMethod: firebaseSession.authMethod,
+          ),
+        );
+  }
+
+  DateTime _defaultSessionExpiry() {
+    return DateTime.now().add(const Duration(days: 30));
   }
 }

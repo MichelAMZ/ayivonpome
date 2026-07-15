@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
-import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -20,16 +19,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _adminError;
   String? _adminMessage;
   var _adminSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    ref.read(authCodeServiceProvider).readLastCode().then((value) {
-      if (mounted && value != null) {
-        _controller.text = value;
-      }
-    });
-  }
 
   @override
   void dispose() {

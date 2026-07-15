@@ -39,11 +39,12 @@ class AuthCodeService {
 
   Future<String?> readLastCode() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_lastCodeKey);
+    await prefs.remove(_lastCodeKey);
+    return null;
   }
 
   Future<void> saveLastCode(String code) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_lastCodeKey, code.trim().toUpperCase());
+    await prefs.remove(_lastCodeKey);
   }
 }

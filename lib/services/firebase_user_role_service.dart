@@ -88,7 +88,35 @@ class FirebaseUserRoleService {
     await _firestore.collection('user_roles').doc(normalizedUid).set({
       'active': active,
       'updatedAt': FieldValue.serverTimestamp(),
+      if (!active) 'revokedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<void> revokeSession(String uid) {
+    return setActive(uid, false);
+  }
+
+  Future<void> revokeAllOtherAccessCodeSessions() async {
+    final current = currentUid;
+    final snapshot = await _firestore
+        .collection('user_roles')
+        .where('familyIds', arrayContains: _familyId)
+        .where('authMethod', isEqualTo: 'accessCode')
+        .get();
+    final batch = _firestore.batch();
+    var hasUpdates = false;
+    for (final doc in snapshot.docs) {
+      if (doc.id == current) continue;
+      batch.set(doc.reference, {
+        'active': false,
+        'revokedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      hasUpdates = true;
+    }
+    if (hasUpdates) {
+      await batch.commit();
+    }
   }
 
   Future<void> deleteRole(String uid) async {

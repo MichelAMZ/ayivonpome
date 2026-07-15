@@ -8,6 +8,7 @@ class FirebaseAdminSession {
     required this.role,
     required this.familyIds,
     this.authMethod = 'password',
+    this.expiresAt,
   });
 
   final String uid;
@@ -15,6 +16,7 @@ class FirebaseAdminSession {
   final String role;
   final List<String> familyIds;
   final String authMethod;
+  final DateTime? expiresAt;
 
   bool get isSuperAdmin => role == 'superAdmin';
   bool get isAdmin => role == 'admin' || isSuperAdmin;

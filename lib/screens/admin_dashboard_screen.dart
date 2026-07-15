@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -492,6 +493,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
         ),
       ),
+      const SizedBox(height: 16),
+      _SessionSecuritySection(auth: auth),
     ];
   }
 
@@ -1120,6 +1123,488 @@ class _AdminSectionNote extends StatelessWidget {
         title: Text(title),
         subtitle: Text(message),
       ),
+    );
+  }
+}
+
+class _SessionSecuritySection extends ConsumerWidget {
+  const _SessionSecuritySection({required this.auth});
+
+  final AuthState auth;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rolesState = ref.watch(firebaseUserRolesProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.devices_other_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Sessions',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Actualiser',
+                  onPressed: () => ref.invalidate(firebaseUserRolesProvider),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const _SessionPolicySummary(),
+            const SizedBox(height: 12),
+            rolesState.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (error, stackTrace) => Text(
+                'Sessions indisponibles : $error',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              data: (roles) {
+                final sessions = roles
+                    .where((role) => role.isAccessCodeSession || role.active)
+                    .toList();
+                if (sessions.isEmpty) {
+                  return const Text('Aucune session active.');
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () =>
+                              ref.invalidate(firebaseUserRolesProvider),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Actualiser'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: auth.isSuperAdmin
+                              ? () => _confirmRevokeAll(context, ref)
+                              : null,
+                          icon: const Icon(Icons.logout_outlined),
+                          label: const Text('Déconnecter tous'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 760;
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: sessions
+                              .map(
+                                (session) => SizedBox(
+                                  width: wide
+                                      ? (constraints.maxWidth - 12) / 2
+                                      : constraints.maxWidth,
+                                  child: _SessionCard(
+                                    session: session,
+                                    isCurrent: session.uid == auth.firebaseUid,
+                                    canManage: auth.isSuperAdmin,
+                                    onDetails: () =>
+                                        _showSessionDetails(context, session),
+                                    onRevoke: () => _revokeSession(
+                                      context,
+                                      ref,
+                                      session.uid,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _revokeSession(
+    BuildContext context,
+    WidgetRef ref,
+    String uid,
+  ) async {
+    await ref.read(firebaseUserRoleServiceProvider)?.revokeSession(uid);
+    ref.invalidate(firebaseUserRolesProvider);
+  }
+
+  Future<void> _confirmRevokeAll(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déconnecter les sessions'),
+        content: const Text(
+          'Déconnecter toutes les autres sessions par code d’accès ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Non'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Oui'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref
+        .read(firebaseUserRoleServiceProvider)
+        ?.revokeAllOtherAccessCodeSessions();
+    ref.invalidate(firebaseUserRolesProvider);
+  }
+
+  Future<void> _showSessionDetails(
+    BuildContext context,
+    FirebaseUserRole session,
+  ) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Détail de la session'),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SessionInlineInfo(
+                label: 'Utilisateur',
+                value: session.email.isEmpty ? session.uid : session.email,
+              ),
+              _SessionInlineInfo(label: 'UID', value: session.uid),
+              _SessionInlineInfo(label: 'Rôle', value: session.role),
+              _SessionInlineInfo(
+                label: 'Famille',
+                value: session.familyIds.join(', '),
+              ),
+              _SessionInlineInfo(
+                label: 'Méthode',
+                value: session.authMethod.isEmpty
+                    ? 'Firebase'
+                    : session.authMethod,
+              ),
+              _SessionInlineInfo(
+                label: 'Appareil',
+                value: _sessionPlatformLabel(session),
+              ),
+              _SessionInlineInfo(
+                label: 'Connexion',
+                value: _sessionDateLabel(
+                  session.lastAuthenticatedAt ?? session.createdAt,
+                ),
+              ),
+              _SessionInlineInfo(
+                label: 'Expiration',
+                value: _sessionExpiryLabel(session.sessionExpiresAt),
+              ),
+              _SessionInlineInfo(
+                label: 'État',
+                value: session.active ? 'Active' : 'Révoquée',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _sessionPlatformLabel(FirebaseUserRole role) {
+  final method = role.authMethod.isEmpty ? 'Firebase' : role.authMethod;
+  if (role.deviceFingerprintHash.isEmpty) return method;
+  final fingerprint = role.deviceFingerprintHash.length <= 8
+      ? role.deviceFingerprintHash
+      : role.deviceFingerprintHash.substring(0, 8);
+  return '$method / appareil $fingerprint';
+}
+
+String _sessionDateLabel(Object? value) {
+  DateTime? date;
+  if (value is Timestamp) date = value.toDate();
+  if (value is String) date = DateTime.tryParse(value);
+  if (date == null) return '-';
+  final local = date.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}/'
+      '${local.year} '
+      '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
+}
+
+String _sessionExpiryLabel(Object? value) {
+  DateTime? date;
+  if (value is Timestamp) date = value.toDate();
+  if (value is String) date = DateTime.tryParse(value);
+  if (date == null) return 'Jusqu’à déconnexion';
+  final difference = date.difference(DateTime.now());
+  if (difference.isNegative) return 'Expirée';
+  final days = difference.inDays;
+  if (days >= 1) return 'Dans $days jour${days > 1 ? 's' : ''}';
+  final hours = difference.inHours;
+  if (hours >= 1) return 'Dans $hours h';
+  final minutes = difference.inMinutes.clamp(1, 59);
+  return 'Dans $minutes min';
+}
+
+class _SessionCard extends StatelessWidget {
+  const _SessionCard({
+    required this.session,
+    required this.isCurrent,
+    required this.canManage,
+    required this.onDetails,
+    required this.onRevoke,
+  });
+
+  final FirebaseUserRole session;
+  final bool isCurrent;
+  final bool canManage;
+  final VoidCallback onDetails;
+  final VoidCallback onRevoke;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final title = session.email.isEmpty ? session.uid : session.email;
+    final active = session.active;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: active
+            ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.35)
+            : colorScheme.errorContainer.withValues(alpha: 0.35),
+        border: Border.all(
+          color: active ? colorScheme.outlineVariant : colorScheme.error,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  active ? Icons.check_circle_outline : Icons.block_outlined,
+                  color: active ? colorScheme.primary : colorScheme.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                if (isCurrent)
+                  const Chip(
+                    label: Text('Actuelle'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _SessionInlineInfo(label: 'Rôle', value: session.role),
+            _SessionInlineInfo(
+              label: 'Famille',
+              value: session.familyIds.join(', '),
+            ),
+            _SessionInlineInfo(
+              label: 'Appareil',
+              value: _sessionPlatformLabel(session),
+            ),
+            _SessionInlineInfo(
+              label: 'Dernière activité',
+              value: _sessionDateLabel(
+                session.lastAuthenticatedAt ?? session.updatedAt,
+              ),
+            ),
+            _SessionInlineInfo(
+              label: 'Expire',
+              value: _sessionExpiryLabel(session.sessionExpiresAt),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onDetails,
+                  icon: const Icon(Icons.info_outline),
+                  label: const Text('Voir le détail'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: canManage && active && !isCurrent
+                      ? onRevoke
+                      : null,
+                  icon: const Icon(Icons.logout_outlined),
+                  label: const Text('Déconnecter'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: canManage && active && !isCurrent
+                      ? onRevoke
+                      : null,
+                  icon: const Icon(Icons.block_outlined),
+                  label: const Text('Bloquer'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionInlineInfo extends StatelessWidget {
+  const _SessionInlineInfo({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          Expanded(child: Text(value.isEmpty ? '-' : value)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionPolicySummary extends StatelessWidget {
+  const _SessionPolicySummary();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Paramètres de session', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            const _SessionPolicyRow(
+              checked: true,
+              label: 'Connexion automatique activée',
+            ),
+            const _SessionPolicyRow(
+              checked: true,
+              label: 'Mémoriser la connexion',
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: const [
+                _SessionDurationChip(label: '24 h'),
+                _SessionDurationChip(label: '7 jours'),
+                _SessionDurationChip(label: '30 jours', selected: true),
+                _SessionDurationChip(label: '90 jours'),
+                _SessionDurationChip(label: 'Jamais'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const _SessionPolicyRow(
+              checked: true,
+              label: 'Une session par appareil',
+            ),
+            const _SessionPolicyRow(
+              checked: true,
+              label: 'Déconnecter les appareils lors du changement du code',
+            ),
+            const _SessionPolicyRow(
+              checked: true,
+              label:
+                  'Nouvelle authentification après 30 minutes pour modifier, supprimer, KPI, paramètres et sauvegardes',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionPolicyRow extends StatelessWidget {
+  const _SessionPolicyRow({required this.checked, required this.label});
+
+  final bool checked;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            checked ? Icons.check_box : Icons.check_box_outline_blank,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(label)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionDurationChip extends StatelessWidget {
+  const _SessionDurationChip({required this.label, this.selected = false});
+
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      selected: selected,
+      label: Text(label),
+      onSelected: null,
+      visualDensity: VisualDensity.compact,
     );
   }
 }
