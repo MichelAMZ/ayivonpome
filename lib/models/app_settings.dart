@@ -6,6 +6,7 @@ class AppSettings {
     this.applicationSubtitle = '',
     this.showApplicationSubtitle = false,
     this.officialFamilyName = '',
+    this.accessCodeContactName = 'Conseil de Famille',
     this.storageSettings = const StorageSettings(),
     this.treeSettings = const TreeViewSettings(),
     this.languageSettings = const LanguageSettings(),
@@ -17,6 +18,7 @@ class AppSettings {
   final String applicationSubtitle;
   final bool showApplicationSubtitle;
   final String officialFamilyName;
+  final String accessCodeContactName;
   final StorageSettings storageSettings;
   final TreeViewSettings treeSettings;
   final LanguageSettings languageSettings;
@@ -28,6 +30,8 @@ class AppSettings {
     applicationSubtitle: json['applicationSubtitle'] as String? ?? '',
     showApplicationSubtitle: json['showApplicationSubtitle'] as bool? ?? false,
     officialFamilyName: json['officialFamilyName'] as String? ?? '',
+    accessCodeContactName:
+        json['accessCodeContactName'] as String? ?? 'Conseil de Famille',
     storageSettings: StorageSettings.fromJson(
       Map<String, dynamic>.from(json['storageSettings'] as Map? ?? const {}),
     ),
@@ -50,6 +54,7 @@ class AppSettings {
     'applicationSubtitle': applicationSubtitle,
     'showApplicationSubtitle': showApplicationSubtitle,
     'officialFamilyName': officialFamilyName,
+    'accessCodeContactName': accessCodeContactName,
     'storageSettings': storageSettings.toJson(),
     'treeSettings': treeSettings.toJson(),
     'languageSettings': languageSettings.toJson(),
@@ -62,6 +67,7 @@ class AppSettings {
     String? applicationSubtitle,
     bool? showApplicationSubtitle,
     String? officialFamilyName,
+    String? accessCodeContactName,
     StorageSettings? storageSettings,
     TreeViewSettings? treeSettings,
     LanguageSettings? languageSettings,
@@ -74,6 +80,8 @@ class AppSettings {
       showApplicationSubtitle:
           showApplicationSubtitle ?? this.showApplicationSubtitle,
       officialFamilyName: officialFamilyName ?? this.officialFamilyName,
+      accessCodeContactName:
+          accessCodeContactName ?? this.accessCodeContactName,
       storageSettings: storageSettings ?? this.storageSettings,
       treeSettings: treeSettings ?? this.treeSettings,
       languageSettings: languageSettings ?? this.languageSettings,

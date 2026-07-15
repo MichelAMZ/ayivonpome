@@ -18,6 +18,7 @@ class _EditApplicationTitleDialogState
   late final TextEditingController _title;
   late final TextEditingController _subtitle;
   late final TextEditingController _officialFamilyName;
+  late final TextEditingController _accessCodeContactName;
   late final TextEditingController _initialZoomPercent;
   late bool _showSubtitle;
   late bool _rememberLastZoom;
@@ -35,6 +36,9 @@ class _EditApplicationTitleDialogState
     );
     _officialFamilyName = TextEditingController(
       text: widget.settings.officialFamilyName,
+    );
+    _accessCodeContactName = TextEditingController(
+      text: widget.settings.accessCodeContactName,
     );
     _initialZoomPercent = TextEditingController(
       text: (widget.settings.treeSettings.initialZoom * 100).round().toString(),
@@ -54,6 +58,7 @@ class _EditApplicationTitleDialogState
     _title.dispose();
     _subtitle.dispose();
     _officialFamilyName.dispose();
+    _accessCodeContactName.dispose();
     _initialZoomPercent.dispose();
     super.dispose();
   }
@@ -89,6 +94,14 @@ class _EditApplicationTitleDialogState
             TextField(
               controller: _officialFamilyName,
               decoration: InputDecoration(labelText: l10n.officialFamilyName),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _accessCodeContactName,
+              decoration: const InputDecoration(
+                labelText: 'Libellé de l’autorité familiale',
+                helperText: 'Exemple : Conseil de Famille',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -149,6 +162,7 @@ class _EditApplicationTitleDialogState
               applicationSubtitle: _subtitle.text.trim(),
               showApplicationSubtitle: _showSubtitle,
               officialFamilyName: _officialFamilyName.text.trim(),
+              accessCodeContactName: _accessCodeContactName.text.trim(),
               treeSettings: widget.settings.treeSettings.copyWith(
                 initialZoom:
                     (_parseZoomPercent(_initialZoomPercent.text) / 100),

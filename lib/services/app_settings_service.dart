@@ -7,6 +7,7 @@ class AppSettingsService {
     final title = settings.applicationTitle.trim();
     final subtitle = settings.applicationSubtitle.trim();
     final officialFamilyName = settings.officialFamilyName.trim();
+    final accessCodeContactName = settings.accessCodeContactName.trim();
     final treeSettings = settings.treeSettings;
     const minZoom = 0.40;
     const maxZoom = 1.20;
@@ -15,11 +16,12 @@ class AppSettingsService {
         .toDouble();
     final languageSettings = settings.languageSettings;
     final storageSettings = settings.storageSettings;
-    final storageMode = const {
-      'jsonOnly',
-      'databaseOnly',
-      'hybrid',
-    }.contains(storageSettings.mode)
+    final storageMode =
+        const {
+          'jsonOnly',
+          'databaseOnly',
+          'hybrid',
+        }.contains(storageSettings.mode)
         ? storageSettings.mode
         : 'hybrid';
     final tutorialSettings = settings.tutorialSettings;
@@ -46,6 +48,9 @@ class AppSettingsService {
       showApplicationSubtitle:
           settings.showApplicationSubtitle && subtitle.isNotEmpty,
       officialFamilyName: officialFamilyName,
+      accessCodeContactName: accessCodeContactName.isEmpty
+          ? 'Conseil de Famille'
+          : accessCodeContactName,
       storageSettings: storageSettings.copyWith(mode: storageMode),
       treeSettings: treeSettings.copyWith(
         initialZoom: initialZoom,
