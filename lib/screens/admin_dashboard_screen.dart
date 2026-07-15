@@ -10,6 +10,7 @@ import '../models/access_code.dart';
 import '../models/admin_notification_settings.dart';
 import '../models/app_settings.dart';
 import '../models/bug_report.dart';
+import '../models/diagnostic_report.dart';
 import '../models/family_announcement.dart';
 import '../models/family_honor.dart';
 import '../models/family_leadership.dart';
@@ -30,6 +31,22 @@ import '../widgets/kpi_card.dart';
 import '../widgets/responsive.dart';
 import '../widgets/secure_code_text_field.dart';
 
+enum _AdminCenterSection {
+  dashboard,
+  members,
+  users,
+  accessCodes,
+  synchronization,
+  incidents,
+  diagnostic,
+  activityLog,
+  statistics,
+  settings,
+  security,
+  backups,
+  about,
+}
+
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -39,6 +56,8 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  _AdminCenterSection _selectedSection = _AdminCenterSection.dashboard;
+
   @override
   void initState() {
     super.initState();
@@ -93,154 +112,431 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     AuthState auth,
     FamilyTreeData data,
   ) {
-    final kpi = ref.watch(kpiServiceProvider).compute(data);
-    final rotationStatus = ref
-        .watch(adminAccessServiceProvider)
-        .rotationStatus(data);
+    final sectionTitle = _adminSectionLabel(l10n, _selectedSection);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.adminDashboard)),
-      body: ResponsivePage(
-        children: [
-          Text(l10n.adminKpi, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          ResponsiveGrid(
-            mobileColumns: 1,
-            tabletColumns: 2,
-            desktopColumns: 4,
-            mainAxisExtent: 126,
+      appBar: AppBar(title: Text(sectionTitle)),
+      drawer: _AdminCenterDrawer(
+        selected: _selectedSection,
+        data: data,
+        onSelect: _selectAdminSection,
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final content = ResponsivePage(
+            children: _adminSectionChildren(context, l10n, auth, data),
+          );
+          if (constraints.maxWidth < 1000) return content;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              KpiCard(label: l10n.totalPeople, value: kpi.totalPeople),
-              KpiCard(
-                label: l10n.personAddedThisMonth,
-                value: kpi.peopleAddedThisMonth,
+              SizedBox(
+                width: 280,
+                child: _AdminCenterSideNavigation(
+                  selected: _selectedSection,
+                  data: data,
+                  onSelect: _selectAdminSection,
+                ),
               ),
-              KpiCard(
-                label: l10n.personModifiedThisMonth,
-                value: kpi.peopleModifiedThisMonth,
+              const VerticalDivider(width: 1),
+              Expanded(child: content),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _selectAdminSection(_AdminCenterSection section) {
+    setState(() => _selectedSection = section);
+  }
+
+  List<Widget> _adminSectionChildren(
+    BuildContext context,
+    AppLocalizations l10n,
+    AuthState auth,
+    FamilyTreeData data,
+  ) {
+    return switch (_selectedSection) {
+      _AdminCenterSection.dashboard => _dashboardChildren(context, l10n, data),
+      _AdminCenterSection.members => _membersChildren(context, l10n, data),
+      _AdminCenterSection.users => _usersChildren(context, l10n, auth, data),
+      _AdminCenterSection.accessCodes => [
+        _AccessCodeManagementSection(
+          data: data,
+          dataRole: auth.session?.role ?? auth.firebaseRole ?? 'viewer',
+        ),
+      ],
+      _AdminCenterSection.synchronization => [
+        _SyncManagementSection(data: data),
+      ],
+      _AdminCenterSection.incidents => _incidentsChildren(context, data),
+      _AdminCenterSection.diagnostic => [_DiagnosticCenterSection(data: data)],
+      _AdminCenterSection.activityLog => _activityLogChildren(l10n, data),
+      _AdminCenterSection.statistics => _statisticsChildren(
+        context,
+        l10n,
+        data,
+      ),
+      _AdminCenterSection.settings => _settingsChildren(data),
+      _AdminCenterSection.security => _securityChildren(
+        context,
+        l10n,
+        auth,
+        data,
+      ),
+      _AdminCenterSection.backups => _backupsChildren(context, data),
+      _AdminCenterSection.about => _aboutChildren(context, data),
+    };
+  }
+
+  List<Widget> _dashboardChildren(
+    BuildContext context,
+    AppLocalizations l10n,
+    FamilyTreeData data,
+  ) {
+    final kpi = ref.watch(kpiServiceProvider).compute(data);
+    final incidents = _syncIncidents(data);
+    final criticalCount = incidents
+        .where((item) => item.severity == 'critical')
+        .length;
+    final failedSyncCount = data.pendingSyncQueue
+        .where((item) => item.status == 'failed')
+        .length;
+    return [
+      Text('Tableau de bord', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 12),
+      ResponsiveGrid(
+        mobileColumns: 1,
+        tabletColumns: 2,
+        desktopColumns: 4,
+        mainAxisExtent: 126,
+        children: [
+          KpiCard(label: l10n.totalPeople, value: kpi.totalPeople),
+          KpiCard(label: l10n.familiesCount, value: kpi.linkedFamilies),
+          KpiCard(label: 'Administrateurs', value: data.admins.length),
+          KpiCard(label: 'Synchronisation', value: failedSyncCount),
+          KpiCard(label: 'Incidents critiques', value: criticalCount),
+          KpiCard(label: l10n.activityLog, value: data.auditLog.length),
+          KpiCard(label: l10n.activeCodes, value: kpi.activeCodes),
+          KpiCard(label: l10n.expiredCodes, value: kpi.expiredCodes),
+        ],
+      ),
+      const SizedBox(height: 16),
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          FilledButton.icon(
+            onPressed: () =>
+                _selectAdminSection(_AdminCenterSection.synchronization),
+            icon: const Icon(Icons.sync_outlined),
+            label: const Text('Synchroniser'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () =>
+                _selectAdminSection(_AdminCenterSection.diagnostic),
+            icon: const Icon(Icons.health_and_safety_outlined),
+            label: const Text('Diagnostic'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () =>
+                _selectAdminSection(_AdminCenterSection.activityLog),
+            icon: const Icon(Icons.history_outlined),
+            label: const Text('Journal'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _selectAdminSection(_AdminCenterSection.users),
+            icon: const Icon(Icons.manage_accounts_outlined),
+            label: const Text('Utilisateurs'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _InfoRow(
+                label: 'Dernière synchronisation',
+                value: data.syncSettings.lastSyncAt.isEmpty
+                    ? '-'
+                    : data.syncSettings.lastSyncAt,
               ),
-              KpiCard(label: l10n.familiesCount, value: kpi.linkedFamilies),
-              KpiCard(label: l10n.pendingCount, value: kpi.pendingFamilyLinks),
-              KpiCard(label: l10n.activeCodes, value: kpi.activeCodes),
-              KpiCard(label: l10n.expiredCodes, value: kpi.expiredCodes),
-              KpiCard(label: l10n.activityLog, value: data.auditLog.length),
+              _InfoRow(
+                label: 'Dernière sauvegarde',
+                value: data.lastUpdatedAt.isEmpty ? '-' : data.lastUpdatedAt,
+              ),
+              _InfoRow(
+                label: 'Activité récente',
+                value: data.auditLog.isEmpty ? '-' : data.auditLog.last.action,
+              ),
             ],
           ),
-          const SizedBox(height: 24),
-          _ApplicationSettingsSection(data: data),
-          const SizedBox(height: 24),
-          _SyncManagementSection(data: data),
-          const SizedBox(height: 24),
-          Text(
-            l10n.adminSecurity,
-            style: Theme.of(context).textTheme.titleLarge,
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _membersChildren(
+    BuildContext context,
+    AppLocalizations l10n,
+    FamilyTreeData data,
+  ) {
+    final kpi = ref.watch(kpiServiceProvider).compute(data);
+    return [
+      Text('Membres', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 12),
+      ResponsiveGrid(
+        mobileColumns: 1,
+        tabletColumns: 2,
+        desktopColumns: 4,
+        mainAxisExtent: 126,
+        children: [
+          KpiCard(label: l10n.totalPeople, value: kpi.totalPeople),
+          KpiCard(
+            label: l10n.personAddedThisMonth,
+            value: kpi.peopleAddedThisMonth,
           ),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.admin_panel_settings_outlined),
-                    title: Text(l10n.currentAdminCode),
-                    subtitle: const Text('************'),
-                    trailing: _RotationStatusChip(status: rotationStatus),
-                  ),
-                  const Divider(),
-                  _InfoRow(
-                    label: l10n.lastAdminCodeChange,
-                    value: _formatDate(data.adminAccess.lastChangedAt),
-                  ),
-                  _InfoRow(
-                    label: l10n.nextAdminCodeChange,
-                    value: _formatDate(data.adminAccess.nextChangeDueAt),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: FilledButton.icon(
-                      onPressed: auth.isSuperAdmin
-                          ? () => _showChangeAdminCodeDialog(context, ref)
-                          : null,
-                      icon: const Icon(Icons.password_outlined),
-                      label: Text(l10n.changeAdminCode),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.adminCodeHistory,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  ...data.adminAccess.codeHistory.reversed.map(
-                    (item) => ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.history),
-                      title: const Text('************'),
-                      subtitle: Text(
-                        [
-                          item.createdAt.isEmpty
-                              ? ''
-                              : '${l10n.create}: ${_formatDate(item.createdAt)}',
-                          item.expiredAt.isEmpty
-                              ? ''
-                              : '${l10n.expiredCodes}: ${_formatDate(item.expiredAt)}',
-                        ].where((value) => value.isNotEmpty).join('\n'),
-                      ),
-                    ),
-                  ),
-                ],
+          KpiCard(
+            label: l10n.personModifiedThisMonth,
+            value: kpi.peopleModifiedThisMonth,
+          ),
+          KpiCard(label: l10n.familiesCount, value: kpi.linkedFamilies),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const _AdminSectionNote(
+        icon: Icons.people_alt_outlined,
+        title: 'Gestion des membres',
+        message:
+            'Les actions Ajouter, Modifier et Supprimer restent disponibles depuis l’arbre familial et les fiches membres.',
+      ),
+    ];
+  }
+
+  List<Widget> _usersChildren(
+    BuildContext context,
+    AppLocalizations l10n,
+    AuthState auth,
+    FamilyTreeData data,
+  ) {
+    return [
+      Text(l10n.manageAdmins, style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      if (auth.isSuperAdmin) ...[
+        _FirebaseRoleManagementSection(auth: auth),
+        const SizedBox(height: 12),
+      ],
+      ...data.admins.map((admin) => AdminContactCard(admin: admin)),
+    ];
+  }
+
+  List<Widget> _incidentsChildren(BuildContext context, FamilyTreeData data) {
+    final incidents = _syncIncidents(data);
+    return [
+      Text('Incidents', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      _BugReportsSection(data: data),
+      if (incidents.isNotEmpty) ...[
+        const SizedBox(height: 24),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _SyncIncidentsPanel(incidents: incidents),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _activityLogChildren(
+    AppLocalizations l10n,
+    FamilyTreeData data,
+  ) {
+    return [
+      Text(l10n.activityLog, style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      ...data.auditLog.reversed
+          .take(50)
+          .map(
+            (log) => Card(
+              child: ListTile(
+                leading: const Icon(Icons.history_outlined),
+                title: Text(log.action),
+                subtitle: Text(
+                  [
+                    log.date,
+                    log.actorRole,
+                    log.description,
+                  ].where((value) => value.isNotEmpty).join('\n'),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          _AccessCodeManagementSection(
-            data: data,
-            dataRole: auth.session?.role ?? 'viewer',
+    ];
+  }
+
+  List<Widget> _statisticsChildren(
+    BuildContext context,
+    AppLocalizations l10n,
+    FamilyTreeData data,
+  ) {
+    final kpi = ref.watch(kpiServiceProvider).compute(data);
+    return [
+      Text('Statistiques', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 12),
+      ResponsiveGrid(
+        mobileColumns: 1,
+        tabletColumns: 2,
+        desktopColumns: 4,
+        mainAxisExtent: 126,
+        children: [
+          KpiCard(label: l10n.totalPeople, value: kpi.totalPeople),
+          KpiCard(
+            label: l10n.personAddedThisMonth,
+            value: kpi.peopleAddedThisMonth,
           ),
-          const SizedBox(height: 24),
-          _BugReportsSection(data: data),
-          const SizedBox(height: 24),
-          _InfoNewsManagementSection(data: data),
-          const SizedBox(height: 24),
-          _FamilyAnnouncementSection(data: data),
-          const SizedBox(height: 24),
-          _FamilyHonorSection(data: data),
-          const SizedBox(height: 24),
-          Text(
-            l10n.manageAdmins,
-            style: Theme.of(context).textTheme.titleLarge,
+          KpiCard(
+            label: l10n.personModifiedThisMonth,
+            value: kpi.peopleModifiedThisMonth,
           ),
-          const SizedBox(height: 8),
-          if (auth.isSuperAdmin) ...[
-            _FirebaseRoleManagementSection(auth: auth),
-            const SizedBox(height: 12),
-          ],
-          ...data.admins.map((admin) => AdminContactCard(admin: admin)),
-          Text(l10n.activityLog, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          ...data.auditLog.reversed
-              .take(30)
-              .map(
-                (log) => Card(
-                  child: ListTile(
-                    title: Text(log.action),
-                    subtitle: Text(
-                      [
-                        log.date,
-                        log.actorRole,
-                        log.description,
-                      ].where((value) => value.isNotEmpty).join('\n'),
-                    ),
+          KpiCard(label: 'Incidents', value: _syncIncidents(data).length),
+        ],
+      ),
+    ];
+  }
+
+  List<Widget> _settingsChildren(FamilyTreeData data) {
+    return [
+      _ApplicationSettingsSection(data: data),
+      const SizedBox(height: 24),
+      _InfoNewsManagementSection(data: data),
+      const SizedBox(height: 24),
+      _FamilyAnnouncementSection(data: data),
+      const SizedBox(height: 24),
+      _FamilyHonorSection(data: data),
+    ];
+  }
+
+  List<Widget> _securityChildren(
+    BuildContext context,
+    AppLocalizations l10n,
+    AuthState auth,
+    FamilyTreeData data,
+  ) {
+    final rotationStatus = ref
+        .watch(adminAccessServiceProvider)
+        .rotationStatus(data);
+    return [
+      Text(l10n.adminSecurity, style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.admin_panel_settings_outlined),
+                title: Text(l10n.currentAdminCode),
+                subtitle: const Text('************'),
+                trailing: _RotationStatusChip(status: rotationStatus),
+              ),
+              const Divider(),
+              _InfoRow(
+                label: l10n.lastAdminCodeChange,
+                value: _formatDate(data.adminAccess.lastChangedAt),
+              ),
+              _InfoRow(
+                label: l10n.nextAdminCodeChange,
+                value: _formatDate(data.adminAccess.nextChangeDueAt),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: FilledButton.icon(
+                  onPressed: auth.isSuperAdmin
+                      ? () => _showChangeAdminCodeDialog(context, ref)
+                      : null,
+                  icon: const Icon(Icons.password_outlined),
+                  label: Text(l10n.changeAdminCode),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l10n.adminCodeHistory,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              ...data.adminAccess.codeHistory.reversed.map(
+                (item) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.history),
+                  title: const Text('************'),
+                  subtitle: Text(
+                    [
+                      item.createdAt.isEmpty
+                          ? ''
+                          : '${l10n.create}: ${_formatDate(item.createdAt)}',
+                      item.expiredAt.isEmpty
+                          ? ''
+                          : '${l10n.expiredCodes}: ${_formatDate(item.expiredAt)}',
+                    ].where((value) => value.isNotEmpty).join('\n'),
                   ),
                 ),
               ),
-        ],
+            ],
+          ),
+        ),
       ),
-    );
+    ];
+  }
+
+  List<Widget> _backupsChildren(BuildContext context, FamilyTreeData data) {
+    return [
+      Text('Sauvegardes', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      _SyncManagementSection(data: data),
+    ];
+  }
+
+  List<Widget> _aboutChildren(BuildContext context, FamilyTreeData data) {
+    return [
+      Text('A propos', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              const _InfoRow(label: 'Version', value: '1.0.0+1'),
+              _InfoRow(label: 'Famille', value: data.mainFamilyCode),
+              _InfoRow(
+                label: 'Mode de stockage',
+                value: data.syncSettings.storageMode,
+              ),
+              _InfoRow(
+                label: 'Dernière mise à jour',
+                value: data.lastUpdatedAt.isEmpty ? '-' : data.lastUpdatedAt,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<SyncIncident> _syncIncidents(FamilyTreeData data) {
+    return data.pendingSyncQueue
+        .where((item) => item.status == 'failed' || item.lastError.isNotEmpty)
+        .map(
+          (item) =>
+              SyncIncident.fromPendingItem(item, familyId: data.mainFamilyCode),
+        )
+        .toList();
   }
 
   Future<void> _showChangeAdminCodeDialog(
@@ -673,6 +969,210 @@ class _FirebaseRoleTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AdminCenterDrawer extends StatelessWidget {
+  const _AdminCenterDrawer({
+    required this.selected,
+    required this.data,
+    required this.onSelect,
+  });
+
+  final _AdminCenterSection selected;
+  final FamilyTreeData data;
+  final ValueChanged<_AdminCenterSection> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: SafeArea(
+        child: _AdminCenterNavigationList(
+          selected: selected,
+          data: data,
+          onSelect: (section) {
+            Navigator.pop(context);
+            onSelect(section);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminCenterSideNavigation extends StatelessWidget {
+  const _AdminCenterSideNavigation({
+    required this.selected,
+    required this.data,
+    required this.onSelect,
+  });
+
+  final _AdminCenterSection selected;
+  final FamilyTreeData data;
+  final ValueChanged<_AdminCenterSection> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
+        child: _AdminCenterNavigationList(
+          selected: selected,
+          data: data,
+          onSelect: onSelect,
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminCenterNavigationList extends StatelessWidget {
+  const _AdminCenterNavigationList({
+    required this.selected,
+    required this.data,
+    required this.onSelect,
+  });
+
+  final _AdminCenterSection selected;
+  final FamilyTreeData data;
+  final ValueChanged<_AdminCenterSection> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+          child: Text(
+            'Centre d’administration',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        for (final section in _AdminCenterSection.values)
+          _AdminCenterNavigationTile(
+            selected: section == selected,
+            label: _adminSectionLabel(l10n, section),
+            icon: _adminSectionIcon(section),
+            count: _adminSectionCount(section, data),
+            onTap: () => onSelect(section),
+          ),
+      ],
+    );
+  }
+}
+
+class _AdminCenterNavigationTile extends StatelessWidget {
+  const _AdminCenterNavigationTile({
+    required this.selected,
+    required this.label,
+    required this.icon,
+    required this.count,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final String label;
+  final IconData icon;
+  final int? count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: ListTile(
+        selected: selected,
+        selectedTileColor: Theme.of(context).colorScheme.primaryContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        leading: Icon(icon),
+        title: Text(label, overflow: TextOverflow.ellipsis),
+        trailing: count == null
+            ? null
+            : Badge(
+                label: Text(count.toString()),
+                backgroundColor: selected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.secondary,
+              ),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _AdminSectionNote extends StatelessWidget {
+  const _AdminSectionNote({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(message),
+      ),
+    );
+  }
+}
+
+String _adminSectionLabel(AppLocalizations l10n, _AdminCenterSection section) {
+  return switch (section) {
+    _AdminCenterSection.dashboard => 'Tableau de bord',
+    _AdminCenterSection.members => 'Membres',
+    _AdminCenterSection.users => 'Utilisateurs',
+    _AdminCenterSection.accessCodes => 'Codes d’accès',
+    _AdminCenterSection.synchronization => 'Synchronisation',
+    _AdminCenterSection.incidents => 'Incidents',
+    _AdminCenterSection.diagnostic => 'Diagnostic',
+    _AdminCenterSection.activityLog => l10n.activityLog,
+    _AdminCenterSection.statistics => 'Statistiques',
+    _AdminCenterSection.settings => 'Paramètres',
+    _AdminCenterSection.security => 'Sécurité',
+    _AdminCenterSection.backups => 'Sauvegardes',
+    _AdminCenterSection.about => 'A propos',
+  };
+}
+
+IconData _adminSectionIcon(_AdminCenterSection section) {
+  return switch (section) {
+    _AdminCenterSection.dashboard => Icons.dashboard_outlined,
+    _AdminCenterSection.members => Icons.people_alt_outlined,
+    _AdminCenterSection.users => Icons.manage_accounts_outlined,
+    _AdminCenterSection.accessCodes => Icons.key_outlined,
+    _AdminCenterSection.synchronization => Icons.sync_outlined,
+    _AdminCenterSection.incidents => Icons.report_problem_outlined,
+    _AdminCenterSection.diagnostic => Icons.health_and_safety_outlined,
+    _AdminCenterSection.activityLog => Icons.history_outlined,
+    _AdminCenterSection.statistics => Icons.query_stats_outlined,
+    _AdminCenterSection.settings => Icons.settings_outlined,
+    _AdminCenterSection.security => Icons.security_outlined,
+    _AdminCenterSection.backups => Icons.backup_outlined,
+    _AdminCenterSection.about => Icons.info_outline,
+  };
+}
+
+int? _adminSectionCount(_AdminCenterSection section, FamilyTreeData data) {
+  return switch (section) {
+    _AdminCenterSection.members => data.people.length,
+    _AdminCenterSection.users => data.admins.length,
+    _AdminCenterSection.accessCodes => data.familyCodes.length,
+    _AdminCenterSection.synchronization => data.pendingSyncQueue.length,
+    _AdminCenterSection.incidents =>
+      data.pendingSyncQueue
+          .where((item) => item.status == 'failed' || item.lastError.isNotEmpty)
+          .length,
+    _AdminCenterSection.activityLog => data.auditLog.length,
+    _ => null,
+  };
 }
 
 class _ApplicationSettingsSection extends ConsumerWidget {
@@ -1282,6 +1782,576 @@ class _SyncResultBanner extends StatelessWidget {
   }
 }
 
+class _DiagnosticCenterSection extends ConsumerStatefulWidget {
+  const _DiagnosticCenterSection({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  ConsumerState<_DiagnosticCenterSection> createState() =>
+      _DiagnosticCenterSectionState();
+}
+
+class _DiagnosticCenterSectionState
+    extends ConsumerState<_DiagnosticCenterSection> {
+  DiagnosticReport? _report;
+  bool _testing = false;
+  bool _testingFirestore = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = ref.watch(authSessionProvider);
+    final incidents = _incidents(widget.data);
+    final lastError = incidents.isEmpty ? null : incidents.last;
+    final errorCount = incidents.length;
+    final report = _report;
+    final busy = _testing || _testingFirestore;
+    final hasReport = report?.hasResults == true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Centre de diagnostic',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: busy ? null : () => _runDiagnostic(),
+                      icon: _testing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.fact_check_outlined),
+                      label: const Text('Tester'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : () => _runFirestoreDiagnostic(),
+                      icon: _testingFirestore
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.storage_outlined),
+                      label: const Text('Tester Firestore'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: !hasReport || busy
+                          ? null
+                          : () => _copyReport(),
+                      icon: const Icon(Icons.content_copy_outlined),
+                      label: const Text('Copier le diagnostic'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: !hasReport || busy
+                          ? null
+                          : () => _exportReport(),
+                      icon: const Icon(Icons.file_download_outlined),
+                      label: const Text('Export TXT'),
+                    ),
+                  ],
+                ),
+                if (auth.firebaseUid == null) ...[
+                  const SizedBox(height: 12),
+                  Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: ListTile(
+                      leading: const Icon(Icons.lock_outline),
+                      title: const Text('Session Firebase non connectée'),
+                      subtitle: const Text(
+                        'Les tests Firestore nécessitent une connexion Firebase Admin réelle.',
+                      ),
+                      trailing: FilledButton.icon(
+                        onPressed: busy ? null : _showFirebaseAdminLogin,
+                        icon: const Icon(Icons.login_outlined),
+                        label: const Text('Se connecter comme administrateur'),
+                      ),
+                    ),
+                  ),
+                ],
+                if (busy) ...[
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Diagnostic en cours...',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 720;
+                    final tiles = [
+                      _DiagnosticStatusTile(
+                        label: 'Etat Firestore',
+                        value: report?.firestoreStatus ?? '-',
+                        ok: report == null
+                            ? null
+                            : report.firestoreStatus == 'OK',
+                      ),
+                      _DiagnosticStatusTile(
+                        label: 'Etat Firebase Authentication',
+                        value: report?.authStatus ?? '-',
+                        ok: report == null ? null : report.authStatus == 'OK',
+                      ),
+                      _DiagnosticStatusTile(
+                        label: 'Etat Synchronisation',
+                        value: report?.syncStatus ?? '$errorCount erreur(s)',
+                        ok: report == null ? null : report.failedSyncCount == 0,
+                      ),
+                      _DiagnosticStatusTile(
+                        label: 'Etat Réseau',
+                        value: report?.networkStatus ?? '-',
+                        ok: report == null
+                            ? null
+                            : report.networkStatus == 'OK',
+                      ),
+                      _DiagnosticStatusTile(
+                        label: 'Etat Base locale',
+                        value: report?.localDatabaseStatus ?? '-',
+                        ok: report == null
+                            ? null
+                            : report.localDatabaseStatus == 'OK',
+                      ),
+                      _DiagnosticStatusTile(
+                        label: 'Nombre d’erreurs',
+                        value: errorCount.toString(),
+                        ok: errorCount == 0,
+                      ),
+                    ];
+                    return GridView.count(
+                      crossAxisCount: compact ? 1 : 3,
+                      childAspectRatio: compact ? 5.8 : 3.8,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      children: tiles,
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                _InfoRow(
+                  label: 'Dernière erreur',
+                  value: lastError == null
+                      ? '-'
+                      : '${lastError.errorCode} sur ${lastError.collectionName}/${lastError.documentId}',
+                ),
+                if (report != null) ...[
+                  _InfoRow(
+                    label: 'Dernier diagnostic',
+                    value: _formatDiagnosticDate(report.generatedAt),
+                  ),
+                  const SizedBox(height: 12),
+                  _DiagnosticChecksList(checks: report.checks),
+                  const Divider(height: 28),
+                  _DiagnosticErrorsPreview(
+                    errors: report.errors.take(8).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _runDiagnostic() async {
+    setState(() => _testing = true);
+    try {
+      final report = await ref
+          .read(diagnosticServiceProvider)
+          .run(data: widget.data, incidents: _incidents(widget.data));
+      if (!mounted) return;
+      setState(() => _report = report);
+      _showSnackBar('Diagnostic terminé.');
+    } finally {
+      if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  Future<void> _runFirestoreDiagnostic() async {
+    setState(() => _testingFirestore = true);
+    try {
+      final report = await ref
+          .read(diagnosticServiceProvider)
+          .testFirestore(data: widget.data, incidents: _incidents(widget.data));
+      if (!mounted) return;
+      setState(() => _report = report);
+      final failed = report.checks.where((check) => !check.ok).length;
+      _showSnackBar(
+        failed == 0
+            ? 'Test Firestore terminé : lecture, écriture et suppression OK.'
+            : 'Test Firestore terminé : $failed erreur(s).',
+      );
+    } finally {
+      if (mounted) setState(() => _testingFirestore = false);
+    }
+  }
+
+  Future<void> _copyReport() async {
+    final report = _report;
+    if (report == null) return;
+    final content = ref.read(diagnosticServiceProvider).buildTextReport(report);
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    _showSnackBar('Diagnostic copié.');
+  }
+
+  Future<void> _showFirebaseAdminLogin() async {
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    var loading = false;
+    String? errorText;
+    final signedIn = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Connexion administrateur Firebase'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'E-mail'),
+                    enabled: !loading,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Mot de passe',
+                    ),
+                    enabled: !loading,
+                    onSubmitted: (_) => _submitFirebaseAdminLogin(
+                      context,
+                      setDialogState,
+                      emailController,
+                      passwordController,
+                      (value) => loading = value,
+                      (value) => errorText = value,
+                    ),
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      errorText!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: loading ? null : () => Navigator.pop(context, false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton.icon(
+                onPressed: loading
+                    ? null
+                    : () => _submitFirebaseAdminLogin(
+                        context,
+                        setDialogState,
+                        emailController,
+                        passwordController,
+                        (value) => loading = value,
+                        (value) => errorText = value,
+                      ),
+                icon: loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.login_outlined),
+                label: const Text('Se connecter'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    emailController.dispose();
+    passwordController.dispose();
+    if (signedIn == true && mounted) {
+      _showSnackBar('Session Firebase connectée.');
+    }
+  }
+
+  Future<void> _submitFirebaseAdminLogin(
+    BuildContext dialogContext,
+    StateSetter setDialogState,
+    TextEditingController emailController,
+    TextEditingController passwordController,
+    ValueChanged<bool> setLoading,
+    ValueChanged<String?> setError,
+  ) async {
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      setDialogState(() => setError('E-mail et mot de passe requis.'));
+      return;
+    }
+    setDialogState(() {
+      setLoading(true);
+      setError(null);
+    });
+    try {
+      await ref
+          .read(authSessionProvider.notifier)
+          .loginFirebaseAdmin(email: email, password: password);
+      if (!dialogContext.mounted) return;
+      Navigator.pop(dialogContext, true);
+    } catch (error) {
+      setDialogState(() {
+        setError(_friendlyFirebaseLoginError(error));
+        setLoading(false);
+      });
+    }
+  }
+
+  String _friendlyFirebaseLoginError(Object error) {
+    final message = error.toString();
+    if (message.contains('user-not-found') ||
+        message.contains('wrong-password') ||
+        message.contains('invalid-credential')) {
+      return 'Identifiants Firebase incorrects.';
+    }
+    if (message.contains('network-request-failed')) {
+      return 'Connexion Internet indisponible.';
+    }
+    if (message.contains('rôle') || message.contains('droits')) {
+      return message;
+    }
+    return 'Connexion Firebase impossible.';
+  }
+
+  Future<void> _exportReport() async {
+    final report = _report;
+    if (report == null) return;
+    final content = ref.read(diagnosticServiceProvider).buildTextReport(report);
+    await FilePicker.platform.saveFile(
+      dialogTitle: 'Exporter le diagnostic',
+      fileName: _diagnosticFileName(report.generatedAt),
+      bytes: utf8.encode(content),
+    );
+    if (!mounted) return;
+    _showSnackBar('Diagnostic exporté.');
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<SyncIncident> _incidents(FamilyTreeData data) {
+    return data.pendingSyncQueue
+        .where((item) => item.status == 'failed' || item.lastError.isNotEmpty)
+        .map(
+          (item) =>
+              SyncIncident.fromPendingItem(item, familyId: data.mainFamilyCode),
+        )
+        .toList();
+  }
+
+  String _diagnosticFileName(DateTime value) {
+    String two(int input) => input.toString().padLeft(2, '0');
+    return 'diagnostic_${value.year}${two(value.month)}${two(value.day)}_'
+        '${two(value.hour)}${two(value.minute)}${two(value.second)}.txt';
+  }
+
+  String _formatDiagnosticDate(DateTime value) {
+    String two(int input) => input.toString().padLeft(2, '0');
+    return '${two(value.day)}/${two(value.month)}/${value.year} '
+        '${two(value.hour)}:${two(value.minute)}:${two(value.second)}';
+  }
+}
+
+class _DiagnosticStatusTile extends StatelessWidget {
+  const _DiagnosticStatusTile({
+    required this.label,
+    required this.value,
+    required this.ok,
+  });
+
+  final String label;
+  final String value;
+  final bool? ok;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final color = ok == null
+        ? colorScheme.outline
+        : ok!
+        ? Colors.green.shade700
+        : colorScheme.error;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              ok == null
+                  ? Icons.help_outline
+                  : ok!
+                  ? Icons.check_circle_outline
+                  : Icons.error_outline,
+              color: color,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(label, overflow: TextOverflow.ellipsis),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: color),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DiagnosticChecksList extends StatelessWidget {
+  const _DiagnosticChecksList({required this.checks});
+
+  final List<DiagnosticCheck> checks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final check in checks)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              check.ok ? Icons.check_circle_outline : Icons.error_outline,
+              color: check.ok
+                  ? Colors.green.shade700
+                  : Theme.of(context).colorScheme.error,
+            ),
+            title: Text(check.label),
+            subtitle: Text(
+              [
+                check.message,
+                if (check.collectionName.isNotEmpty)
+                  'Collection : ${check.collectionName}',
+                if (check.documentPath.isNotEmpty)
+                  'Document : ${check.documentPath}',
+                if (check.ruleName.isNotEmpty) 'Règle : ${check.ruleName}',
+                if (check.code.isNotEmpty) 'Code : ${check.code}',
+              ].join('\n'),
+            ),
+            trailing: Text(
+              check.responseTimeMs == null ? '-' : '${check.responseTimeMs} ms',
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DiagnosticErrorsPreview extends StatelessWidget {
+  const _DiagnosticErrorsPreview({required this.errors});
+
+  final List<SyncIncident> errors;
+
+  @override
+  Widget build(BuildContext context) {
+    if (errors.isEmpty) {
+      return const ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.verified_outlined),
+        title: Text('Dernières erreurs'),
+        subtitle: Text('Aucune erreur enregistrée.'),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Dernières erreurs',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        for (final error in errors)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.bug_report_outlined),
+            title: Text(
+              '${error.errorCode} - ${error.collectionName}/${error.documentId}',
+            ),
+            subtitle: Text(
+              [
+                error.lastOccurredAt,
+                error.errorType,
+                _errorSource(error),
+                '${error.attemptCount} tentative(s)',
+              ].where((value) => value.trim().isNotEmpty).join('\n'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _errorSource(SyncIncident error) {
+    final file = error.sourceFile.trim();
+    final method = error.sourceFunction.trim();
+    final line = error.sourceLine;
+    if (file.isEmpty && method.isEmpty) return 'Localisation indisponible';
+    final location = file.isEmpty
+        ? ''
+        : line == null
+        ? file
+        : '$file:$line';
+    if (method.isEmpty) return location;
+    if (location.isEmpty) return method;
+    return '$method - $location';
+  }
+}
+
 class _SyncIncidentsPanel extends ConsumerWidget {
   const _SyncIncidentsPanel({required this.incidents});
 
@@ -1565,14 +2635,21 @@ class _SyncIncidentsPanel extends ConsumerWidget {
   }
 
   String _sourceLabel(SyncIncident incident) {
-    if (incident.sourceFile.trim().isEmpty) {
-      return 'Localisation indisponible';
-    }
+    final function = incident.sourceFunction.trim();
+    final file = incident.sourceFile.trim();
+    if (file.isEmpty && function.isEmpty) return 'Localisation indisponible';
     final line = incident.sourceLine;
     final column = incident.sourceColumn;
-    if (line == null) return incident.sourceFile;
-    if (column == null) return '${incident.sourceFile}:$line';
-    return '${incident.sourceFile}:$line:$column';
+    final location = file.isEmpty
+        ? ''
+        : line == null
+        ? file
+        : column == null
+        ? '$file:$line'
+        : '$file:$line:$column';
+    if (function.isEmpty) return location;
+    if (location.isEmpty) return function;
+    return '$function - $location';
   }
 
   String _shortDate(String value) {
@@ -1670,6 +2747,7 @@ class _IncidentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final source = _sourceSummary(incident);
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(
@@ -1680,7 +2758,7 @@ class _IncidentTile extends StatelessWidget {
       title: Text('${incident.operationType} ${incident.collectionName}'),
       subtitle: Text(
         '${incident.documentId} - ${incident.errorCode} - '
-        '${incident.sourceFile.isEmpty ? 'Localisation indisponible' : incident.sourceFile} - '
+        '$source - '
         '${incident.attemptCount} tentative(s)',
       ),
       trailing: _IncidentActions(
@@ -1691,6 +2769,21 @@ class _IncidentTile extends StatelessWidget {
         onCopy: onCopy,
       ),
     );
+  }
+
+  String _sourceSummary(SyncIncident incident) {
+    final function = incident.sourceFunction.trim();
+    final file = incident.sourceFile.trim();
+    if (file.isEmpty && function.isEmpty) return 'Localisation indisponible';
+    final line = incident.sourceLine;
+    final location = file.isEmpty
+        ? ''
+        : line == null
+        ? file
+        : '$file:$line';
+    if (function.isEmpty) return location;
+    if (location.isEmpty) return function;
+    return '$function - $location';
   }
 }
 

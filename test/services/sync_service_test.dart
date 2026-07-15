@@ -53,6 +53,10 @@ void main() {
       expect(pending.single.id, secondOperation.id);
       expect(pending.single.payload['firstName'], 'Kossi modifie');
       expect(pending.single.status, 'failed');
+      expect(pending.single.errorType, 'StateError');
+      expect(pending.single.stackTrace, isNotEmpty);
+      expect(pending.single.sourceFile, contains('sync_service_test.dart'));
+      expect(pending.single.sourceLine, isNotNull);
     },
   );
 

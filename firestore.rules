@@ -134,6 +134,24 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    match /diagnostic_ping/{pingId} {
+      allow read, delete: if isAdmin('ayivon') &&
+        request.auth.uid == pingId;
+      allow create: if isAdmin(request.resource.data.familyId) &&
+        request.auth.uid == pingId &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.type == 'firestoreDiagnostic';
+      allow update: if false;
+    }
+
+    match /access_code_configs/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /access_code_audit_logs/{document=**} {
+      allow read, write: if false;
+    }
+
     match /settings/{settingId} {
       allow read: if settingId == 'admin_notifications' && isAdmin('ayivon');
       allow write: if settingId == 'admin_notifications' && isSuperAdmin();

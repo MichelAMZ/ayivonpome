@@ -165,7 +165,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final now = DateTime.now().toUtc().toIso8601String();
     try {
       await _ensureFirebaseUser('updatePerson', doc.path, personId: personId);
-      final nextVersion = person.version <= 0 ? 1 : person.version + 1;
+      final nextVersion = person.version <= 0 ? 1 : person.version;
       final data = _mapper.toFirestore(
         person.copyWith(updatedAt: now, version: nextVersion).toJson(),
         id: personId,

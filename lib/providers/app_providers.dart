@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -15,6 +16,7 @@ import '../services/conflict_resolution_service.dart';
 import '../services/bug_report_service.dart';
 import '../services/communication_service.dart';
 import '../services/data_cleanup_service.dart';
+import '../services/diagnostic_service.dart';
 import '../services/admin_service.dart';
 import '../services/admin_access_service.dart';
 import '../services/access_code_service.dart';
@@ -23,6 +25,7 @@ import '../services/family_relation_service.dart';
 import '../services/family_council_service.dart';
 import '../services/family_announcement_service.dart';
 import '../services/firebase_admin_auth_service.dart';
+import '../services/firebase_access_code_auth_service.dart';
 import '../services/firebase_user_role_service.dart';
 import '../services/genealogy_statistics_service.dart';
 import '../services/genealogy_generation_service.dart';
@@ -92,6 +95,17 @@ final syncServiceProvider = Provider<SyncService>(
   ),
 );
 
+final diagnosticServiceProvider = Provider<DiagnosticService>((ref) {
+  final config = FirebaseRuntimeConfig.fromEnvironment();
+  final firebaseReady = config.enabled && Firebase.apps.isNotEmpty;
+  return DiagnosticService(
+    connectivity: ref.watch(connectivityServiceProvider),
+    localStorage: ref.watch(jsonStorageServiceProvider),
+    firestore: firebaseReady ? FirebaseFirestore.instance : null,
+    auth: firebaseReady ? FirebaseAuth.instance : null,
+  );
+});
+
 final conflictResolutionServiceProvider = Provider<ConflictResolutionService>(
   (ref) => const ConflictResolutionService(),
 );
@@ -111,6 +125,18 @@ final firebaseAdminAuthServiceProvider = Provider<FirebaseAdminAuthService?>((
     familyId: config.familyId,
   );
 });
+
+final firebaseAccessCodeAuthServiceProvider =
+    Provider<FirebaseAccessCodeAuthService?>((ref) {
+      final config = FirebaseRuntimeConfig.fromEnvironment();
+      if (!config.enabled || Firebase.apps.isEmpty) return null;
+      return FirebaseAccessCodeAuthService(
+        auth: FirebaseAuth.instance,
+        firestore: FirebaseFirestore.instance,
+        functions: FirebaseFunctions.instance,
+        familyId: config.familyId,
+      );
+    });
 
 final firebaseUserRoleServiceProvider = Provider<FirebaseUserRoleService?>((
   ref,

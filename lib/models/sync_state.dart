@@ -65,6 +65,16 @@ class PendingSyncItem {
     this.retryCount = 0,
     this.updatedBy = '',
     this.lastError = '',
+    this.errorType = '',
+    this.stackTrace = '',
+    this.sourceFile = '',
+    this.sourceFunction = '',
+    this.sourceLine,
+    this.sourceColumn,
+    this.routeName = '',
+    this.appVersion = '',
+    this.platform = '',
+    this.locationPrecision = 'unavailable',
   });
 
   final String id;
@@ -78,24 +88,43 @@ class PendingSyncItem {
   final int retryCount;
   final String updatedBy;
   final String lastError;
+  final String errorType;
+  final String stackTrace;
+  final String sourceFile;
+  final String sourceFunction;
+  final int? sourceLine;
+  final int? sourceColumn;
+  final String routeName;
+  final String appVersion;
+  final String platform;
+  final String locationPrecision;
 
-  factory PendingSyncItem.fromJson(Map<String, dynamic> json) =>
-      PendingSyncItem(
-        id: json['id'] as String? ?? '',
-        entityType: json['entityType'] as String? ?? '',
-        entityId: json['entityId'] as String? ?? '',
-        action: json['action'] as String? ?? '',
-        payload: Map<String, dynamic>.from(json['payload'] as Map? ?? const {}),
-        createdAt: json['createdAt'] as String? ?? '',
-        updatedAt: json['updatedAt'] as String? ?? '',
-        status: json['status'] as String? ?? 'pending',
-        retryCount: json['retryCount'] as int? ?? 0,
-        updatedBy: json['updatedBy'] as String? ?? '',
-        lastError:
-            json['lastError'] as String? ??
-            json['errorMessage'] as String? ??
-            '',
-      );
+  factory PendingSyncItem.fromJson(
+    Map<String, dynamic> json,
+  ) => PendingSyncItem(
+    id: json['id'] as String? ?? '',
+    entityType: json['entityType'] as String? ?? '',
+    entityId: json['entityId'] as String? ?? '',
+    action: json['action'] as String? ?? '',
+    payload: Map<String, dynamic>.from(json['payload'] as Map? ?? const {}),
+    createdAt: json['createdAt'] as String? ?? '',
+    updatedAt: json['updatedAt'] as String? ?? '',
+    status: json['status'] as String? ?? 'pending',
+    retryCount: json['retryCount'] as int? ?? 0,
+    updatedBy: json['updatedBy'] as String? ?? '',
+    lastError:
+        json['lastError'] as String? ?? json['errorMessage'] as String? ?? '',
+    errorType: json['errorType'] as String? ?? '',
+    stackTrace: json['stackTrace'] as String? ?? '',
+    sourceFile: json['sourceFile'] as String? ?? '',
+    sourceFunction: json['sourceFunction'] as String? ?? '',
+    sourceLine: json['sourceLine'] as int?,
+    sourceColumn: json['sourceColumn'] as int?,
+    routeName: json['routeName'] as String? ?? '',
+    appVersion: json['appVersion'] as String? ?? '',
+    platform: json['platform'] as String? ?? '',
+    locationPrecision: json['locationPrecision'] as String? ?? 'unavailable',
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -109,6 +138,17 @@ class PendingSyncItem {
     'retryCount': retryCount,
     if (updatedBy.isNotEmpty) 'updatedBy': updatedBy,
     if (lastError.isNotEmpty) 'lastError': lastError,
+    if (errorType.isNotEmpty) 'errorType': errorType,
+    if (stackTrace.isNotEmpty) 'stackTrace': stackTrace,
+    if (sourceFile.isNotEmpty) 'sourceFile': sourceFile,
+    if (sourceFunction.isNotEmpty) 'sourceFunction': sourceFunction,
+    if (sourceLine != null) 'sourceLine': sourceLine,
+    if (sourceColumn != null) 'sourceColumn': sourceColumn,
+    if (routeName.isNotEmpty) 'routeName': routeName,
+    if (appVersion.isNotEmpty) 'appVersion': appVersion,
+    if (platform.isNotEmpty) 'platform': platform,
+    if (locationPrecision != 'unavailable')
+      'locationPrecision': locationPrecision,
   };
 
   PendingSyncItem copyWith({
@@ -123,6 +163,16 @@ class PendingSyncItem {
     int? retryCount,
     String? updatedBy,
     String? lastError,
+    String? errorType,
+    String? stackTrace,
+    String? sourceFile,
+    String? sourceFunction,
+    int? sourceLine,
+    int? sourceColumn,
+    String? routeName,
+    String? appVersion,
+    String? platform,
+    String? locationPrecision,
   }) {
     return PendingSyncItem(
       id: id ?? this.id,
@@ -136,6 +186,16 @@ class PendingSyncItem {
       retryCount: retryCount ?? this.retryCount,
       updatedBy: updatedBy ?? this.updatedBy,
       lastError: lastError ?? this.lastError,
+      errorType: errorType ?? this.errorType,
+      stackTrace: stackTrace ?? this.stackTrace,
+      sourceFile: sourceFile ?? this.sourceFile,
+      sourceFunction: sourceFunction ?? this.sourceFunction,
+      sourceLine: sourceLine ?? this.sourceLine,
+      sourceColumn: sourceColumn ?? this.sourceColumn,
+      routeName: routeName ?? this.routeName,
+      appVersion: appVersion ?? this.appVersion,
+      platform: platform ?? this.platform,
+      locationPrecision: locationPrecision ?? this.locationPrecision,
     );
   }
 }

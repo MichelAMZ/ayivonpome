@@ -1559,18 +1559,28 @@ class _DesktopSidebar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(22, 28, 22, 18),
         child: Column(
           children: [
-            for (var i = 0; i < visiblePrimary.length; i++) ...[
-              _SidebarItem(
-                icon: i == selectedIndex
-                    ? visiblePrimary[i].selectedIcon ?? visiblePrimary[i].icon
-                    : visiblePrimary[i].icon,
-                label: visiblePrimary[i].label,
-                selected: i == selectedIndex,
-                onTap: () => onDestinationSelected(i),
+            Expanded(
+              child: SingleChildScrollView(
+                primary: false,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < visiblePrimary.length; i++) ...[
+                      _SidebarItem(
+                        icon: i == selectedIndex
+                            ? visiblePrimary[i].selectedIcon ??
+                                  visiblePrimary[i].icon
+                            : visiblePrimary[i].icon,
+                        label: visiblePrimary[i].label,
+                        selected: i == selectedIndex,
+                        onTap: () => onDestinationSelected(i),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-            ],
-            const Spacer(),
+            ),
+            const SizedBox(height: 12),
             if (hasSettings)
               _SidebarItem(
                 icon: selectedIndex == settingsIndex

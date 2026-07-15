@@ -9,6 +9,7 @@ import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../models/sync_diagnostic.dart';
+import '../models/sync_incident.dart';
 import '../models/sync_state.dart';
 import 'connectivity_service.dart';
 import 'family_repository.dart';
@@ -86,7 +87,16 @@ class SyncService {
             stackTrace,
             sourceFunction: 'enqueueOrSyncMany',
           );
-          failed.add(operation.copyWith(lastError: lastError));
+          failed.add(
+            _withFailureDiagnostic(
+              operation,
+              data.mainFamilyCode,
+              lastError,
+              error,
+              stackTrace,
+              sourceFunction: 'enqueueOrSyncMany',
+            ),
+          );
         } catch (error, stackTrace) {
           final lastError = _logGenericFailure(
             operation,
@@ -101,7 +111,16 @@ class SyncService {
             stackTrace,
             sourceFunction: 'enqueueOrSyncMany',
           );
-          failed.add(operation.copyWith(lastError: lastError));
+          failed.add(
+            _withFailureDiagnostic(
+              operation,
+              data.mainFamilyCode,
+              lastError,
+              error,
+              stackTrace,
+              sourceFunction: 'enqueueOrSyncMany',
+            ),
+          );
         }
       }
       if (failed.isNotEmpty) {
@@ -139,18 +158,22 @@ class SyncService {
         auditLog: audit,
       );
     } on FirebaseException catch (error, stackTrace) {
-      final withError = operations
-          .map(
-            (operation) => operation.copyWith(
-              lastError: _logFirebaseFailure(
-                operation,
-                data.mainFamilyCode,
-                error,
-                stackTrace,
-              ),
-            ),
-          )
-          .toList();
+      final withError = operations.map((operation) {
+        final lastError = _logFirebaseFailure(
+          operation,
+          data.mainFamilyCode,
+          error,
+          stackTrace,
+        );
+        return _withFailureDiagnostic(
+          operation,
+          data.mainFamilyCode,
+          lastError,
+          error,
+          stackTrace,
+          sourceFunction: 'enqueueOrSyncMany',
+        );
+      }).toList();
       return _enqueueAll(
         data,
         withError,
@@ -158,18 +181,22 @@ class SyncService {
         operationStatus: 'failed',
       );
     } catch (error, stackTrace) {
-      final withError = operations
-          .map(
-            (operation) => operation.copyWith(
-              lastError: _logGenericFailure(
-                operation,
-                data.mainFamilyCode,
-                error,
-                stackTrace,
-              ),
-            ),
-          )
-          .toList();
+      final withError = operations.map((operation) {
+        final lastError = _logGenericFailure(
+          operation,
+          data.mainFamilyCode,
+          error,
+          stackTrace,
+        );
+        return _withFailureDiagnostic(
+          operation,
+          data.mainFamilyCode,
+          lastError,
+          error,
+          stackTrace,
+          sourceFunction: 'enqueueOrSyncMany',
+        );
+      }).toList();
       return _enqueueAll(
         data,
         withError,
@@ -218,10 +245,15 @@ class SyncService {
         );
         hadError = true;
         remaining.add(
-          item.copyWith(
+          _withFailureDiagnostic(
+            item,
+            working.mainFamilyCode,
+            lastError,
+            error,
+            stackTrace,
+            sourceFunction: 'syncPendingQueue',
             status: 'failed',
             retryCount: item.retryCount + 1,
-            lastError: lastError,
           ),
         );
         audit.add(
@@ -243,10 +275,15 @@ class SyncService {
         );
         hadError = true;
         remaining.add(
-          item.copyWith(
+          _withFailureDiagnostic(
+            item,
+            working.mainFamilyCode,
+            lastError,
+            error,
+            stackTrace,
+            sourceFunction: 'syncPendingQueue',
             status: 'failed',
             retryCount: item.retryCount + 1,
-            lastError: lastError,
           ),
         );
         audit.add(
@@ -542,6 +579,58 @@ class SyncService {
           'remplacer ce message générique par le code Firebase exact.';
     }
     return 'sync-error sur ${diagnostic.target} - $message';
+  }
+
+  PendingSyncItem _withFailureDiagnostic(
+    PendingSyncItem item,
+    String familyId,
+    String lastError,
+    Object error,
+    StackTrace stackTrace, {
+    required String sourceFunction,
+    String? status,
+    int? retryCount,
+  }) {
+    final incident = _failureDiagnostic(
+      item,
+      familyId,
+      lastError,
+      error,
+      stackTrace,
+      sourceFunction: sourceFunction,
+    );
+    return item.copyWith(
+      status: status,
+      retryCount: retryCount,
+      lastError: lastError,
+      errorType: incident.errorType,
+      stackTrace: incident.stackTrace,
+      sourceFile: incident.sourceFile,
+      sourceFunction: incident.sourceFunction,
+      sourceLine: incident.sourceLine,
+      sourceColumn: incident.sourceColumn,
+      routeName: incident.routeName,
+      appVersion: incident.appVersion,
+      platform: incident.platform,
+      locationPrecision: incident.locationPrecision,
+    );
+  }
+
+  SyncIncident _failureDiagnostic(
+    PendingSyncItem item,
+    String familyId,
+    String lastError,
+    Object error,
+    StackTrace stackTrace, {
+    required String sourceFunction,
+  }) {
+    return IncidentReporter.buildIncident(
+      item: item.copyWith(lastError: lastError),
+      familyId: familyId,
+      error: error,
+      stackTrace: stackTrace,
+      sourceFunction: sourceFunction,
+    );
   }
 
   Future<void> _reportIncident(

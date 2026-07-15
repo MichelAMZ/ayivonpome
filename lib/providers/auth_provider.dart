@@ -15,6 +15,7 @@ class AuthState {
     this.firebaseUid,
     this.firebaseEmail,
     this.firebaseRole,
+    this.firebaseAuthMethod,
   });
 
   final AuthMode mode;
@@ -23,6 +24,7 @@ class AuthState {
   final String? firebaseUid;
   final String? firebaseEmail;
   final String? firebaseRole;
+  final String? firebaseAuthMethod;
 
   bool get isAuthenticated => mode == AuthMode.authenticated && session != null;
   bool get hasFirebaseWriteAccess =>
@@ -48,6 +50,13 @@ class AuthController extends Notifier<AuthState> {
   AuthState build() => const AuthState();
 
   Future<bool> login(String code) async {
+    final firebaseSession = await _tryFirebaseAccessCodeLogin(code);
+    if (firebaseSession != null) {
+      await ref.read(authCodeServiceProvider).saveLastCode(code);
+      await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
+      return true;
+    }
+
     final data = await ref.read(familyTreeProvider.future);
     final service = ref.read(authCodeServiceProvider);
     final session = service.verifyCode(data, code);
@@ -85,6 +94,7 @@ class AuthController extends Notifier<AuthState> {
       firebaseUid: firebaseSession.uid,
       firebaseEmail: firebaseSession.email,
       firebaseRole: firebaseSession.role,
+      firebaseAuthMethod: firebaseSession.authMethod,
     );
     await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
   }
@@ -126,7 +136,9 @@ class AuthController extends Notifier<AuthState> {
       firebaseUid: state.firebaseUid,
       firebaseEmail: state.firebaseEmail,
       firebaseRole: state.firebaseRole,
+      firebaseAuthMethod: state.firebaseAuthMethod,
     );
+    await _tryFirebaseAccessCodeLogin(code, requireEditor: true);
     return true;
   }
 
@@ -136,5 +148,33 @@ class AuthController extends Notifier<AuthState> {
       await service.signOut();
     }
     state = const AuthState();
+  }
+
+  Future<FirebaseAdminSession?> _tryFirebaseAccessCodeLogin(
+    String code, {
+    bool requireEditor = false,
+  }) async {
+    final service = ref.read(firebaseAccessCodeAuthServiceProvider);
+    if (service == null) return null;
+    try {
+      final firebaseSession = await service.signInWithAccessCode(code);
+      if (requireEditor && !firebaseSession.isEditor) return null;
+      final session = AuthSession(
+        familyCode: firebaseSession.familyIds.first,
+        role: firebaseSession.role,
+      );
+      state = AuthState(
+        mode: AuthMode.authenticated,
+        session: session,
+        hasModificationAccess: firebaseSession.isEditor,
+        firebaseUid: firebaseSession.uid,
+        firebaseEmail: firebaseSession.email,
+        firebaseRole: firebaseSession.role,
+        firebaseAuthMethod: firebaseSession.authMethod,
+      );
+      return firebaseSession;
+    } catch (_) {
+      return null;
+    }
   }
 }

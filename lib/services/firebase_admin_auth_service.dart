@@ -7,12 +7,14 @@ class FirebaseAdminSession {
     required this.email,
     required this.role,
     required this.familyIds,
+    this.authMethod = 'password',
   });
 
   final String uid;
   final String email;
   final String role;
   final List<String> familyIds;
+  final String authMethod;
 
   bool get isSuperAdmin => role == 'superAdmin';
   bool get isAdmin => role == 'admin' || isSuperAdmin;
