@@ -294,6 +294,99 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return synced;
   }
 
+  Future<MemberSaveResult> saveRelationshipChange(
+    FamilyTreeData nextData, {
+    required String relationship,
+    required String actorRole,
+    required String adminId,
+  }) async {
+    final current = await future;
+    final now = DateTime.now().toIso8601String();
+    final updatedBy = adminId.trim().isEmpty ? actorRole : adminId.trim();
+    final previousPeople = {
+      for (final person in current.people) person.id: person,
+    };
+    final previousRelations = {
+      for (final relation in current.marriageRelations) relation.id: relation,
+    };
+    final changedPeopleIds = <String>{};
+    final changedRelationIds = <String>{};
+
+    final preparedPeople = nextData.people.map((person) {
+      final previous = previousPeople[person.id];
+      if (previous == null || _personPayloadChanged(previous, person)) {
+        changedPeopleIds.add(person.id);
+        return person.copyWith(
+          createdAt:
+              previous?.createdAt ??
+              (person.createdAt.isEmpty ? now : person.createdAt),
+          updatedAt: now,
+          updatedBy: updatedBy,
+          version: previous == null ? 1 : previous.version + 1,
+          deletedAt: '',
+        );
+      }
+      return person;
+    }).toList();
+
+    final preparedRelations = nextData.marriageRelations.map((relation) {
+      final previous = previousRelations[relation.id];
+      if (previous == null || _marriagePayloadChanged(previous, relation)) {
+        changedRelationIds.add(relation.id);
+        return relation.copyWith(
+          familyId: relation.familyId.isEmpty
+              ? nextData.mainFamilyCode
+              : relation.familyId,
+          createdAt:
+              previous?.createdAt ??
+              (relation.createdAt.isEmpty ? now : relation.createdAt),
+          updatedAt: now,
+          updatedBy: updatedBy,
+          version: previous == null ? 1 : previous.version + 1,
+        );
+      }
+      return relation;
+    }).toList();
+
+    final prepared = nextData.copyWith(
+      people: preparedPeople,
+      marriageRelations: preparedRelations,
+    );
+    final peopleById = {
+      for (final person in prepared.people) person.id: person,
+    };
+    final relationsById = {
+      for (final relation in prepared.marriageRelations) relation.id: relation,
+    };
+    final operations = <PendingSyncItem>[
+      for (final id in changedPeopleIds)
+        ref
+            .read(syncServiceProvider)
+            .personOperation(
+              person: peopleById[id]!,
+              action: previousPeople.containsKey(id) ? 'update' : 'create',
+              updatedBy: relationship,
+            ),
+      for (final id in changedRelationIds)
+        ref
+            .read(syncServiceProvider)
+            .marriageOperation(
+              relation: relationsById[id]!,
+              action: previousRelations.containsKey(id) ? 'update' : 'create',
+              updatedBy: relationship,
+            ),
+    ];
+
+    debugPrint(
+      'RELATION LINK relationship=$relationship actorRole=$actorRole '
+      'changedPeople=${changedPeopleIds.join(',')} '
+      'changedRelations=${changedRelationIds.join(',')} '
+      'operations=${operations.length}',
+    );
+    final saved = await save(prepared, syncOperations: operations);
+    return _memberSaveResult(saved, operations);
+  }
+
   Future<String?> createBackup() =>
       ref.read(backupServiceProvider).createBackup();
 
@@ -2119,6 +2212,11 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     FamilyTreeData data,
     List<PendingSyncItem> operations,
   ) {
+    if (operations.isEmpty) {
+      return const MemberSaveResult(
+        status: MemberSaveStatus.firestoreConfirmed,
+      );
+    }
     final operationIds = operations.map((item) => item.id).toSet();
     final queued = data.pendingSyncQueue
         .where((item) => operationIds.contains(item.id))
@@ -2140,5 +2238,29 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       return const MemberSaveResult(status: MemberSaveStatus.localPending);
     }
     return const MemberSaveResult(status: MemberSaveStatus.firestoreConfirmed);
+  }
+
+  bool _personPayloadChanged(Person previous, Person next) =>
+      !_samePayload(previous.toJson(), next.toJson());
+
+  bool _marriagePayloadChanged(
+    MarriageRelation previous,
+    MarriageRelation next,
+  ) => !_samePayload(previous.toJson(), next.toJson());
+
+  bool _samePayload(Map<String, dynamic> first, Map<String, dynamic> second) {
+    final left = Map<String, dynamic>.from(first);
+    final right = Map<String, dynamic>.from(second);
+    for (final key in const [
+      'createdAt',
+      'updatedAt',
+      'updatedBy',
+      'version',
+    ]) {
+      left.remove(key);
+      right.remove(key);
+    }
+    return const JsonEncoder.withIndent('  ').convert(left) ==
+        const JsonEncoder.withIndent('  ').convert(right);
   }
 }

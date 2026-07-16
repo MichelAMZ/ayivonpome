@@ -186,58 +186,98 @@ class FamilyRelationService {
       throw StateError('invalid_spouse_descendant_relationship');
     }
     return switch (relationship) {
-      'father' => _withPeople(
+      'father' => _linkParent(
         data,
-        [
-          base.copyWith(
-            fatherId: existing.id,
-            parents: {...base.parents, existing.id}.toList(),
-          ),
-          existing.copyWith(
-            childrenIds: {...existing.childrenIds, base.id}.toList(),
-            children: {...existing.children, base.id}.toList(),
-          ),
-        ],
-        'link_father',
-        actorRole,
-        base.id,
+        child: base,
+        parent: existing,
+        role: 'father',
+        actorRole: actorRole,
       ),
-      'mother' => _withPeople(
+      'mother' => _linkParent(
         data,
-        [
-          base.copyWith(
-            motherId: existing.id,
-            parents: {...base.parents, existing.id}.toList(),
-          ),
-          existing.copyWith(
-            childrenIds: {...existing.childrenIds, base.id}.toList(),
-            children: {...existing.children, base.id}.toList(),
-          ),
-        ],
-        'link_mother',
-        actorRole,
-        base.id,
+        child: base,
+        parent: existing,
+        role: 'mother',
+        actorRole: actorRole,
       ),
-      'child' => _withPeople(
+      'child' => _linkChild(
         data,
-        [
-          base.copyWith(
-            childrenIds: {...base.childrenIds, existing.id}.toList(),
-            children: {...base.children, existing.id}.toList(),
-          ),
-          existing.copyWith(
-            fatherId: _isMale(base) ? base.id : existing.fatherId,
-            motherId: _isFemale(base) ? base.id : existing.motherId,
-            parents: {...existing.parents, base.id}.toList(),
-          ),
-        ],
-        'link_child',
-        actorRole,
-        base.id,
+        parent: base,
+        child: existing,
+        actorRole: actorRole,
       ),
       'spouse' => _linkSpouse(data, base, existing, actorRole),
       _ => data,
     };
+  }
+
+  FamilyTreeData _linkChild(
+    FamilyTreeData data, {
+    required Person parent,
+    required Person child,
+    required String actorRole,
+  }) {
+    _assertCanBeParent(data, parent.id, child.id);
+    if (_isMale(parent) &&
+        child.fatherId.isNotEmpty &&
+        child.fatherId != parent.id) {
+      throw StateError('father_already_defined');
+    }
+    if (_isFemale(parent) &&
+        child.motherId.isNotEmpty &&
+        child.motherId != parent.id) {
+      throw StateError('mother_already_defined');
+    }
+    final updatedParent = parent.copyWith(
+      childrenIds: {...parent.childrenIds, child.id}.toList(),
+      children: {...parent.children, child.id}.toList(),
+    );
+    final updatedChild = child.copyWith(
+      fatherId: _isMale(parent) ? parent.id : child.fatherId,
+      motherId: _isFemale(parent) ? parent.id : child.motherId,
+      parents: {...child.parents, parent.id}.toList(),
+    );
+    return _withPeople(
+      data,
+      [updatedParent, updatedChild],
+      'link_child',
+      actorRole,
+      parent.id,
+    );
+  }
+
+  FamilyTreeData _linkParent(
+    FamilyTreeData data, {
+    required Person child,
+    required Person parent,
+    required String role,
+    required String actorRole,
+  }) {
+    final currentParentId = role == 'father' ? child.fatherId : child.motherId;
+    if (currentParentId.isNotEmpty && currentParentId != parent.id) {
+      throw StateError('${role}_already_defined');
+    }
+    _assertCanBeParent(data, parent.id, child.id);
+    final updatedChild = role == 'father'
+        ? child.copyWith(
+            fatherId: parent.id,
+            parents: {...child.parents, parent.id}.toList(),
+          )
+        : child.copyWith(
+            motherId: parent.id,
+            parents: {...child.parents, parent.id}.toList(),
+          );
+    final updatedParent = parent.copyWith(
+      childrenIds: {...parent.childrenIds, child.id}.toList(),
+      children: {...parent.children, child.id}.toList(),
+    );
+    return _withPeople(
+      data,
+      [updatedChild, updatedParent],
+      role == 'father' ? 'link_father' : 'link_mother',
+      actorRole,
+      child.id,
+    );
   }
 
   Person? fatherOf(FamilyTreeData data, Person person) {

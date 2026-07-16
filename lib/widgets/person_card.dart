@@ -550,13 +550,32 @@ class _PersonCardState extends ConsumerState<PersonCard> {
 
   Future<void> _applyRelationship(
     FamilyTreeData Function(FamilyRelationService service, FamilyTreeData data)
-    buildNext,
-  ) async {
+    buildNext, {
+    String relationship = 'context_relationship',
+  }) async {
     if (!await _ensureModificationAccess()) return;
     try {
       final service = ref.read(familyRelationServiceProvider);
       final next = buildNext(service, ref.read(familyTreeProvider).value!);
-      await ref.read(familyTreeProvider.notifier).save(next);
+      final auth = ref.read(authSessionProvider);
+      final result = await ref
+          .read(familyTreeProvider.notifier)
+          .saveRelationshipChange(
+            next,
+            relationship: relationship,
+            actorRole: _actorRole,
+            adminId: auth.firebaseUid ?? auth.firebaseEmail ?? _actorRole,
+          );
+      if (!mounted || result.isFirestoreConfirmed) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.isLocalPending
+                ? 'Relation enregistrée localement. Synchronisation en attente.'
+                : result.lastError,
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -615,6 +634,7 @@ class _PersonCardState extends ConsumerState<PersonCard> {
         relationship: relationship,
         actorRole: _actorRole,
       ),
+      relationship: 'link_$relationship',
     );
   }
 
