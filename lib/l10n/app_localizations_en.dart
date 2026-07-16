@@ -620,6 +620,153 @@ class AppLocalizationsEn extends AppLocalizations {
   String get requiredField => 'Required field';
 
   @override
+  String get requiredFieldsNotice => 'Fields marked with * are required.';
+
+  @override
+  String get profileProgress => 'Profile progress';
+
+  @override
+  String get profileProgressHelp =>
+      'Progress is calculated from required fields that are actually completed. Optional fields do not prevent reaching 100%.';
+
+  @override
+  String requiredFieldsRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count fields to complete',
+      one: '1 field to complete',
+      zero: 'All required fields are complete',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get requiredInfoAlmostDone =>
+      'The required information is almost complete';
+
+  @override
+  String get completeRequiredInfoHelp =>
+      'Complete the required fields to finalize the profile.';
+
+  @override
+  String get identity => 'Identity';
+
+  @override
+  String get family => 'Family';
+
+  @override
+  String get relationships => 'Relationships';
+
+  @override
+  String get places => 'Places';
+
+  @override
+  String get privacy => 'Privacy';
+
+  @override
+  String get existingMember => 'Existing member';
+
+  @override
+  String get createMember => 'Create a member';
+
+  @override
+  String get existingTreeMember => 'Existing member in the tree';
+
+  @override
+  String get parentSelectionRequired =>
+      'Selection is required when a parent is provided.';
+
+  @override
+  String get unionsAndSpouses => 'Unions and spouses';
+
+  @override
+  String get saveDraft => 'Save draft';
+
+  @override
+  String get saveAndContinue => 'Save and continue';
+
+  @override
+  String get draftSavedNow => 'Draft saved just now';
+
+  @override
+  String get previous => 'Previous';
+
+  @override
+  String get next => 'Next';
+
+  @override
+  String get manageUnions => 'Manage unions';
+
+  @override
+  String get manageChildren => 'Manage children';
+
+  @override
+  String get unionRequiredFieldsAppearOnAdd =>
+      'Required fields will appear when adding a union.';
+
+  @override
+  String get unsavedChangesTitle => 'Unsaved changes';
+
+  @override
+  String get unsavedChangesMessage =>
+      'Some changes have not been saved. Do you want to leave without saving?';
+
+  @override
+  String get leave => 'Leave';
+
+  @override
+  String get informationVisibility => 'Information visibility';
+
+  @override
+  String get choosePublicProfileVisibility =>
+      'Choose which information is visible on the member\'s public profile.';
+
+  @override
+  String get alwaysVisible => 'Always visible';
+
+  @override
+  String get hideSensitiveInfo => 'Hide sensitive information';
+
+  @override
+  String get restoreDefaultVisibility => 'Restore default settings';
+
+  @override
+  String get visible => 'Visible';
+
+  @override
+  String get hidden => 'Hidden';
+
+  @override
+  String get privateCoordinates => 'Private coordinates';
+
+  @override
+  String get familyRelationsVisibilityDescription =>
+      'Father, mother, spouses, unions and children.';
+
+  @override
+  String get sensitiveVisibilityConfirmation =>
+      'This information will be visible on the public profile. Do you want to continue?';
+
+  @override
+  String get makeVisible => 'Make visible';
+
+  @override
+  String get cancelChangesTooltip => 'Cancel changes';
+
+  @override
+  String get cancelChangesTitle => 'Cancel changes?';
+
+  @override
+  String get cancelChangesMessage => 'Unsaved changes will be lost.';
+
+  @override
+  String get continueEditing => 'Continue editing';
+
+  @override
+  String get discardChanges => 'Discard changes';
+
+  @override
   String get unknown => 'Unknown';
 
   @override

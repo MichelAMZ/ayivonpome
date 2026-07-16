@@ -1280,6 +1280,264 @@ abstract class AppLocalizations {
   /// **'Champ obligatoire'**
   String get requiredField;
 
+  /// No description provided for @requiredFieldsNotice.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les champs marqués d’un * sont obligatoires.'**
+  String get requiredFieldsNotice;
+
+  /// No description provided for @profileProgress.
+  ///
+  /// In fr, this message translates to:
+  /// **'Progression du profil'**
+  String get profileProgress;
+
+  /// No description provided for @profileProgressHelp.
+  ///
+  /// In fr, this message translates to:
+  /// **'La progression est calculée à partir des champs obligatoires réellement remplis. Les champs facultatifs n’empêchent pas d’atteindre 100 %.'**
+  String get profileProgressHelp;
+
+  /// No description provided for @requiredFieldsRemaining.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Tous les champs obligatoires sont complétés} =1{1 champ à compléter} other{{count} champs à compléter}}'**
+  String requiredFieldsRemaining(int count);
+
+  /// No description provided for @requiredInfoAlmostDone.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les informations obligatoires sont presque terminées'**
+  String get requiredInfoAlmostDone;
+
+  /// No description provided for @completeRequiredInfoHelp.
+  ///
+  /// In fr, this message translates to:
+  /// **'Complétez les champs obligatoires pour finaliser le profil.'**
+  String get completeRequiredInfoHelp;
+
+  /// No description provided for @identity.
+  ///
+  /// In fr, this message translates to:
+  /// **'Identité'**
+  String get identity;
+
+  /// No description provided for @family.
+  ///
+  /// In fr, this message translates to:
+  /// **'Famille'**
+  String get family;
+
+  /// No description provided for @relationships.
+  ///
+  /// In fr, this message translates to:
+  /// **'Relations'**
+  String get relationships;
+
+  /// No description provided for @places.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lieux'**
+  String get places;
+
+  /// No description provided for @privacy.
+  ///
+  /// In fr, this message translates to:
+  /// **'Confidentialité'**
+  String get privacy;
+
+  /// No description provided for @existingMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Membre existant'**
+  String get existingMember;
+
+  /// No description provided for @createMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Créer un membre'**
+  String get createMember;
+
+  /// No description provided for @existingTreeMember.
+  ///
+  /// In fr, this message translates to:
+  /// **'Membre existant dans l’arbre'**
+  String get existingTreeMember;
+
+  /// No description provided for @parentSelectionRequired.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sélection obligatoire lorsqu’un parent est renseigné.'**
+  String get parentSelectionRequired;
+
+  /// No description provided for @unionsAndSpouses.
+  ///
+  /// In fr, this message translates to:
+  /// **'Unions et conjoints'**
+  String get unionsAndSpouses;
+
+  /// No description provided for @saveDraft.
+  ///
+  /// In fr, this message translates to:
+  /// **'Enregistrer le brouillon'**
+  String get saveDraft;
+
+  /// No description provided for @saveAndContinue.
+  ///
+  /// In fr, this message translates to:
+  /// **'Enregistrer et continuer'**
+  String get saveAndContinue;
+
+  /// No description provided for @draftSavedNow.
+  ///
+  /// In fr, this message translates to:
+  /// **'Brouillon enregistré à l’instant'**
+  String get draftSavedNow;
+
+  /// No description provided for @previous.
+  ///
+  /// In fr, this message translates to:
+  /// **'Précédent'**
+  String get previous;
+
+  /// No description provided for @next.
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivant'**
+  String get next;
+
+  /// No description provided for @manageUnions.
+  ///
+  /// In fr, this message translates to:
+  /// **'Gérer les unions'**
+  String get manageUnions;
+
+  /// No description provided for @manageChildren.
+  ///
+  /// In fr, this message translates to:
+  /// **'Gérer les enfants'**
+  String get manageChildren;
+
+  /// No description provided for @unionRequiredFieldsAppearOnAdd.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les champs obligatoires apparaîtront lors de l’ajout d’une union.'**
+  String get unionRequiredFieldsAppearOnAdd;
+
+  /// No description provided for @unsavedChangesTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifications non enregistrées'**
+  String get unsavedChangesTitle;
+
+  /// No description provided for @unsavedChangesMessage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Des modifications ne sont pas enregistrées. Voulez-vous quitter sans enregistrer ?'**
+  String get unsavedChangesMessage;
+
+  /// No description provided for @leave.
+  ///
+  /// In fr, this message translates to:
+  /// **'Quitter'**
+  String get leave;
+
+  /// No description provided for @informationVisibility.
+  ///
+  /// In fr, this message translates to:
+  /// **'Visibilité des informations'**
+  String get informationVisibility;
+
+  /// No description provided for @choosePublicProfileVisibility.
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisissez les informations visibles sur la fiche publique du membre.'**
+  String get choosePublicProfileVisibility;
+
+  /// No description provided for @alwaysVisible.
+  ///
+  /// In fr, this message translates to:
+  /// **'Toujours visible'**
+  String get alwaysVisible;
+
+  /// No description provided for @hideSensitiveInfo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Masquer les informations sensibles'**
+  String get hideSensitiveInfo;
+
+  /// No description provided for @restoreDefaultVisibility.
+  ///
+  /// In fr, this message translates to:
+  /// **'Restaurer les réglages par défaut'**
+  String get restoreDefaultVisibility;
+
+  /// No description provided for @visible.
+  ///
+  /// In fr, this message translates to:
+  /// **'Visible'**
+  String get visible;
+
+  /// No description provided for @hidden.
+  ///
+  /// In fr, this message translates to:
+  /// **'Masqué'**
+  String get hidden;
+
+  /// No description provided for @privateCoordinates.
+  ///
+  /// In fr, this message translates to:
+  /// **'Coordonnées privées'**
+  String get privateCoordinates;
+
+  /// No description provided for @familyRelationsVisibilityDescription.
+  ///
+  /// In fr, this message translates to:
+  /// **'Père, mère, conjoints, unions et enfants.'**
+  String get familyRelationsVisibilityDescription;
+
+  /// No description provided for @sensitiveVisibilityConfirmation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette information pourra être consultée sur la fiche publique. Voulez-vous continuer ?'**
+  String get sensitiveVisibilityConfirmation;
+
+  /// No description provided for @makeVisible.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rendre visible'**
+  String get makeVisible;
+
+  /// No description provided for @cancelChangesTooltip.
+  ///
+  /// In fr, this message translates to:
+  /// **'Annuler les modifications'**
+  String get cancelChangesTooltip;
+
+  /// No description provided for @cancelChangesTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Annuler les modifications ?'**
+  String get cancelChangesTitle;
+
+  /// No description provided for @cancelChangesMessage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les modifications non enregistrées seront perdues.'**
+  String get cancelChangesMessage;
+
+  /// No description provided for @continueEditing.
+  ///
+  /// In fr, this message translates to:
+  /// **'Continuer la modification'**
+  String get continueEditing;
+
+  /// No description provided for @discardChanges.
+  ///
+  /// In fr, this message translates to:
+  /// **'Abandonner les modifications'**
+  String get discardChanges;
+
   /// No description provided for @unknown.
   ///
   /// In fr, this message translates to:

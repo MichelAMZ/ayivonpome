@@ -625,6 +625,156 @@ class AppLocalizationsDe extends AppLocalizations {
   String get requiredField => 'Pflichtfeld';
 
   @override
+  String get requiredFieldsNotice =>
+      'Mit * markierte Felder sind Pflichtfelder.';
+
+  @override
+  String get profileProgress => 'Profilfortschritt';
+
+  @override
+  String get profileProgressHelp =>
+      'Der Fortschritt wird aus den tatsächlich ausgefüllten Pflichtfeldern berechnet. Optionale Felder verhindern 100 % nicht.';
+
+  @override
+  String requiredFieldsRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Felder auszufüllen',
+      one: '1 Feld auszufüllen',
+      zero: 'Alle Pflichtfelder sind ausgefüllt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get requiredInfoAlmostDone =>
+      'Die Pflichtinformationen sind fast vollständig';
+
+  @override
+  String get completeRequiredInfoHelp =>
+      'Füllen Sie die Pflichtfelder aus, um das Profil abzuschließen.';
+
+  @override
+  String get identity => 'Identität';
+
+  @override
+  String get family => 'Familie';
+
+  @override
+  String get relationships => 'Beziehungen';
+
+  @override
+  String get places => 'Orte';
+
+  @override
+  String get privacy => 'Datenschutz';
+
+  @override
+  String get existingMember => 'Vorhandenes Mitglied';
+
+  @override
+  String get createMember => 'Mitglied erstellen';
+
+  @override
+  String get existingTreeMember => 'Vorhandenes Mitglied im Baum';
+
+  @override
+  String get parentSelectionRequired =>
+      'Eine Auswahl ist erforderlich, wenn ein Elternteil angegeben wird.';
+
+  @override
+  String get unionsAndSpouses => 'Verbindungen und Ehepartner';
+
+  @override
+  String get saveDraft => 'Entwurf speichern';
+
+  @override
+  String get saveAndContinue => 'Speichern und fortfahren';
+
+  @override
+  String get draftSavedNow => 'Entwurf gerade gespeichert';
+
+  @override
+  String get previous => 'Zurück';
+
+  @override
+  String get next => 'Weiter';
+
+  @override
+  String get manageUnions => 'Verbindungen verwalten';
+
+  @override
+  String get manageChildren => 'Kinder verwalten';
+
+  @override
+  String get unionRequiredFieldsAppearOnAdd =>
+      'Pflichtfelder erscheinen beim Hinzufügen einer Verbindung.';
+
+  @override
+  String get unsavedChangesTitle => 'Nicht gespeicherte Änderungen';
+
+  @override
+  String get unsavedChangesMessage =>
+      'Einige Änderungen wurden nicht gespeichert. Möchten Sie ohne Speichern verlassen?';
+
+  @override
+  String get leave => 'Verlassen';
+
+  @override
+  String get informationVisibility => 'Sichtbarkeit der Informationen';
+
+  @override
+  String get choosePublicProfileVisibility =>
+      'Wählen Sie aus, welche Informationen im öffentlichen Profil sichtbar sind.';
+
+  @override
+  String get alwaysVisible => 'Immer sichtbar';
+
+  @override
+  String get hideSensitiveInfo => 'Sensible Informationen ausblenden';
+
+  @override
+  String get restoreDefaultVisibility =>
+      'Standardeinstellungen wiederherstellen';
+
+  @override
+  String get visible => 'Sichtbar';
+
+  @override
+  String get hidden => 'Ausgeblendet';
+
+  @override
+  String get privateCoordinates => 'Private Koordinaten';
+
+  @override
+  String get familyRelationsVisibilityDescription =>
+      'Vater, Mutter, Ehepartner, Verbindungen und Kinder.';
+
+  @override
+  String get sensitiveVisibilityConfirmation =>
+      'Diese Information wird im öffentlichen Profil sichtbar sein. Möchten Sie fortfahren?';
+
+  @override
+  String get makeVisible => 'Sichtbar machen';
+
+  @override
+  String get cancelChangesTooltip => 'Änderungen abbrechen';
+
+  @override
+  String get cancelChangesTitle => 'Änderungen abbrechen?';
+
+  @override
+  String get cancelChangesMessage =>
+      'Nicht gespeicherte Änderungen gehen verloren.';
+
+  @override
+  String get continueEditing => 'Bearbeitung fortsetzen';
+
+  @override
+  String get discardChanges => 'Änderungen verwerfen';
+
+  @override
   String get unknown => 'Unbekannt';
 
   @override

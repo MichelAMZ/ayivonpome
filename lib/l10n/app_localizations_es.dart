@@ -623,6 +623,154 @@ class AppLocalizationsEs extends AppLocalizations {
   String get requiredField => 'Campo obligatorio';
 
   @override
+  String get requiredFieldsNotice =>
+      'Los campos marcados con * son obligatorios.';
+
+  @override
+  String get profileProgress => 'Progreso del perfil';
+
+  @override
+  String get profileProgressHelp =>
+      'El progreso se calcula a partir de los campos obligatorios realmente completados. Los campos opcionales no impiden llegar al 100%.';
+
+  @override
+  String requiredFieldsRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count campos por completar',
+      one: '1 campo por completar',
+      zero: 'Todos los campos obligatorios están completos',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get requiredInfoAlmostDone =>
+      'La información obligatoria está casi completa';
+
+  @override
+  String get completeRequiredInfoHelp =>
+      'Complete los campos obligatorios para finalizar el perfil.';
+
+  @override
+  String get identity => 'Identidad';
+
+  @override
+  String get family => 'Familia';
+
+  @override
+  String get relationships => 'Relaciones';
+
+  @override
+  String get places => 'Lugares';
+
+  @override
+  String get privacy => 'Privacidad';
+
+  @override
+  String get existingMember => 'Miembro existente';
+
+  @override
+  String get createMember => 'Crear un miembro';
+
+  @override
+  String get existingTreeMember => 'Miembro existente en el árbol';
+
+  @override
+  String get parentSelectionRequired =>
+      'La selección es obligatoria cuando se indica un padre.';
+
+  @override
+  String get unionsAndSpouses => 'Uniones y cónyuges';
+
+  @override
+  String get saveDraft => 'Guardar borrador';
+
+  @override
+  String get saveAndContinue => 'Guardar y continuar';
+
+  @override
+  String get draftSavedNow => 'Borrador guardado ahora';
+
+  @override
+  String get previous => 'Anterior';
+
+  @override
+  String get next => 'Siguiente';
+
+  @override
+  String get manageUnions => 'Gestionar uniones';
+
+  @override
+  String get manageChildren => 'Gestionar hijos';
+
+  @override
+  String get unionRequiredFieldsAppearOnAdd =>
+      'Los campos obligatorios aparecerán al añadir una unión.';
+
+  @override
+  String get unsavedChangesTitle => 'Cambios sin guardar';
+
+  @override
+  String get unsavedChangesMessage =>
+      'Hay cambios sin guardar. ¿Desea salir sin guardar?';
+
+  @override
+  String get leave => 'Salir';
+
+  @override
+  String get informationVisibility => 'Visibilidad de la información';
+
+  @override
+  String get choosePublicProfileVisibility =>
+      'Elija qué información es visible en la ficha pública del miembro.';
+
+  @override
+  String get alwaysVisible => 'Siempre visible';
+
+  @override
+  String get hideSensitiveInfo => 'Ocultar información sensible';
+
+  @override
+  String get restoreDefaultVisibility => 'Restaurar ajustes predeterminados';
+
+  @override
+  String get visible => 'Visible';
+
+  @override
+  String get hidden => 'Oculto';
+
+  @override
+  String get privateCoordinates => 'Coordenadas privadas';
+
+  @override
+  String get familyRelationsVisibilityDescription =>
+      'Padre, madre, cónyuges, uniones e hijos.';
+
+  @override
+  String get sensitiveVisibilityConfirmation =>
+      'Esta información podrá consultarse en la ficha pública. ¿Desea continuar?';
+
+  @override
+  String get makeVisible => 'Hacer visible';
+
+  @override
+  String get cancelChangesTooltip => 'Cancelar cambios';
+
+  @override
+  String get cancelChangesTitle => '¿Cancelar los cambios?';
+
+  @override
+  String get cancelChangesMessage => 'Los cambios no guardados se perderán.';
+
+  @override
+  String get continueEditing => 'Continuar editando';
+
+  @override
+  String get discardChanges => 'Descartar cambios';
+
+  @override
   String get unknown => 'Desconocido';
 
   @override

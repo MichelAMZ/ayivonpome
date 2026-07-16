@@ -92,9 +92,18 @@ class PersonDetailScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 36,
-                child: Icon(Icons.person, size: 36),
+                backgroundImage:
+                    (authenticated || person.privacy.photoVisible) &&
+                        person.photo.isNotEmpty
+                    ? NetworkImage(person.photo)
+                    : null,
+                child:
+                    (authenticated || person.privacy.photoVisible) &&
+                        person.photo.isNotEmpty
+                    ? null
+                    : const Icon(Icons.person, size: 36),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -117,12 +126,103 @@ class PersonDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           if (!authenticated) ...[
-            if (person.privacy.showMapInPublicMode &&
-                person.publicMapLocation.isNotEmpty)
+            if (person.publicMapLocation.isNotEmpty)
               LocationTile(
                 label: l10n.googleMaps,
                 address: person.publicMapLocation,
               ),
+            if (person.privacy.genderVisible)
+              _Tile(label: l10n.gender, value: person.gender),
+            if (person.privacy.birthLastNameVisible &&
+                person.shouldShowOriginLastName)
+              _Tile(label: l10n.bornLastName, value: person.originLastName),
+            if (person.privacy.birthDateVisible)
+              _Tile(label: l10n.birthDate, value: person.birthDate),
+            if (person.privacy.showBirthPlaceInPublicMode)
+              LocationTile(label: l10n.birthPlace, address: person.birthPlace),
+            if (person.privacy.deathDateVisible)
+              _Tile(label: l10n.deathDate, value: person.deathDate),
+            if (person.privacy.deathPlaceVisible)
+              LocationTile(label: l10n.deathPlace, address: person.deathPlace),
+            if (person.privacy.burialPlaceVisible)
+              LocationTile(
+                label: l10n.burialPlace,
+                address: person.burialPlace,
+              ),
+            if (person.privacy.showCurrentAddressInPublicMode)
+              LocationTile(
+                label: l10n.currentAddress,
+                address: person.currentAddress,
+                latitude: person.privacy.privateCoordinatesVisible
+                    ? person.latitude
+                    : null,
+                longitude: person.privacy.privateCoordinatesVisible
+                    ? person.longitude
+                    : null,
+              ),
+            if (person.privacy.familyRelationsVisible) ...[
+              const SizedBox(height: 12),
+              Text(
+                l10n.familyRelationships,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              _Tile(label: l10n.father, value: father?.fullName ?? ''),
+              _Tile(label: l10n.mother, value: mother?.fullName ?? ''),
+              _Tile(label: l10n.marriedTo, value: _namesFromPeople(spouses)),
+              _Tile(label: l10n.children, value: _namesFromPeople(children)),
+            ],
+            if (person.privacy.familyBranchVisible)
+              _Tile(label: l10n.familyBranch, value: person.familyCode),
+            if (person.privacy.emailVisible ||
+                person.privacy.phoneVisible ||
+                person.privacy.whatsappVisible)
+              ContactSection(
+                person: person.copyWith(
+                  email: person.privacy.emailVisible ? person.email : '',
+                  emailVisibility: person.privacy.emailVisible
+                      ? 'public'
+                      : person.emailVisibility,
+                  phoneNumber: person.privacy.phoneVisible
+                      ? person.phoneNumber
+                      : '',
+                  phoneVisibility: person.privacy.phoneVisible
+                      ? 'public'
+                      : person.phoneVisibility,
+                  whatsappNumber: person.privacy.whatsappVisible
+                      ? person.whatsappNumber
+                      : '',
+                  whatsappVisibility: person.privacy.whatsappVisible
+                      ? 'public'
+                      : person.whatsappVisibility,
+                ),
+                session: auth.session,
+              ),
+            if (person.privacy.notesVisible)
+              _Tile(label: l10n.notes, value: person.notes),
+            if (person.privacy.showHistoryInPublicMode) ...[
+              const SizedBox(height: 12),
+              Text(l10n.history, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              if (person.history.isEmpty)
+                Text(l10n.emptyState)
+              else
+                ...person.history.map(
+                  (event) => Card(
+                    child: ListTile(
+                      title: Text(
+                        event.title.isEmpty ? event.date : event.title,
+                      ),
+                      subtitle: Text(
+                        [
+                          event.date,
+                          event.place,
+                          event.description,
+                        ].where((item) => item.isNotEmpty).join('\n'),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
             Card(
               child: ListTile(
                 leading: const Icon(Icons.lock_outline),
@@ -314,8 +414,7 @@ class PersonDetailScreen extends ConsumerWidget {
 
   bool _hasVisibleLocation(Person person, bool authenticated) {
     if (!authenticated) {
-      return person.privacy.showMapInPublicMode &&
-          person.publicMapLocation.isNotEmpty;
+      return person.publicMapLocation.isNotEmpty;
     }
     return person.currentAddress.isNotEmpty ||
         person.birthPlace.isNotEmpty ||

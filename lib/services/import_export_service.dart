@@ -15,6 +15,12 @@ class ImportExportService {
   String serialize(FamilyTreeData data) =>
       const JsonEncoder.withIndent('  ').convert(data.toJson());
 
+  String serializePublic(FamilyTreeData data) =>
+      const JsonEncoder.withIndent('  ').convert({
+        ...data.toJson(),
+        'people': data.people.map((person) => person.toPublicJson()).toList(),
+      });
+
   FamilyTreeData merge(FamilyTreeData current, FamilyTreeData imported) {
     final peopleById = {for (final person in current.people) person.id: person};
     for (final importedPerson in imported.people) {

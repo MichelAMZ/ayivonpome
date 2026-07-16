@@ -624,6 +624,155 @@ class AppLocalizationsFr extends AppLocalizations {
   String get requiredField => 'Champ obligatoire';
 
   @override
+  String get requiredFieldsNotice =>
+      'Les champs marqués d’un * sont obligatoires.';
+
+  @override
+  String get profileProgress => 'Progression du profil';
+
+  @override
+  String get profileProgressHelp =>
+      'La progression est calculée à partir des champs obligatoires réellement remplis. Les champs facultatifs n’empêchent pas d’atteindre 100 %.';
+
+  @override
+  String requiredFieldsRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count champs à compléter',
+      one: '1 champ à compléter',
+      zero: 'Tous les champs obligatoires sont complétés',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get requiredInfoAlmostDone =>
+      'Les informations obligatoires sont presque terminées';
+
+  @override
+  String get completeRequiredInfoHelp =>
+      'Complétez les champs obligatoires pour finaliser le profil.';
+
+  @override
+  String get identity => 'Identité';
+
+  @override
+  String get family => 'Famille';
+
+  @override
+  String get relationships => 'Relations';
+
+  @override
+  String get places => 'Lieux';
+
+  @override
+  String get privacy => 'Confidentialité';
+
+  @override
+  String get existingMember => 'Membre existant';
+
+  @override
+  String get createMember => 'Créer un membre';
+
+  @override
+  String get existingTreeMember => 'Membre existant dans l’arbre';
+
+  @override
+  String get parentSelectionRequired =>
+      'Sélection obligatoire lorsqu’un parent est renseigné.';
+
+  @override
+  String get unionsAndSpouses => 'Unions et conjoints';
+
+  @override
+  String get saveDraft => 'Enregistrer le brouillon';
+
+  @override
+  String get saveAndContinue => 'Enregistrer et continuer';
+
+  @override
+  String get draftSavedNow => 'Brouillon enregistré à l’instant';
+
+  @override
+  String get previous => 'Précédent';
+
+  @override
+  String get next => 'Suivant';
+
+  @override
+  String get manageUnions => 'Gérer les unions';
+
+  @override
+  String get manageChildren => 'Gérer les enfants';
+
+  @override
+  String get unionRequiredFieldsAppearOnAdd =>
+      'Les champs obligatoires apparaîtront lors de l’ajout d’une union.';
+
+  @override
+  String get unsavedChangesTitle => 'Modifications non enregistrées';
+
+  @override
+  String get unsavedChangesMessage =>
+      'Des modifications ne sont pas enregistrées. Voulez-vous quitter sans enregistrer ?';
+
+  @override
+  String get leave => 'Quitter';
+
+  @override
+  String get informationVisibility => 'Visibilité des informations';
+
+  @override
+  String get choosePublicProfileVisibility =>
+      'Choisissez les informations visibles sur la fiche publique du membre.';
+
+  @override
+  String get alwaysVisible => 'Toujours visible';
+
+  @override
+  String get hideSensitiveInfo => 'Masquer les informations sensibles';
+
+  @override
+  String get restoreDefaultVisibility => 'Restaurer les réglages par défaut';
+
+  @override
+  String get visible => 'Visible';
+
+  @override
+  String get hidden => 'Masqué';
+
+  @override
+  String get privateCoordinates => 'Coordonnées privées';
+
+  @override
+  String get familyRelationsVisibilityDescription =>
+      'Père, mère, conjoints, unions et enfants.';
+
+  @override
+  String get sensitiveVisibilityConfirmation =>
+      'Cette information pourra être consultée sur la fiche publique. Voulez-vous continuer ?';
+
+  @override
+  String get makeVisible => 'Rendre visible';
+
+  @override
+  String get cancelChangesTooltip => 'Annuler les modifications';
+
+  @override
+  String get cancelChangesTitle => 'Annuler les modifications ?';
+
+  @override
+  String get cancelChangesMessage =>
+      'Les modifications non enregistrées seront perdues.';
+
+  @override
+  String get continueEditing => 'Continuer la modification';
+
+  @override
+  String get discardChanges => 'Abandonner les modifications';
+
+  @override
   String get unknown => 'Inconnu';
 
   @override

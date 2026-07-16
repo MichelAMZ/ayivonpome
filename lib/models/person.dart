@@ -252,6 +252,45 @@ class Person {
     'profileNeedsCompletion': profileNeedsCompletion,
   };
 
+  Map<String, dynamic> toPublicJson() {
+    final visible = privacy.copyWith(showMapInPublicMode: true);
+    return {
+      'id': id,
+      'firstName': firstName,
+      'lastName': lastName,
+      'publicMapLocation': publicMapLocation,
+      if (visible.photoVisible) 'photo': photo,
+      if (visible.genderVisible) 'gender': gender,
+      if (visible.birthLastNameVisible) 'birthLastName': birthLastName,
+      if (visible.birthDateVisible) 'birthDate': birthDate,
+      if (visible.showBirthPlaceInPublicMode) 'birthPlace': birthPlace,
+      if (visible.deathDateVisible) 'deathDate': deathDate,
+      if (visible.deathPlaceVisible) 'deathPlace': deathPlace,
+      if (visible.burialPlaceVisible) 'burialPlace': burialPlace,
+      if (visible.showCurrentAddressInPublicMode)
+        'currentAddress': currentAddress,
+      if (visible.privateCoordinatesVisible) ...{
+        'latitude': latitude,
+        'longitude': longitude,
+      },
+      if (visible.familyBranchVisible) 'familyCode': familyCode,
+      if (visible.familyRelationsVisible) ...{
+        'fatherId': fatherId,
+        'motherId': motherId,
+        'spouseIds': spouseIds,
+        'childrenIds': childrenIds,
+        'parents': parents,
+        'spouses': spouses,
+        'children': children,
+      },
+      if (visible.emailVisible) 'email': email,
+      if (visible.phoneVisible) 'phoneNumber': phoneNumber,
+      if (visible.whatsappVisible) 'whatsappNumber': whatsappNumber,
+      if (visible.showHistoryInPublicMode) 'history': history,
+      if (visible.notesVisible) 'notes': notes,
+    };
+  }
+
   Person copyWith({
     String? id,
     String? firstName,
