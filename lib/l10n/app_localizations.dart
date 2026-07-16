@@ -1976,6 +1976,12 @@ abstract class AppLocalizations {
   /// **'Mariage coutumier'**
   String get customaryMarriage;
 
+  /// No description provided for @traditionalMarriage.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mariage traditionnel'**
+  String get traditionalMarriage;
+
   /// No description provided for @civilMarriage.
   ///
   /// In fr, this message translates to:
@@ -1994,11 +2000,53 @@ abstract class AppLocalizations {
   /// **'Type de mariage'**
   String get marriageType;
 
+  /// No description provided for @unionType.
+  ///
+  /// In fr, this message translates to:
+  /// **'Type d’union'**
+  String get unionType;
+
+  /// No description provided for @addUnion.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ajouter une union'**
+  String get addUnion;
+
+  /// No description provided for @traditionalMarriageDate.
+  ///
+  /// In fr, this message translates to:
+  /// **'Date du mariage traditionnel'**
+  String get traditionalMarriageDate;
+
+  /// No description provided for @marriagePlace.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lieu du mariage'**
+  String get marriagePlace;
+
   /// No description provided for @marriageStatus.
   ///
   /// In fr, this message translates to:
   /// **'Statut du mariage'**
   String get marriageStatus;
+
+  /// No description provided for @activeUnion.
+  ///
+  /// In fr, this message translates to:
+  /// **'Union active'**
+  String get activeUnion;
+
+  /// No description provided for @freeUnion.
+  ///
+  /// In fr, this message translates to:
+  /// **'Union libre'**
+  String get freeUnion;
+
+  /// No description provided for @endedByDeath.
+  ///
+  /// In fr, this message translates to:
+  /// **'Union terminée par décès'**
+  String get endedByDeath;
 
   /// No description provided for @maritalStatus.
   ///

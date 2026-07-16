@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
+import '../core/web/context_menu_preventer.dart';
 import '../l10n/app_localizations.dart';
 import '../models/app_settings.dart';
 import '../models/family_tree_data.dart';
@@ -51,7 +52,9 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   static const _virtualCanvasMargin = 600.0;
   static const _panBoundaryMargin = 2000.0;
 
+  final _canvasKey = GlobalKey();
   final _controller = TransformationController();
+  ContextMenuPreventerDisposer? _contextMenuPreventerDisposer;
   var _scale = 1.0;
   var _needsInitialView = true;
   var _isInteracting = false;
@@ -64,7 +67,16 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   Map<String, Rect> _lastPersonRects = const {};
 
   @override
+  void initState() {
+    super.initState();
+    _contextMenuPreventerDisposer = installContextMenuPreventer(
+      _isPointerInsideCanvas,
+    );
+  }
+
+  @override
   void dispose() {
+    _contextMenuPreventerDisposer?.call();
     _controller.dispose();
     super.dispose();
   }
@@ -142,6 +154,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
         };
 
         return Container(
+          key: _canvasKey,
           color: const Color(0xFFFBFCF7),
           child: Stack(
             children: [
@@ -188,6 +201,8 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                               marriageYear: marker.marriageYear,
                               divorceYear: marker.divorceYear,
                               status: marker.status,
+                              marriageType: marker.marriageType,
+                              marriagePlace: marker.marriagePlace,
                             ),
                           ),
                         for (final entry in layout.nodes.entries)
@@ -414,6 +429,16 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
         ? math.max(base, 0.65)
         : base;
     return responsiveZoom.clamp(settings.minZoom, settings.maxZoom).toDouble();
+  }
+
+  bool _isPointerInsideCanvas(double clientX, double clientY) {
+    final currentContext = _canvasKey.currentContext;
+    if (currentContext == null) return false;
+    final renderObject = currentContext.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return false;
+    final topLeft = renderObject.localToGlobal(Offset.zero);
+    final rect = topLeft & renderObject.size;
+    return rect.contains(Offset(clientX, clientY));
   }
 
   void _saveLastZoom() {
@@ -718,9 +743,15 @@ class _TreeLayout {
           markers.add(
             _MarriageMarkerData(
               center: Offset((first.right + second.left) / 2, first.center.dy),
-              marriageYear: _yearOf(relation?.marriageDate ?? ''),
+              marriageYear: _yearOf(
+                relation?.traditionalMarriageDate.isNotEmpty == true
+                    ? relation!.traditionalMarriageDate
+                    : relation?.marriageDate ?? '',
+              ),
               divorceYear: _yearOf(relation?.divorceDate ?? ''),
               status: relation?.status ?? 'unknown',
+              marriageType: relation?.marriageType ?? 'unknown',
+              marriagePlace: relation?.marriagePlace ?? '',
             ),
           );
         }
@@ -952,12 +983,16 @@ class _MarriageMarkerData {
     required this.marriageYear,
     required this.divorceYear,
     required this.status,
+    required this.marriageType,
+    required this.marriagePlace,
   });
 
   final Offset center;
   final String marriageYear;
   final String divorceYear;
   final String status;
+  final String marriageType;
+  final String marriagePlace;
 }
 
 class _TreeConnectorPainter extends CustomPainter {
@@ -981,12 +1016,18 @@ class _TreeConnectorPainter extends CustomPainter {
       ..color = const Color(0xFFE5A6AE)
       ..strokeWidth = 1.25
       ..strokeCap = StrokeCap.round;
+    final traditionalMarriage = Paint()
+      ..color = const Color(0xFFE1A928)
+      ..strokeWidth = 1.7
+      ..strokeCap = StrokeCap.round;
 
     for (final marker in layout.marriageMarkers) {
       final start = offset + Offset(marker.center.dx - 30, marker.center.dy);
       final end = offset + Offset(marker.center.dx + 30, marker.center.dy);
       if (marker.status == 'divorced') {
         _drawDashedLine(canvas, start, end, divorcedMarriage);
+      } else if (marker.marriageType == 'traditional') {
+        canvas.drawLine(start, end, traditionalMarriage);
       } else {
         canvas.drawLine(start, end, marriage);
       }
@@ -1447,6 +1488,7 @@ class TreeLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 620;
+    final l10n = AppLocalizations.of(context);
     final items = <Widget>[
       const _LegendItem(icon: '♂', label: 'Homme', color: Color(0xFF2D7DD2)),
       const _LegendItem(icon: '♀', label: 'Femme', color: Color(0xFFE53964)),
@@ -1454,6 +1496,11 @@ class TreeLegend extends StatelessWidget {
         icon: '💍',
         label: 'Marié(e)',
         color: Color(0xFFE6A400),
+      ),
+      _LegendItem(
+        icon: '◇',
+        label: l10n.traditionalMarriage,
+        color: const Color(0xFFE1A928),
       ),
       const _LegendItem(
         icon: '💔',
@@ -1547,23 +1594,42 @@ class _MarriageMarker extends StatelessWidget {
     required this.marriageYear,
     required this.divorceYear,
     required this.status,
+    required this.marriageType,
+    required this.marriagePlace,
   });
 
   final String marriageYear;
   final String divorceYear;
   final String status;
+  final String marriageType;
+  final String marriagePlace;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
+    final isTraditional = marriageType == 'traditional';
+    final tooltipParts = [
+      if (isTraditional) AppLocalizations.of(context).traditionalMarriage,
+      if (marriageYear.isNotEmpty) marriageYear,
+      if (marriagePlace.isNotEmpty) marriagePlace,
+    ];
+    return Tooltip(
+      message: tooltipParts.isEmpty
+          ? AppLocalizations.of(context).marriageType
+          : tooltipParts.join(' · '),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            status == 'divorced' ? '💔' : '∞',
+            status == 'divorced'
+                ? '💔'
+                : isTraditional
+                ? '◇'
+                : '∞',
             style: TextStyle(
               color: status == 'divorced'
                   ? const Color(0xFFD64D61)
+                  : isTraditional
+                  ? const Color(0xFFE1A928)
                   : const Color(0xFFE6A400),
               fontSize: status == 'divorced' ? 20 : 28,
               height: 0.9,
@@ -1572,7 +1638,7 @@ class _MarriageMarker extends StatelessWidget {
           ),
           if (marriageYear.isNotEmpty)
             Text(
-              '💍 $marriageYear',
+              '${isTraditional ? '◇' : '💍'} $marriageYear',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: const Color(0xFF4F4F45),
                 fontWeight: FontWeight.w600,

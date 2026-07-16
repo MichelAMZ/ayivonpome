@@ -150,7 +150,8 @@ class FamilyRelationService {
       id: _id('marriage'),
       personId: person.id,
       spouseId: spouse.id,
-      marriageType: person.marriageType,
+      familyId: data.mainFamilyCode,
+      marriageType: _relationMarriageType(person.marriageType),
       order: data.marriageRelations.length + 1,
     );
     return _withPeople(
@@ -439,11 +440,13 @@ class FamilyRelationService {
         _isDescendant(data, existing.id, base.id)) {
       throw StateError('invalid_spouse_descendant_relationship');
     }
+    if (_hasMarriageRelation(data, base.id, existing.id)) return data;
     final relation = MarriageRelation(
       id: _id('marriage'),
       personId: base.id,
       spouseId: existing.id,
-      marriageType: base.marriageType,
+      familyId: data.mainFamilyCode,
+      marriageType: _relationMarriageType(base.marriageType),
       order: data.marriageRelations.length + 1,
     );
     return _withPeople(
@@ -535,6 +538,27 @@ class FamilyRelationService {
   bool _isFemale(Person person) {
     final gender = person.gender.toLowerCase();
     return gender == 'female' || gender == 'f' || gender == 'femme';
+  }
+
+  bool _hasMarriageRelation(
+    FamilyTreeData data,
+    String firstId,
+    String secondId,
+  ) {
+    return data.marriageRelations.any((relation) {
+      if (relation.deletedAt.isNotEmpty) return false;
+      return (relation.personId == firstId && relation.spouseId == secondId) ||
+          (relation.personId == secondId && relation.spouseId == firstId);
+    });
+  }
+
+  String _relationMarriageType(String value) {
+    return switch (value) {
+      'customary' => 'traditional',
+      'partner' => 'freeUnion',
+      'monogamy' || 'polygamy' => 'unknown',
+      _ => value,
+    };
   }
 
   String _id(String prefix) =>

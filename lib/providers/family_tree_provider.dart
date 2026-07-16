@@ -477,6 +477,96 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     );
   }
 
+  Future<MemberSaveResult> upsertMarriageUnion(
+    MarriageRelation draft, {
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' &&
+        actorRole != 'admin' &&
+        actorRole != 'editor') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final existing = ref
+        .read(marriageServiceProvider)
+        .relationBetween(data, draft.personId, draft.spouseId);
+    final updated = ref
+        .read(marriageServiceProvider)
+        .upsertUnion(data, draft, updatedBy: adminId);
+    final updatedRelation = updated.marriageRelations.firstWhere(
+      (item) => item.involves(draft.personId) && item.involves(draft.spouseId),
+    );
+    final operation = ref
+        .read(syncServiceProvider)
+        .marriageOperation(
+          relation: updatedRelation,
+          action: existing == null ? 'create' : 'update',
+          updatedBy: adminId,
+        );
+    final saved = await save(
+      updated.copyWith(
+        auditLog: [
+          ...updated.auditLog,
+          _log(
+            existing == null ? 'marriage_created' : 'marriage_updated',
+            draft.personId,
+            updated.mainFamilyCode,
+            actorRole: actorRole,
+            adminId: adminId,
+            description: '${draft.personId}-${draft.spouseId}',
+          ),
+        ],
+      ),
+      syncOperation: operation,
+    );
+    return _memberSaveResult(saved, [operation]);
+  }
+
+  Future<MemberSaveResult> deleteMarriageUnion(
+    MarriageRelation relation, {
+    required String actorRole,
+    required String adminId,
+  }) async {
+    if (actorRole != 'superAdmin' &&
+        actorRole != 'admin' &&
+        actorRole != 'editor') {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final updated = ref
+        .read(marriageServiceProvider)
+        .deleteUnion(data, relation, deletedBy: adminId);
+    final updatedRelation = updated.marriageRelations.firstWhere(
+      (item) => item.id == relation.id,
+      orElse: () => relation,
+    );
+    final operation = ref
+        .read(syncServiceProvider)
+        .marriageOperation(
+          relation: updatedRelation,
+          action: 'update',
+          updatedBy: adminId,
+        );
+    final saved = await save(
+      updated.copyWith(
+        auditLog: [
+          ...updated.auditLog,
+          _log(
+            'marriage_deleted',
+            relation.personId,
+            updated.mainFamilyCode,
+            actorRole: actorRole,
+            adminId: adminId,
+            description: '${relation.personId}-${relation.spouseId}',
+          ),
+        ],
+      ),
+      syncOperation: operation,
+    );
+    return _memberSaveResult(saved, [operation]);
+  }
+
   Future<MemberSaveResult> upsertPerson(
     Person person,
     String action, {

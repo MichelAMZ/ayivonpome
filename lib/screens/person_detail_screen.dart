@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
@@ -30,6 +31,10 @@ class PersonDetailScreen extends ConsumerWidget {
     final father = relationService.fatherOf(data, person);
     final mother = relationService.motherOf(data, person);
     final spouses = relationService.spousesOf(data, person);
+    final marriageRelations = ref
+        .watch(marriageServiceProvider)
+        .relationsFor(data, person.id);
+    final peopleById = {for (final item in data.people) item.id: item};
     final children = relationService.childrenOf(data, person);
     final siblings = relationService.siblingsOf(data, person);
     final rootAncestor = ref
@@ -171,6 +176,16 @@ class PersonDetailScreen extends ConsumerWidget {
             _Tile(label: l10n.father, value: father?.fullName ?? ''),
             _Tile(label: l10n.mother, value: mother?.fullName ?? ''),
             _Tile(label: l10n.marriedTo, value: _namesFromPeople(spouses)),
+            if (marriageRelations.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(l10n.spouses, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              for (final relation in marriageRelations)
+                _UnionTile(
+                  relation: relation,
+                  partner: peopleById[relation.partnerOf(person.id)],
+                ),
+            ],
             _Tile(label: l10n.children, value: _namesFromPeople(children)),
             _Tile(label: l10n.siblings, value: _namesFromPeople(siblings)),
             _Tile(label: l10n.familyBranch, value: person.familyCode),
@@ -308,6 +323,68 @@ class PersonDetailScreen extends ConsumerWidget {
         person.burialPlace.isNotEmpty ||
         (person.latitude != null && person.longitude != null) ||
         person.importantPlaces.isNotEmpty;
+  }
+}
+
+class _UnionTile extends StatelessWidget {
+  const _UnionTile({required this.relation, required this.partner});
+
+  final MarriageRelation relation;
+  final Person? partner;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final details = [
+      _typeLabel(l10n, relation.marriageType),
+      _statusLabel(l10n, relation.status),
+      if (relation.traditionalMarriageDate.isNotEmpty)
+        relation.traditionalMarriageDate,
+      if (relation.marriagePlace.isNotEmpty) relation.marriagePlace,
+    ].where((value) => value.isNotEmpty).join(' · ');
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          relation.marriageType == 'traditional'
+              ? Icons.diamond_outlined
+              : Icons.favorite_border,
+        ),
+        title: Text(partner?.fullName ?? '-'),
+        subtitle: Text(details.isEmpty ? '-' : details),
+        trailing: partner == null ? null : const Icon(Icons.chevron_right),
+        onTap: partner == null
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PersonDetailScreen(personId: partner!.id),
+                ),
+              ),
+      ),
+    );
+  }
+
+  String _typeLabel(AppLocalizations l10n, String type) {
+    return switch (type) {
+      'traditional' => l10n.traditionalMarriage,
+      'civil' => l10n.civilMarriage,
+      'religious' => l10n.religiousMarriage,
+      'customaryAndCivil' =>
+        '${l10n.traditionalMarriage} + ${l10n.civilMarriage}',
+      'customaryCivilAndReligious' =>
+        '${l10n.traditionalMarriage} + ${l10n.civilMarriage} + ${l10n.religiousMarriage}',
+      'freeUnion' => l10n.freeUnion,
+      _ => l10n.unknown,
+    };
+  }
+
+  String _statusLabel(AppLocalizations l10n, String status) {
+    return switch (status) {
+      'active' => l10n.activeUnion,
+      'separated' => l10n.separated,
+      'divorced' => l10n.divorced,
+      'endedByDeath' => l10n.endedByDeath,
+      _ => '',
+    };
   }
 }
 

@@ -990,6 +990,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get customaryMarriage => 'Traditionelle Ehe';
 
   @override
+  String get traditionalMarriage => 'Traditionelle Ehe';
+
+  @override
   String get civilMarriage => 'Zivile Ehe';
 
   @override
@@ -999,7 +1002,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get marriageType => 'Ehetyp';
 
   @override
+  String get unionType => 'Art der Verbindung';
+
+  @override
+  String get addUnion => 'Verbindung hinzufügen';
+
+  @override
+  String get traditionalMarriageDate => 'Datum der traditionellen Ehe';
+
+  @override
+  String get marriagePlace => 'Ort der Ehe';
+
+  @override
   String get marriageStatus => 'Ehestatus';
+
+  @override
+  String get activeUnion => 'Aktive Verbindung';
+
+  @override
+  String get freeUnion => 'Freie Verbindung';
+
+  @override
+  String get endedByDeath => 'Durch Tod beendete Verbindung';
 
   @override
   String get maritalStatus => 'Familienstand';

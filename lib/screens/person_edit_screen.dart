@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/family_tree_data.dart';
 import '../models/history_event.dart';
 import '../models/important_place.dart';
+import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../models/person_duplicate_match.dart';
 import '../models/person_privacy.dart';
 import '../providers/app_providers.dart';
+import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/parent_auto_creation_service.dart';
 import '../widgets/person_duplicate_dialog.dart';
@@ -90,6 +93,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   String _parentCoupleStatus = 'unknown';
   bool _isSaving = false;
   String? _draftPersonId;
+  final List<_PendingUnionDraft> _pendingUnions = [];
 
   @override
   void initState() {
@@ -361,6 +365,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
                 },
               ),
             _field(_spouseIds, l10n.spouses),
+            if (data != null) _unionSection(data),
             _field(_childrenIds, l10n.children),
             DropdownButtonFormField<String>(
               initialValue: _marriageType,
@@ -525,6 +530,240 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         ),
       ),
     );
+  }
+
+  Widget _unionSection(FamilyTreeData data) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () => _showUnionDialog(data),
+            icon: const Icon(Icons.favorite_border),
+            label: Text(l10n.addUnion),
+          ),
+          if (_pendingUnions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final union in _pendingUnions)
+                  InputChip(
+                    label: Text(_pendingUnionLabel(data, union)),
+                    onDeleted: () {
+                      setState(() => _pendingUnions.remove(union));
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _pendingUnionLabel(FamilyTreeData data, _PendingUnionDraft union) {
+    final partner = data.people
+        .where((person) => person.id == union.partnerId)
+        .firstOrNull;
+    return '${partner?.fullName ?? union.partnerId} · ${_unionTypeLabel(union.type)}';
+  }
+
+  String _unionTypeLabel(String type) {
+    final l10n = AppLocalizations.of(context);
+    return switch (type) {
+      'traditional' => l10n.traditionalMarriage,
+      'civil' => l10n.civilMarriage,
+      'religious' => l10n.religiousMarriage,
+      'customaryAndCivil' =>
+        '${l10n.traditionalMarriage} + ${l10n.civilMarriage}',
+      'customaryCivilAndReligious' =>
+        '${l10n.traditionalMarriage} + ${l10n.civilMarriage} + ${l10n.religiousMarriage}',
+      'freeUnion' => l10n.freeUnion,
+      _ => l10n.unknown,
+    };
+  }
+
+  Future<void> _showUnionDialog(FamilyTreeData data) async {
+    final l10n = AppLocalizations.of(context);
+    final currentId =
+        widget.person?.id ??
+        (_draftPersonId ??= 'p${DateTime.now().microsecondsSinceEpoch}');
+    final candidates =
+        data.people.where((person) => person.id != currentId).toList()
+          ..sort((a, b) => a.fullName.compareTo(b.fullName));
+    if (candidates.isEmpty) return;
+    var partnerId = candidates.first.id;
+    var type = 'traditional';
+    var status = 'active';
+    final date = TextEditingController();
+    final place = TextEditingController();
+    final country = TextEditingController();
+    final notes = TextEditingController();
+    final result = await showDialog<_PendingUnionDraft>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(l10n.addUnion),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: partnerId,
+                      decoration: InputDecoration(labelText: l10n.spouse),
+                      items: [
+                        for (final person in candidates)
+                          DropdownMenuItem(
+                            value: person.id,
+                            child: Text(person.fullName),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => partnerId = value);
+                        }
+                      },
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: type,
+                      decoration: InputDecoration(labelText: l10n.unionType),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'traditional',
+                          child: Text(l10n.traditionalMarriage),
+                        ),
+                        DropdownMenuItem(
+                          value: 'civil',
+                          child: Text(l10n.civilMarriage),
+                        ),
+                        DropdownMenuItem(
+                          value: 'religious',
+                          child: Text(l10n.religiousMarriage),
+                        ),
+                        DropdownMenuItem(
+                          value: 'customaryAndCivil',
+                          child: Text(
+                            '${l10n.traditionalMarriage} + ${l10n.civilMarriage}',
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'customaryCivilAndReligious',
+                          child: Text(
+                            '${l10n.traditionalMarriage} + ${l10n.civilMarriage} + ${l10n.religiousMarriage}',
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'freeUnion',
+                          child: Text(l10n.freeUnion),
+                        ),
+                        DropdownMenuItem(
+                          value: 'unknown',
+                          child: Text(l10n.unknown),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setDialogState(() => type = value);
+                      },
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: status,
+                      decoration: InputDecoration(
+                        labelText: l10n.marriageStatus,
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'active',
+                          child: Text(l10n.activeUnion),
+                        ),
+                        DropdownMenuItem(
+                          value: 'separated',
+                          child: Text(l10n.separated),
+                        ),
+                        DropdownMenuItem(
+                          value: 'divorced',
+                          child: Text(l10n.divorced),
+                        ),
+                        DropdownMenuItem(
+                          value: 'endedByDeath',
+                          child: Text(l10n.endedByDeath),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setDialogState(() => status = value);
+                      },
+                    ),
+                    TextField(
+                      controller: date,
+                      decoration: InputDecoration(
+                        labelText: l10n.traditionalMarriageDate,
+                      ),
+                    ),
+                    TextField(
+                      controller: place,
+                      decoration: InputDecoration(
+                        labelText: l10n.marriagePlace,
+                      ),
+                    ),
+                    TextField(
+                      controller: country,
+                      decoration: InputDecoration(labelText: l10n.country),
+                    ),
+                    TextField(
+                      controller: notes,
+                      maxLines: 2,
+                      decoration: InputDecoration(labelText: l10n.notes),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(
+                    context,
+                    _PendingUnionDraft(
+                      partnerId: partnerId,
+                      type: type,
+                      status: status,
+                      traditionalMarriageDate: date.text.trim(),
+                      marriagePlace: place.text.trim(),
+                      marriageCountry: country.text.trim(),
+                      notes: notes.text.trim(),
+                    ),
+                  ),
+                  child: Text(l10n.save),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    date.dispose();
+    place.dispose();
+    country.dispose();
+    notes.dispose();
+    if (result == null) return;
+    setState(() {
+      _pendingUnions.removeWhere(
+        (union) => union.partnerId == result.partnerId,
+      );
+      _pendingUnions.add(result);
+      _spouseIds.text = {
+        ..._split(_spouseIds.text),
+        result.partnerId,
+      }.join(', ');
+      _spouses.text = {..._split(_spouses.text), result.partnerId}.join(', ');
+    });
   }
 
   Widget _field(
@@ -969,8 +1208,37 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             allowDuplicate:
                 duplicateDecision == PersonDuplicateDecision.saveAnyway,
           );
+      final saveResults = [result];
+      if (_pendingUnions.isNotEmpty) {
+        final auth = ref.read(authSessionProvider);
+        final actorRole = auth.firebaseRole ?? auth.session?.role ?? 'viewer';
+        final adminId = auth.firebaseUid ?? auth.firebaseEmail ?? actorRole;
+        for (final union in _pendingUnions) {
+          saveResults.add(
+            await ref
+                .read(familyTreeProvider.notifier)
+                .upsertMarriageUnion(
+                  MarriageRelation(
+                    id: '',
+                    personId: id,
+                    spouseId: union.partnerId,
+                    familyId: person.familyCode,
+                    marriageType: union.type,
+                    status: union.status,
+                    marriageDate: union.traditionalMarriageDate,
+                    traditionalMarriageDate: union.traditionalMarriageDate,
+                    marriagePlace: union.marriagePlace,
+                    marriageCountry: union.marriageCountry,
+                    notes: union.notes,
+                  ),
+                  actorRole: actorRole,
+                  adminId: adminId,
+                ),
+          );
+        }
+      }
       if (!mounted) return;
-      if (result.isFirestoreConfirmed) {
+      if (saveResults.every((item) => item.isFirestoreConfirmed)) {
         _showSaveSnackBar(
           color: Colors.green,
           icon: Icons.check_circle,
@@ -980,7 +1248,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         Navigator.pop(context);
         return;
       }
-      if (result.isLocalPending) {
+      if (saveResults.any((item) => item.isLocalPending)) {
         _showSaveSnackBar(
           color: Colors.orange.shade800,
           icon: Icons.sync_problem_outlined,
@@ -993,7 +1261,9 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _showSaveSnackBar(
         color: Colors.red,
         icon: Icons.error,
-        message: _databaseErrorMessage(result.lastError),
+        message: _databaseErrorMessage(
+          saveResults.map((item) => item.lastError).join('\n'),
+        ),
         duration: const Duration(seconds: 5),
       );
     } on StateError catch (error) {
@@ -1129,4 +1399,24 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     }
     return double.tryParse(normalized);
   }
+}
+
+class _PendingUnionDraft {
+  const _PendingUnionDraft({
+    required this.partnerId,
+    required this.type,
+    required this.status,
+    required this.traditionalMarriageDate,
+    required this.marriagePlace,
+    required this.marriageCountry,
+    required this.notes,
+  });
+
+  final String partnerId;
+  final String type;
+  final String status;
+  final String traditionalMarriageDate;
+  final String marriagePlace;
+  final String marriageCountry;
+  final String notes;
 }

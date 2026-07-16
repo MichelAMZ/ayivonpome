@@ -53,6 +53,65 @@ void main() {
       expect(restored.marriageRelations.single.divorceDate, isEmpty);
       expect(restored.marriageRelations.single.endDate, isEmpty);
     });
+
+    test(
+      'creates a reciprocal traditional union without duplicating spouses',
+      () {
+        final updated = service.upsertUnion(
+          const FamilyTreeData(people: [ama, michel]),
+          const MarriageRelation(
+            id: '',
+            familyId: 'ayivon',
+            personId: 'p001',
+            spouseId: 'p002',
+            marriageType: 'traditional',
+            traditionalMarriageDate: '1985-02-01',
+            marriagePlace: 'Kpalimé',
+          ),
+          updatedBy: 'admin',
+        );
+
+        expect(updated.marriageRelations, hasLength(1));
+        expect(updated.marriageRelations.single.marriageType, 'traditional');
+        expect(
+          updated.marriageRelations.single.traditionalMarriageDate,
+          '1985-02-01',
+        );
+        expect(updated.people.first.spouseIds, contains('p002'));
+        expect(updated.people.last.spouseIds, contains('p001'));
+      },
+    );
+
+    test(
+      'updates an existing union instead of creating an A-B/B-A duplicate',
+      () {
+        final updated = service.upsertUnion(
+          data,
+          const MarriageRelation(
+            id: '',
+            personId: 'p002',
+            spouseId: 'p001',
+            marriageType: 'civil',
+            status: 'separated',
+          ),
+          updatedBy: 'admin',
+        );
+
+        expect(updated.marriageRelations, hasLength(1));
+        expect(updated.marriageRelations.single.id, relation.id);
+        expect(updated.marriageRelations.single.marriageType, 'civil');
+        expect(updated.marriageRelations.single.status, 'separated');
+        expect(updated.marriageRelations.single.version, relation.version + 1);
+      },
+    );
+
+    test('logically deletes a union without deleting members', () {
+      final updated = service.deleteUnion(data, relation, deletedBy: 'admin');
+
+      expect(updated.people, hasLength(2));
+      expect(updated.marriageRelations.single.deletedAt, isNotEmpty);
+      expect(service.relationsFor(updated, ama.id), isEmpty);
+    });
   });
 
   test('MarriageRelation serializes divorceDate', () {
@@ -69,4 +128,28 @@ void main() {
     expect(parsed.divorceDate, '2001-06-15');
     expect(parsed.status, 'divorced');
   });
+
+  test(
+    'MarriageRelation serializes traditional union fields and legacy partner ids',
+    () {
+      final parsed = MarriageRelation.fromJson({
+        'id': 'marriage002',
+        'familyId': 'ayivon',
+        'partner1Id': 'p001',
+        'partner2Id': 'p002',
+        'marriageType': 'customary',
+        'marriageDate': '1985-02-01',
+        'marriagePlace': 'Kpalimé',
+        'marriageCountry': 'Togo',
+      });
+
+      expect(parsed.personId, 'p001');
+      expect(parsed.spouseId, 'p002');
+      expect(parsed.partner1Id, 'p001');
+      expect(parsed.partner2Id, 'p002');
+      expect(parsed.marriageType, 'traditional');
+      expect(parsed.traditionalMarriageDate, '1985-02-01');
+      expect(parsed.marriageCountry, 'Togo');
+    },
+  );
 }

@@ -171,19 +171,39 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final personId = person.id.trim();
     final doc = _members.doc(personId);
     final now = DateTime.now().toUtc().toIso8601String();
+    FirestoreUpdateDiagnostic? diagnostic;
     try {
-      await _ensureFirebaseUser('createPerson', doc.path, personId: personId);
+      final user = await _ensureFirebaseUser(
+        'createPerson',
+        doc.path,
+        personId: personId,
+      );
+      final snapshot = await doc.get();
+      final remoteData = snapshot.data();
+      final nextVersion = snapshot.exists
+          ? _safeVersion(remoteData?['version']) + 1
+          : 1;
       final data = _mapper.toFirestore(
         person
             .copyWith(
               createdAt: person.createdAt.isEmpty ? now : person.createdAt,
               updatedAt: now,
-              version: person.version <= 0 ? 1 : person.version,
+              version: nextVersion,
             )
             .toJson(),
         id: personId,
         familyId: _tenantFamilyId,
       );
+      if (snapshot.exists) {
+        diagnostic = await _buildMemberUpdateDiagnostic(
+          doc: doc,
+          data: data,
+          user: user,
+          existingData: remoteData,
+          existingExists: true,
+        );
+        _debugFirestoreUpdateDiagnostic(diagnostic);
+      }
       _debugFirestoreWriteStart(
         'createPerson',
         doc.path,
@@ -200,6 +220,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           documentPath: doc.path,
           firebaseCode: error.code,
           message: error.message ?? error.toString(),
+          diagnostic: diagnostic,
         ),
         stackTrace,
       );
@@ -210,6 +231,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           operation: 'createPerson',
           documentPath: doc.path,
           message: error.toString(),
+          diagnostic: diagnostic,
         ),
         stackTrace,
       );
@@ -229,7 +251,11 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         doc.path,
         personId: personId,
       );
-      final nextVersion = person.version <= 0 ? 1 : person.version;
+      final snapshot = await doc.get();
+      final remoteData = snapshot.data();
+      final nextVersion = snapshot.exists
+          ? _safeVersion(remoteData?['version']) + 1
+          : 1;
       final data = _mapper.toFirestore(
         person.copyWith(updatedAt: now, version: nextVersion).toJson(),
         id: personId,
@@ -239,6 +265,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         doc: doc,
         data: data,
         user: user,
+        existingData: remoteData,
+        existingExists: snapshot.exists,
       );
       _debugFirestoreUpdateDiagnostic(diagnostic);
       _debugFirestoreWriteStart(
@@ -282,10 +310,22 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> createMarriage(MarriageRelation relation) async {
     final doc = _relationships.doc(relation.id);
     await _ensureFirebaseUser('createMarriage', doc.path);
+    final snapshot = await doc.get();
+    final remoteData = snapshot.data();
+    final now = DateTime.now().toIso8601String();
+    final nextVersion = snapshot.exists
+        ? _safeVersion(remoteData?['version']) + 1
+        : 1;
+    final prepared = relation.copyWith(
+      familyId: relation.familyId.isEmpty ? _familyId : relation.familyId,
+      createdAt: relation.createdAt.isEmpty ? now : relation.createdAt,
+      updatedAt: now,
+      version: nextVersion,
+    );
     await doc.set(
       _mapper.toFirestore(
-        relation.toJson(),
-        id: relation.id,
+        prepared.toJson(),
+        id: prepared.id,
         familyId: _familyId,
       ),
       SetOptions(merge: true),
@@ -417,16 +457,11 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       return null;
     }
 
-    var user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _debugAuthMessage('AUTH anonymous sign-in START for $operation');
-      final credential = await FirebaseAuth.instance.signInAnonymously();
-      user = credential.user;
-      if (user == null) {
-        throw StateError(
-          'Firebase Authentication n’a pas créé de session utilisateur.',
-        );
-      }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) {
+      throw StateError(
+        'Session Firebase editor/admin requise pour écrire dans Firestore.',
+      );
     }
 
     _debugAuthMessage('AUTH UID = ${user.uid}');
@@ -523,15 +558,23 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     required DocumentReference<Map<String, dynamic>> doc,
     required Map<String, dynamic> data,
     required User? user,
+    Map<String, dynamic>? existingData,
+    bool? existingExists,
   }) async {
-    Map<String, dynamic> existingData = const {};
-    var existingExists = false;
-    try {
-      final snapshot = await doc.get();
-      existingExists = snapshot.exists;
-      existingData = Map<String, dynamic>.from(snapshot.data() ?? const {});
-    } catch (error) {
-      existingData = {'readError': error.toString()};
+    var resolvedExistingData = Map<String, dynamic>.from(
+      existingData ?? const {},
+    );
+    var resolvedExistingExists = existingExists ?? false;
+    if (existingData == null || existingExists == null) {
+      try {
+        final snapshot = await doc.get();
+        resolvedExistingExists = snapshot.exists;
+        resolvedExistingData = Map<String, dynamic>.from(
+          snapshot.data() ?? const {},
+        );
+      } catch (error) {
+        resolvedExistingData = {'readError': error.toString()};
+      }
     }
 
     final roleData = await _readCurrentRoleForDiagnostic(user?.uid);
@@ -544,12 +587,12 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       userFamilyId: roleData.familyIds.contains(_tenantFamilyId)
           ? _tenantFamilyId
           : roleData.familyIds.join(', '),
-      documentFamilyId: _stringValue(existingData['familyId']),
+      documentFamilyId: _stringValue(resolvedExistingData['familyId']),
       requestFamilyId: _stringValue(data['familyId']),
       sentData: _sanitizeDiagnosticMap(data),
-      existingData: _sanitizeDiagnosticMap(existingData),
-      diff: _diffMaps(existingData, data),
-      existingExists: existingExists,
+      existingData: _sanitizeDiagnosticMap(resolvedExistingData),
+      diff: _diffMaps(resolvedExistingData, data),
+      existingExists: resolvedExistingExists,
       roleActive: roleData.active,
       rulePath: 'match /members/{memberId}',
     );
