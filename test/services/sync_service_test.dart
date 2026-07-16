@@ -8,6 +8,7 @@ import 'package:ayivonpome/models/sync_state.dart';
 import 'package:ayivonpome/services/connectivity_service.dart';
 import 'package:ayivonpome/services/family_repository.dart';
 import 'package:ayivonpome/services/sync_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -102,6 +103,30 @@ void main() {
       expect(repository.updatedPeople.single.firstName, 'Kossi final');
     },
   );
+
+  test('marks repeated permission-denied create as needsResolution', () async {
+    final repository = _FakeFamilyRepository(shouldDenyCreates: true);
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: repository,
+    );
+    const person = Person(id: 'p1784208484332000', firstName: 'Nouveau');
+    final operation = service
+        .personOperation(person: person, action: 'create', updatedBy: 'test')
+        .copyWith(retryCount: 2, status: 'failed');
+
+    final result = await service.syncPendingQueue(
+      _tree(people: const [person], pendingSyncQueue: [operation]),
+    );
+
+    expect(result.pendingSyncQueue, hasLength(1));
+    expect(result.pendingSyncQueue.single.status, 'needsResolution');
+    expect(result.pendingSyncQueue.single.retryCount, 3);
+    expect(
+      result.pendingSyncQueue.single.lastError,
+      contains('permission-denied'),
+    );
+  });
 }
 
 FamilyTreeData _tree({
@@ -123,9 +148,13 @@ class _OnlineConnectivityService extends ConnectivityService {
 }
 
 class _FakeFamilyRepository implements FamilyRepository {
-  _FakeFamilyRepository({this.shouldFailUpdates = false});
+  _FakeFamilyRepository({
+    this.shouldFailUpdates = false,
+    this.shouldDenyCreates = false,
+  });
 
   final bool shouldFailUpdates;
+  final bool shouldDenyCreates;
   final updatedPeople = <Person>[];
 
   @override
@@ -144,7 +173,15 @@ class _FakeFamilyRepository implements FamilyRepository {
       throw UnimplementedError();
 
   @override
-  Future<void> createPerson(Person person) => throw UnimplementedError();
+  Future<void> createPerson(Person person) async {
+    if (shouldDenyCreates) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: 'Missing or insufficient permissions.',
+      );
+    }
+  }
 
   @override
   Future<void> deletePerson(String personId) => throw UnimplementedError();
@@ -168,6 +205,15 @@ class _FakeFamilyRepository implements FamilyRepository {
 
   @override
   Future<void> createAuditLog(AuditLog log) => throw UnimplementedError();
+
+  @override
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  }) => throw UnimplementedError();
 
   @override
   Future<void> upsertSyncIncident(SyncIncident incident) async {}

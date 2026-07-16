@@ -75,6 +75,33 @@ class JsonFamilyRepository implements FamilyRepository {
   }
 
   @override
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  }) async {
+    final data = await loadFamilyTree();
+    final kept = data.auditLog.where((log) {
+      if (familyId.isNotEmpty &&
+          log.familyCode.isNotEmpty &&
+          log.familyCode != familyId) {
+        return true;
+      }
+      if (olderThan == null) return false;
+      final createdAt = DateTime.tryParse(log.date);
+      if (createdAt == null) return true;
+      return !createdAt.isBefore(olderThan);
+    }).toList();
+    final deletedCount = data.auditLog.length - kept.length;
+    if (deletedCount > 0) {
+      await _write(data.copyWith(auditLog: kept));
+    }
+    return deletedCount;
+  }
+
+  @override
   Future<void> upsertSyncIncident(SyncIncident incident) async {}
 
   Future<void> _upsertPerson(Person person) async {

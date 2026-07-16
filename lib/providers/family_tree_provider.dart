@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/family_tree/domain/use_cases/link_existing_father.dart';
 import '../models/audit_log.dart';
 import '../models/access_code.dart';
 import '../models/admin_access.dart';
@@ -26,6 +27,7 @@ import '../models/member_save_result.dart';
 import '../models/modification_code.dart';
 import '../models/person.dart';
 import '../models/sync_state.dart';
+import '../services/activity_log_service.dart';
 import '../services/parent_auto_creation_service.dart';
 import 'app_providers.dart';
 import 'genealogy_statistics_provider.dart';
@@ -96,7 +98,10 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         status: status,
         updatedAt: now,
         updatedBy: resolvedBy.isEmpty ? item.updatedBy : resolvedBy,
-        lastError: status == 'resolved' ? '' : item.lastError,
+        retryCount: status == 'pending' ? 0 : item.retryCount,
+        lastError: status == 'resolved' || status == 'pending'
+            ? ''
+            : item.lastError,
       );
     }).toList();
     final next = data.copyWith(pendingSyncQueue: queue);
@@ -387,6 +392,43 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return _memberSaveResult(saved, operations);
   }
 
+  Future<MemberSaveResult> linkExistingFather({
+    required String childId,
+    required String fatherId,
+    required String actorRole,
+    required String adminId,
+  }) async {
+    final data = await future;
+    final linked = const LinkExistingFatherUseCase()(
+      data: data,
+      childId: childId,
+      fatherId: fatherId,
+    );
+    final normalized = ref
+        .read(familyRelationServiceProvider)
+        .normalizeRelationships(
+          linked.copyWith(
+            auditLog: [
+              ...linked.auditLog,
+              _log(
+                'link_father',
+                childId,
+                linked.mainFamilyCode,
+                actorRole: actorRole,
+                adminId: adminId,
+                description: '$fatherId->$childId',
+              ),
+            ],
+          ),
+        );
+    return saveRelationshipChange(
+      normalized,
+      relationship: 'link_father',
+      actorRole: actorRole,
+      adminId: adminId,
+    );
+  }
+
   Future<String?> createBackup() =>
       ref.read(backupServiceProvider).createBackup();
 
@@ -414,6 +456,34 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         ],
       ),
     );
+  }
+
+  Future<int> clearActivityLog({
+    required ActivityLogClearPeriod period,
+    required String actorRole,
+    required String adminId,
+    required String actorUid,
+  }) async {
+    final service = ref.read(activityLogServiceProvider);
+    if (!service.canClearActivityLog(actorRole)) {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final olderThan = service.thresholdFor(period);
+    final retentionLabel = service.labelFor(period);
+    await ref
+        .read(remoteDatabaseRepositoryProvider)
+        .deleteActivityLogs(
+          familyId: data.mainFamilyCode,
+          olderThan: olderThan,
+          actorUid: actorUid,
+          actorRole: actorRole,
+          retentionLabel: retentionLabel,
+        );
+    final result = service.clearLocalEntries(data, period: period);
+    await ref.read(localJsonRepositoryProvider).saveFamilyTree(result.data);
+    state = AsyncData(result.data);
+    return result.deletedCount;
   }
 
   Future<void> setLanguage(String languageCode, {bool manual = true}) async {

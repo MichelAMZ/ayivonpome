@@ -19,6 +19,7 @@ import '../services/diagnostic_service.dart';
 import '../services/admin_service.dart';
 import '../services/admin_access_service.dart';
 import '../services/access_code_service.dart';
+import '../services/activity_log_service.dart';
 import '../services/app_settings_service.dart';
 import '../services/family_relation_service.dart';
 import '../services/family_council_service.dart';
@@ -181,6 +182,10 @@ final bugReportServiceProvider = Provider<BugReportService>(
 
 final dataCleanupServiceProvider = Provider<DataCleanupService>(
   (ref) => const DataCleanupService(),
+);
+
+final activityLogServiceProvider = Provider<ActivityLogService>(
+  (ref) => const ActivityLogService(),
 );
 
 final mapServiceProvider = Provider<MapService>((ref) => MapService());

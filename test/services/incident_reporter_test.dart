@@ -119,6 +119,15 @@ class _FailingIncidentRepository implements FamilyRepository {
   Future<void> createAuditLog(AuditLog log) => throw UnimplementedError();
 
   @override
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  }) => throw UnimplementedError();
+
+  @override
   Future<void> createFamilyLink(FamilyLink link) => throw UnimplementedError();
 
   @override

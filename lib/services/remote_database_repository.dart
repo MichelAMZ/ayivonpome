@@ -56,6 +56,21 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
   Future<void> createAuditLog(AuditLog log) => _client.createAuditLog(log);
 
   @override
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  }) => _client.deleteActivityLogs(
+    familyId: familyId,
+    olderThan: olderThan,
+    actorUid: actorUid,
+    actorRole: actorRole,
+    retentionLabel: retentionLabel,
+  );
+
+  @override
   Future<void> upsertSyncIncident(SyncIncident incident) =>
       _client.upsertSyncIncident(incident);
 }
@@ -75,6 +90,13 @@ abstract class RemoteDatabaseClient {
   Future<void> createFamilyLink(FamilyLink link);
   Future<void> updateFamilyLink(FamilyLink link);
   Future<void> createAuditLog(AuditLog log);
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  });
   Future<void> upsertSyncIncident(SyncIncident incident);
   Stream<FamilyTreeData> watchFamilyTree();
 }
@@ -126,6 +148,15 @@ class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
 
   @override
   Future<void> createAuditLog(AuditLog log) => _notConfigured();
+
+  @override
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  }) => _notConfigured();
 
   @override
   Future<void> upsertSyncIncident(SyncIncident incident) => _notConfigured();

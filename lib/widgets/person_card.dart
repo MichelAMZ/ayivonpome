@@ -626,6 +626,35 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       ),
     );
     if (confirmed != true) return;
+    if (relationship == 'father') {
+      final auth = ref.read(authSessionProvider);
+      try {
+        final result = await ref
+            .read(familyTreeProvider.notifier)
+            .linkExistingFather(
+              childId: widget.person.id,
+              fatherId: selected.id,
+              actorRole: _actorRole,
+              adminId: auth.firebaseUid ?? auth.firebaseEmail ?? _actorRole,
+            );
+        if (!mounted || result.isFirestoreConfirmed) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.isLocalPending
+                  ? 'Relation enregistrée localement. Synchronisation en attente.'
+                  : result.lastError,
+            ),
+          ),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+      return;
+    }
     await _applyRelationship(
       (service, data) => service.linkExistingPerson(
         data,

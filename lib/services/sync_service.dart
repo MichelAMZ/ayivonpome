@@ -95,6 +95,7 @@ class SyncService {
               error,
               stackTrace,
               sourceFunction: 'enqueueOrSyncMany',
+              retryCount: operation.retryCount + 1,
             ),
           );
         } catch (error, stackTrace) {
@@ -119,6 +120,7 @@ class SyncService {
               error,
               stackTrace,
               sourceFunction: 'enqueueOrSyncMany',
+              retryCount: operation.retryCount + 1,
             ),
           );
         }
@@ -222,7 +224,12 @@ class SyncService {
     final audit = [...working.auditLog];
     var hadError = false;
     for (final item in working.pendingSyncQueue) {
-      if (item.status == 'synced' || item.status == 'resolved') continue;
+      if (item.status == 'synced' ||
+          item.status == 'resolved' ||
+          item.status == 'needsResolution') {
+        remaining.add(item);
+        continue;
+      }
       _logOperation(item, working.mainFamilyCode);
       try {
         debugPrint('SYNC QUEUE SEND START operationId=${item.id}');
@@ -252,7 +259,6 @@ class SyncService {
             error,
             stackTrace,
             sourceFunction: 'syncPendingQueue',
-            status: 'failed',
             retryCount: item.retryCount + 1,
           ),
         );
@@ -282,7 +288,6 @@ class SyncService {
             error,
             stackTrace,
             sourceFunction: 'syncPendingQueue',
-            status: 'failed',
             retryCount: item.retryCount + 1,
           ),
         );
@@ -435,7 +440,11 @@ class SyncService {
     for (final operation in operations) {
       queue = [
         ..._removeMatchingOperations(queue, [operation]),
-        operation.copyWith(status: operationStatus),
+        operation.copyWith(
+          status: operation.status == 'pending'
+              ? operationStatus
+              : operation.status,
+        ),
       ];
       audit.add(_log('sync_queued', operation.entityId, operation.entityType));
     }
@@ -599,9 +608,15 @@ class SyncService {
       stackTrace,
       sourceFunction: sourceFunction,
     );
+    final nextRetryCount = retryCount ?? item.retryCount;
+    final nextStatus =
+        status ??
+        (_requiresManualResolution(item, lastError, error, nextRetryCount)
+            ? 'needsResolution'
+            : 'failed');
     return item.copyWith(
-      status: status,
-      retryCount: retryCount,
+      status: nextStatus,
+      retryCount: nextRetryCount,
       lastError: lastError,
       errorType: incident.errorType,
       stackTrace: incident.stackTrace,
@@ -614,6 +629,19 @@ class SyncService {
       platform: incident.platform,
       locationPrecision: incident.locationPrecision,
     );
+  }
+
+  bool _requiresManualResolution(
+    PendingSyncItem item,
+    String lastError,
+    Object error,
+    int retryCount,
+  ) {
+    final denied =
+        error is FirebaseException && error.code == 'permission-denied' ||
+        lastError.contains('permission-denied') ||
+        lastError.toLowerCase().contains('acces refuse');
+    return denied && item.action == 'create' && retryCount >= 3;
   }
 
   SyncIncident _failureDiagnostic(

@@ -62,6 +62,30 @@ class HybridFamilyRepository implements FamilyRepository {
       _writeBoth((repository) => repository.createAuditLog(log));
 
   @override
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  }) async {
+    await _remoteRepository.deleteActivityLogs(
+      familyId: familyId,
+      olderThan: olderThan,
+      actorUid: actorUid,
+      actorRole: actorRole,
+      retentionLabel: retentionLabel,
+    );
+    return _localRepository.deleteActivityLogs(
+      familyId: familyId,
+      olderThan: olderThan,
+      actorUid: actorUid,
+      actorRole: actorRole,
+      retentionLabel: retentionLabel,
+    );
+  }
+
+  @override
   Future<void> upsertSyncIncident(SyncIncident incident) =>
       _remoteRepository.upsertSyncIncident(incident);
 

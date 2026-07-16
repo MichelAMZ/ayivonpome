@@ -23,6 +23,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/admin_access_service.dart';
+import '../services/activity_log_service.dart';
 import 'branding_settings_screen.dart';
 import '../widgets/admin_contact_card.dart';
 import '../widgets/bug_report_button.dart';
@@ -58,6 +59,7 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   _AdminCenterSection _selectedSection = _AdminCenterSection.dashboard;
+  bool _isClearingActivityLog = false;
 
   @override
   void initState() {
@@ -172,7 +174,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       ],
       _AdminCenterSection.incidents => _incidentsChildren(context, data),
       _AdminCenterSection.diagnostic => [_DiagnosticCenterSection(data: data)],
-      _AdminCenterSection.activityLog => _activityLogChildren(l10n, data),
+      _AdminCenterSection.activityLog => _activityLogChildren(
+        context,
+        l10n,
+        auth,
+        data,
+      ),
       _AdminCenterSection.statistics => _statisticsChildren(
         context,
         l10n,
@@ -352,30 +359,202 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   List<Widget> _activityLogChildren(
+    BuildContext context,
     AppLocalizations l10n,
+    AuthState auth,
     FamilyTreeData data,
   ) {
+    final service = ref.watch(activityLogServiceProvider);
+    final role = auth.session?.role ?? auth.firebaseRole ?? 'viewer';
+    final canClear = service.canClearActivityLog(role);
     return [
-      Text(l10n.activityLog, style: Theme.of(context).textTheme.titleLarge),
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final title = Text(
+            '${l10n.activityLog} (${service.countEntries(data)})',
+            style: Theme.of(context).textTheme.titleLarge,
+          );
+          final clearButton = OutlinedButton.icon(
+            onPressed:
+                canClear && data.auditLog.isNotEmpty && !_isClearingActivityLog
+                ? () => _confirmClearActivityLog(context, auth)
+                : null,
+            icon: _isClearingActivityLog
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.delete_outline),
+            label: Text(
+              _isClearingActivityLog ? 'Suppression...' : 'Vider le journal',
+            ),
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                const SizedBox(height: 8),
+                if (canClear) clearButton,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: title),
+              if (canClear) clearButton,
+            ],
+          );
+        },
+      ),
       const SizedBox(height: 8),
-      ...data.auditLog.reversed
-          .take(50)
-          .map(
-            (log) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.history_outlined),
-                title: Text(log.action),
-                subtitle: Text(
-                  [
-                    log.date,
-                    log.actorRole,
-                    log.description,
-                  ].where((value) => value.isNotEmpty).join('\n'),
+      if (data.auditLog.isEmpty)
+        const Card(
+          child: ListTile(
+            leading: Icon(Icons.history_outlined),
+            title: Text('Le journal d’activité est vide.'),
+          ),
+        )
+      else
+        ...data.auditLog.reversed
+            .take(50)
+            .map(
+              (log) => Card(
+                child: ListTile(
+                  leading: const Icon(Icons.history_outlined),
+                  title: Text(log.action),
+                  subtitle: Text(
+                    [
+                      log.date,
+                      log.actorRole,
+                      log.description,
+                    ].where((value) => value.isNotEmpty).join('\n'),
+                  ),
                 ),
               ),
             ),
-          ),
     ];
+  }
+
+  Future<void> _confirmClearActivityLog(
+    BuildContext context,
+    AuthState auth,
+  ) async {
+    var period = ActivityLogClearPeriod.olderThan3Months;
+    final validation = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Vider le journal d’activité ?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Cette action supprimera les entrées du journal d’activité de cette famille. Elle ne supprimera ni les membres, ni les incidents, ni les opérations de synchronisation.',
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<ActivityLogClearPeriod>(
+                  initialValue: period,
+                  decoration: const InputDecoration(labelText: 'Période'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: ActivityLogClearPeriod.olderThan7Days,
+                      child: Text('Plus de 7 jours'),
+                    ),
+                    DropdownMenuItem(
+                      value: ActivityLogClearPeriod.olderThan30Days,
+                      child: Text('Plus de 30 jours'),
+                    ),
+                    DropdownMenuItem(
+                      value: ActivityLogClearPeriod.olderThan3Months,
+                      child: Text('Plus de 3 mois'),
+                    ),
+                    DropdownMenuItem(
+                      value: ActivityLogClearPeriod.all,
+                      child: Text('Toutes les entrées'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => period = value);
+                  },
+                ),
+                if (period == ActivityLogClearPeriod.all) ...[
+                  const SizedBox(height: 12),
+                  const Text('Saisissez VIDER pour confirmer.'),
+                  TextField(
+                    controller: validation,
+                    decoration: const InputDecoration(hintText: 'VIDER'),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+                onPressed:
+                    period != ActivityLogClearPeriod.all ||
+                        validation.text.trim() == 'VIDER'
+                    ? () => Navigator.pop(dialogContext, true)
+                    : null,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Vider le journal'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    validation.dispose();
+    if (confirmed != true || !context.mounted) return;
+    await _clearActivityLog(context, auth, period);
+  }
+
+  Future<void> _clearActivityLog(
+    BuildContext context,
+    AuthState auth,
+    ActivityLogClearPeriod period,
+  ) async {
+    setState(() => _isClearingActivityLog = true);
+    try {
+      final deletedCount = await ref
+          .read(familyTreeProvider.notifier)
+          .clearActivityLog(
+            period: period,
+            actorRole: auth.session?.role ?? auth.firebaseRole ?? 'viewer',
+            adminId: auth.session?.familyCode ?? '',
+            actorUid: auth.firebaseUid ?? '',
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$deletedCount entrées du journal ont été supprimées.'),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Impossible de vider le journal. Aucune donnée familiale n’a été supprimée.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isClearingActivityLog = false);
+    }
   }
 
   List<Widget> _statisticsChildren(

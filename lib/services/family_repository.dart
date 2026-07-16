@@ -21,5 +21,12 @@ abstract class FamilyRepository {
   Future<void> updateFamilyLink(FamilyLink link);
 
   Future<void> createAuditLog(AuditLog log);
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  });
   Future<void> upsertSyncIncident(SyncIncident incident);
 }

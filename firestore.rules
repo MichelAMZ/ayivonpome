@@ -14,6 +14,15 @@ service cloud.firestore {
       return familyId == 'family-ayivon';
     }
 
+    function normalizedFamilyId(familyId) {
+      return isLegacyAyivonFamily(familyId) ? 'ayivon' : familyId;
+    }
+
+    function isSameTenantFamilyId(previousFamilyId, nextFamilyId) {
+      return nextFamilyId == previousFamilyId ||
+        (isLegacyAyivonFamily(previousFamilyId) && nextFamilyId == 'ayivon');
+    }
+
     function hasRoleDocument() {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/user_roles/$(request.auth.uid));
@@ -32,7 +41,7 @@ service cloud.firestore {
     function hasFamilyAccess(familyId) {
       return isActiveUser() &&
         currentRole().familyIds is list &&
-        currentRole().familyIds.hasAny([familyId]);
+        currentRole().familyIds.hasAny([normalizedFamilyId(familyId)]);
     }
 
     function hasAnyRole(roles) {
@@ -53,12 +62,6 @@ service cloud.firestore {
       return hasAnyRole(['superAdmin']);
     }
 
-    function isSuperAdminAyivonMigration(previousFamilyId, nextFamilyId) {
-      return isSuperAdmin() &&
-        isLegacyAyivonFamily(previousFamilyId) &&
-        nextFamilyId == 'ayivon';
-    }
-
     function hasValidNextVersion() {
       return (
         !('version' in resource.data) &&
@@ -74,21 +77,14 @@ service cloud.firestore {
 
     match /members/{memberId} {
       allow read: if isPublicFamily(resource.data.familyId) ||
-        hasFamilyAccess(resource.data.familyId) ||
-        (isLegacyAyivonFamily(resource.data.familyId) &&
-          hasFamilyAccess('ayivon'));
+        hasFamilyAccess(resource.data.familyId);
       allow create: if isEditor(request.resource.data.familyId);
-      allow update: if (
-        isEditor(resource.data.familyId) &&
-        request.resource.data.familyId == resource.data.familyId &&
-        hasValidNextVersion()
-      ) || (
-        isSuperAdminAyivonMigration(
+      allow update: if isEditor(resource.data.familyId) &&
+        isSameTenantFamilyId(
           resource.data.familyId,
           request.resource.data.familyId
         ) &&
-        hasValidNextVersion()
-      );
+        hasValidNextVersion();
       allow delete: if isAdmin(resource.data.familyId);
     }
 
@@ -97,7 +93,10 @@ service cloud.firestore {
         hasFamilyAccess(resource.data.familyId);
       allow create: if isEditor(request.resource.data.familyId);
       allow update: if isEditor(resource.data.familyId) &&
-        request.resource.data.familyId == resource.data.familyId;
+        isSameTenantFamilyId(
+          resource.data.familyId,
+          request.resource.data.familyId
+        );
       allow delete: if isAdmin(resource.data.familyId);
     }
 
@@ -106,7 +105,10 @@ service cloud.firestore {
         hasFamilyAccess(resource.data.familyId);
       allow create: if isEditor(request.resource.data.familyId);
       allow update: if isEditor(resource.data.familyId) &&
-        request.resource.data.familyId == resource.data.familyId;
+        isSameTenantFamilyId(
+          resource.data.familyId,
+          request.resource.data.familyId
+        );
       allow delete: if isAdmin(resource.data.familyId);
     }
 
@@ -115,14 +117,32 @@ service cloud.firestore {
         hasFamilyAccess(resource.data.familyId);
       allow create: if isEditor(request.resource.data.familyId);
       allow update: if isEditor(resource.data.familyId) &&
-        request.resource.data.familyId == resource.data.familyId;
+        isSameTenantFamilyId(
+          resource.data.familyId,
+          request.resource.data.familyId
+        );
       allow delete: if isAdmin(resource.data.familyId);
     }
 
     match /activity_logs/{logId} {
       allow read: if isAdmin(resource.data.familyId);
       allow create: if isEditor(request.resource.data.familyId);
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isSuperAdmin() && hasFamilyAccess(resource.data.familyId);
+    }
+
+    match /admin_audit_logs/{logId} {
+      allow read: if isAdmin(resource.data.familyId);
+      allow create: if isSuperAdmin() &&
+        hasFamilyAccess(request.resource.data.familyId) &&
+        request.resource.data.actorUid == request.auth.uid &&
+        request.resource.data.action == 'activity_log_clear_started';
+      allow update: if isSuperAdmin() &&
+        hasFamilyAccess(resource.data.familyId) &&
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.actorUid == resource.data.actorUid &&
+        request.resource.data.action == 'activity_log_cleared';
+      allow delete: if false;
     }
 
     match /sync_incidents/{incidentId} {

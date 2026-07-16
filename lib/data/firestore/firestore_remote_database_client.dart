@@ -30,6 +30,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   CollectionReference<Map<String, dynamic>> get _members =>
       _firestore.collection('members');
 
+  CollectionReference<Map<String, dynamic>> get _families =>
+      _firestore.collection('families');
+
   CollectionReference<Map<String, dynamic>> get _relationships =>
       _firestore.collection('relationships');
 
@@ -38,6 +41,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
   CollectionReference<Map<String, dynamic>> get _activityLogs =>
       _firestore.collection('activity_logs');
+
+  CollectionReference<Map<String, dynamic>> get _adminAuditLogs =>
+      _firestore.collection('admin_audit_logs');
 
   CollectionReference<Map<String, dynamic>> get _syncIncidents =>
       _firestore.collection('sync_incidents');
@@ -178,22 +184,29 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         doc.path,
         personId: personId,
       );
+      await _ensureFamilyDocument(user);
       final snapshot = await doc.get();
       final remoteData = snapshot.data();
-      final nextVersion = snapshot.exists
-          ? _safeVersion(remoteData?['version']) + 1
-          : 1;
-      final data = _mapper.toFirestore(
-        person
-            .copyWith(
-              createdAt: person.createdAt.isEmpty ? now : person.createdAt,
-              updatedAt: now,
-              version: nextVersion,
+      final data = snapshot.exists
+          ? _mapper.toFirestore(
+              person
+                  .copyWith(
+                    createdAt: person.createdAt.isEmpty
+                        ? now
+                        : person.createdAt,
+                    updatedAt: now,
+                    version: _safeVersion(remoteData?['version']) + 1,
+                  )
+                  .toJson(),
+              id: personId,
+              familyId: _tenantFamilyId,
             )
-            .toJson(),
-        id: personId,
-        familyId: _tenantFamilyId,
-      );
+          : _mapper.toPersonCreateData(
+              person.copyWith(version: 1, deletedAt: '').toJson(),
+              id: personId,
+              familyId: _tenantFamilyId,
+              uid: user?.uid ?? '',
+            );
       if (snapshot.exists) {
         diagnostic = await _buildMemberUpdateDiagnostic(
           doc: doc,
@@ -201,6 +214,16 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           user: user,
           existingData: remoteData,
           existingExists: true,
+        );
+        _debugFirestoreUpdateDiagnostic(diagnostic);
+      } else {
+        diagnostic = await _buildMemberUpdateDiagnostic(
+          doc: doc,
+          data: data,
+          user: user,
+          existingData: const {},
+          existingExists: false,
+          operation: 'create',
         );
         _debugFirestoreUpdateDiagnostic(diagnostic);
       }
@@ -236,6 +259,23 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         stackTrace,
       );
     }
+  }
+
+  Future<void> _ensureFamilyDocument(User? user) async {
+    final doc = _families.doc(_tenantFamilyId);
+    final snapshot = await doc.get();
+    if (snapshot.exists) return;
+    await doc.set({
+      'id': _tenantFamilyId,
+      'name': _tenantFamilyId == 'ayivon' ? 'Famille AYIVON' : _tenantFamilyId,
+      'active': true,
+      'schemaVersion': 1,
+      'version': 1,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'createdBy': user?.uid ?? '',
+      'updatedBy': user?.uid ?? '',
+    });
   }
 
   @override
@@ -372,6 +412,67 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       _debugFirestoreSaveFailure('createAuditLog', doc.path, error, stackTrace);
       rethrow;
     }
+  }
+
+  @override
+  Future<int> deleteActivityLogs({
+    required String familyId,
+    DateTime? olderThan,
+    required String actorUid,
+    required String actorRole,
+    required String retentionLabel,
+  }) async {
+    final user = await _ensureFirebaseUser(
+      'deleteActivityLogs',
+      'activity_logs',
+    );
+    if (actorRole != 'superAdmin') {
+      throw StateError('Suppression du journal non autorisee.');
+    }
+    final targetFamilyId = familyId.trim().isEmpty ? _tenantFamilyId : familyId;
+    final auditId = 'adminAudit${DateTime.now().microsecondsSinceEpoch}';
+    final startedAt = DateTime.now().toUtc();
+    await _adminAuditLogs.doc(auditId).set({
+      'id': auditId,
+      'familyId': targetFamilyId,
+      'actorUid': actorUid.trim().isEmpty ? user?.uid ?? '' : actorUid.trim(),
+      'actorRole': actorRole,
+      'action': 'activity_log_clear_started',
+      'retentionLabel': retentionLabel,
+      'olderThan': olderThan?.toUtc().toIso8601String(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdAtClient': startedAt.toIso8601String(),
+    });
+
+    var deletedCount = 0;
+    while (true) {
+      Query<Map<String, dynamic>> query = _activityLogs
+          .where('familyId', isEqualTo: targetFamilyId)
+          .limit(400);
+      if (olderThan != null) {
+        query = _activityLogs
+            .where('familyId', isEqualTo: targetFamilyId)
+            .where('date', isLessThan: olderThan.toUtc().toIso8601String())
+            .limit(400);
+      }
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      deletedCount += snapshot.docs.length;
+      if (snapshot.docs.length < 400) break;
+    }
+
+    await _adminAuditLogs.doc(auditId).set({
+      'action': 'activity_log_cleared',
+      'deletedCount': deletedCount,
+      'completedAt': FieldValue.serverTimestamp(),
+      'completedAtClient': DateTime.now().toUtc().toIso8601String(),
+    }, SetOptions(merge: true));
+    return deletedCount;
   }
 
   @override
@@ -560,6 +661,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     required User? user,
     Map<String, dynamic>? existingData,
     bool? existingExists,
+    String operation = 'update',
   }) async {
     var resolvedExistingData = Map<String, dynamic>.from(
       existingData ?? const {},
@@ -580,7 +682,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final roleData = await _readCurrentRoleForDiagnostic(user?.uid);
     return FirestoreUpdateDiagnostic(
       documentPath: doc.path,
-      operation: 'update',
+      operation: operation,
       uid: user?.uid ?? '',
       role: roleData.role,
       userFamilyIds: roleData.familyIds,
@@ -765,14 +867,40 @@ class FirestoreUpdateDiagnostic {
     if (!['editor', 'admin', 'superAdmin'].contains(role)) {
       return "currentRole().role in ['editor', 'admin', 'superAdmin']";
     }
+    final documentId = documentPath.split('/').last;
+    if (operation == 'create') {
+      if (requestFamilyId.isEmpty) return 'request.resource.data.familyId';
+      if (!userFamilyIds.contains(requestFamilyId)) {
+        return 'currentRole().familyIds.hasAny([request.resource.data.familyId])';
+      }
+      if (sentData['id'] != documentId) {
+        return 'request.resource.data.id == memberId';
+      }
+      if (_version(sentData['version']) != 1) {
+        return 'request.resource.data.version == 1';
+      }
+      if (sentData['createdBy'] != uid) {
+        return 'request.resource.data.createdBy == request.auth.uid';
+      }
+      if (sentData['updatedBy'] != uid) {
+        return 'request.resource.data.updatedBy == request.auth.uid';
+      }
+      return 'Aucune condition de création refusée déduite côté client';
+    }
     if (!existingExists) {
       return 'resource.data existe pour allow update';
     }
-    if (!userFamilyIds.contains(documentFamilyId)) {
+    final normalizedDocumentFamilyId = documentFamilyId == 'family-ayivon'
+        ? 'ayivon'
+        : documentFamilyId;
+    final sameTenantFamilyId =
+        requestFamilyId == documentFamilyId ||
+        (documentFamilyId == 'family-ayivon' && requestFamilyId == 'ayivon');
+    if (!userFamilyIds.contains(normalizedDocumentFamilyId)) {
       return 'currentRole().familyIds.hasAny([resource.data.familyId])';
     }
-    if (requestFamilyId != documentFamilyId) {
-      return 'request.resource.data.familyId == resource.data.familyId';
+    if (!sameTenantFamilyId) {
+      return 'isSameTenantFamilyId(resource.data.familyId, request.resource.data.familyId)';
     }
     final previousVersion = _version(existingData['version']);
     final nextVersion = _version(sentData['version']);
