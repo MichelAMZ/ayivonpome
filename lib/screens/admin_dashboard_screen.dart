@@ -465,6 +465,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   label: Text(l10n.changeAdminCode),
                 ),
               ),
+              const SizedBox(height: 8),
+              const _AdminSectionNote(
+                icon: Icons.info_outline,
+                title: 'Modifier le code d’accès Firebase',
+                message:
+                    'Les codes de modification et d’administration utilisés par Firebase Auth correspondent aux mots de passe des comptes techniques editor@ayivon.app et admin@ayivon.app. Pour le moment, modifiez ces mots de passe dans Firebase Authentication.',
+              ),
               const SizedBox(height: 12),
               Text(
                 l10n.adminCodeHistory,

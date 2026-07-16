@@ -24,22 +24,14 @@ class FirebaseBootstrap {
         : await Firebase.initializeApp(options: _config.options);
 
     FirebaseFirestore.instance.settings = Settings(
-      persistenceEnabled: _config.trustedDevice,
+      persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
 
-    await _tryAnonymousSignIn();
+    if (kIsWeb) {
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+    }
 
     return app;
-  }
-
-  Future<void> _tryAnonymousSignIn() async {
-    if (FirebaseAuth.instance.currentUser != null) return;
-    try {
-      await FirebaseAuth.instance.signInAnonymously();
-    } catch (error, stackTrace) {
-      debugPrint('Anonymous Firebase sign-in skipped: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
   }
 }

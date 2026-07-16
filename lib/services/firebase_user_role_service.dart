@@ -101,12 +101,12 @@ class FirebaseUserRoleService {
     final snapshot = await _firestore
         .collection('user_roles')
         .where('familyIds', arrayContains: _familyId)
-        .where('authMethod', isEqualTo: 'accessCode')
         .get();
     final batch = _firestore.batch();
     var hasUpdates = false;
     for (final doc in snapshot.docs) {
       if (doc.id == current) continue;
+      if (doc.data()['active'] != true) continue;
       batch.set(doc.reference, {
         'active': false,
         'revokedAt': FieldValue.serverTimestamp(),

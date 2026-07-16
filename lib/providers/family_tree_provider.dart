@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -37,11 +38,18 @@ final familyTreeProvider =
     );
 
 class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
+  StreamSubscription<FamilyTreeData>? _remoteFamilyTreeSubscription;
+
   @override
   Future<FamilyTreeData> build() async {
     debugPrint('Fresh app initialization started');
+    ref.onDispose(() {
+      _remoteFamilyTreeSubscription?.cancel();
+      _remoteFamilyTreeSubscription = null;
+    });
     clearTreeRuntimeState();
     final data = await _loadFreshData();
+    _startRemoteFamilyTreeWatch(data);
     resetFilters();
     fitAndCenterTreeOnStart();
     return data;
@@ -53,6 +61,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final data = await _loadFreshData(forceReloadSource: true);
+      _startRemoteFamilyTreeWatch(data);
       resetFilters();
       fitAndCenterTreeOnStart();
       return data;
@@ -191,6 +200,62 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       await storage.writeRaw(_encode(pruned));
     }
     return pruned;
+  }
+
+  void _startRemoteFamilyTreeWatch(FamilyTreeData initialData) {
+    _remoteFamilyTreeSubscription?.cancel();
+    _remoteFamilyTreeSubscription = ref
+        .read(remoteDatabaseRepositoryProvider)
+        .watchFamilyTree()
+        .listen(
+          (remoteData) {
+            _applyRemoteFamilyTreeSnapshot(remoteData, initialData);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            debugPrint('FIRESTORE WATCH skipped: $error');
+            debugPrintStack(stackTrace: stackTrace);
+          },
+        );
+  }
+
+  Future<void> _applyRemoteFamilyTreeSnapshot(
+    FamilyTreeData remoteData,
+    FamilyTreeData fallbackData,
+  ) async {
+    if (remoteData.people.isEmpty &&
+        remoteData.marriageRelations.isEmpty &&
+        remoteData.familyLinks.isEmpty) {
+      debugPrint('FIRESTORE WATCH empty snapshot ignored');
+      return;
+    }
+
+    final current = state.value ?? fallbackData;
+    final pendingQueue = current.pendingSyncQueue;
+    final syncStatus = pendingQueue.isEmpty ? 'synced' : 'pending';
+    var merged = current.copyWith(
+      mainFamilyCode: remoteData.mainFamilyCode,
+      people: remoteData.people,
+      marriageRelations: remoteData.marriageRelations,
+      familyLinks: remoteData.familyLinks,
+      lastUpdatedAt: DateTime.now().toIso8601String(),
+      syncSettings: current.syncSettings.copyWith(syncStatus: syncStatus),
+      appSettings: current.appSettings.copyWith(
+        storageSettings: current.appSettings.storageSettings.copyWith(
+          syncStatus: syncStatus,
+        ),
+      ),
+    );
+    merged = rebuildRelationshipGraph(merged);
+    merged = recalculateGenerationsForStartup(merged);
+    merged = recomputeTreeLayout(merged);
+
+    if (_encode(merged) == _encode(current)) return;
+    await ref.read(localJsonRepositoryProvider).saveFamilyTree(merged);
+    state = AsyncData(merged);
+    debugPrint(
+      'FIRESTORE WATCH applied familyId=${merged.mainFamilyCode} '
+      'members=${merged.people.length}',
+    );
   }
 
   Future<FamilyTreeData> save(

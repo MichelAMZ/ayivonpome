@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -46,15 +48,72 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final relationships = await _activeByFamily(_relationships).get();
     final links = await _activeByFamily(_familyLinks).get();
 
+    return _treeFromSnapshots(people.docs, relationships.docs, links.docs);
+  }
+
+  @override
+  Stream<FamilyTreeData> watchFamilyTree() {
+    final controller = StreamController<FamilyTreeData>();
+    List<QueryDocumentSnapshot<Map<String, dynamic>>>? people;
+    List<QueryDocumentSnapshot<Map<String, dynamic>>>? relationships;
+    List<QueryDocumentSnapshot<Map<String, dynamic>>>? links;
+    final subscriptions =
+        <StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>[];
+
+    void emitIfReady() {
+      final currentPeople = people;
+      final currentRelationships = relationships;
+      final currentLinks = links;
+      if (currentPeople == null ||
+          currentRelationships == null ||
+          currentLinks == null ||
+          controller.isClosed) {
+        return;
+      }
+      controller.add(
+        _treeFromSnapshots(currentPeople, currentRelationships, currentLinks),
+      );
+    }
+
+    void listen(
+      Query<Map<String, dynamic>> query,
+      void Function(List<QueryDocumentSnapshot<Map<String, dynamic>>>) assign,
+    ) {
+      subscriptions.add(
+        query.snapshots().listen((snapshot) {
+          assign(snapshot.docs);
+          emitIfReady();
+        }, onError: controller.addError),
+      );
+    }
+
+    listen(_activeByFamily(_members), (docs) => people = docs);
+    listen(_activeByFamily(_relationships), (docs) => relationships = docs);
+    listen(_activeByFamily(_familyLinks), (docs) => links = docs);
+
+    controller.onCancel = () async {
+      for (final subscription in subscriptions) {
+        await subscription.cancel();
+      }
+    };
+
+    return controller.stream;
+  }
+
+  FamilyTreeData _treeFromSnapshots(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> people,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> relationships,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> links,
+  ) {
     return FamilyTreeData(
       mainFamilyCode: _familyId,
-      people: people.docs
+      people: people
           .map((doc) => Person.fromJson(_mapper.fromSnapshot(doc)))
           .toList(),
-      marriageRelations: relationships.docs
+      marriageRelations: relationships
           .map((doc) => MarriageRelation.fromJson(_mapper.fromSnapshot(doc)))
           .toList(),
-      familyLinks: links.docs
+      familyLinks: links
           .map((doc) => FamilyLink.fromJson(_mapper.fromSnapshot(doc)))
           .toList(),
     );
@@ -163,14 +222,25 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final personId = person.id.trim();
     final doc = _members.doc(personId);
     final now = DateTime.now().toUtc().toIso8601String();
+    FirestoreUpdateDiagnostic? diagnostic;
     try {
-      await _ensureFirebaseUser('updatePerson', doc.path, personId: personId);
+      final user = await _ensureFirebaseUser(
+        'updatePerson',
+        doc.path,
+        personId: personId,
+      );
       final nextVersion = person.version <= 0 ? 1 : person.version;
       final data = _mapper.toFirestore(
         person.copyWith(updatedAt: now, version: nextVersion).toJson(),
         id: personId,
         familyId: _tenantFamilyId,
       );
+      diagnostic = await _buildMemberUpdateDiagnostic(
+        doc: doc,
+        data: data,
+        user: user,
+      );
+      _debugFirestoreUpdateDiagnostic(diagnostic);
       _debugFirestoreWriteStart(
         'updatePerson',
         doc.path,
@@ -187,6 +257,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           documentPath: doc.path,
           firebaseCode: error.code,
           message: error.message ?? error.toString(),
+          diagnostic: diagnostic,
         ),
         stackTrace,
       );
@@ -197,6 +268,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           operation: 'updatePerson',
           documentPath: doc.path,
           message: error.toString(),
+          diagnostic: diagnostic,
         ),
         stackTrace,
       );
@@ -447,6 +519,119 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     }
   }
 
+  Future<FirestoreUpdateDiagnostic> _buildMemberUpdateDiagnostic({
+    required DocumentReference<Map<String, dynamic>> doc,
+    required Map<String, dynamic> data,
+    required User? user,
+  }) async {
+    Map<String, dynamic> existingData = const {};
+    var existingExists = false;
+    try {
+      final snapshot = await doc.get();
+      existingExists = snapshot.exists;
+      existingData = Map<String, dynamic>.from(snapshot.data() ?? const {});
+    } catch (error) {
+      existingData = {'readError': error.toString()};
+    }
+
+    final roleData = await _readCurrentRoleForDiagnostic(user?.uid);
+    return FirestoreUpdateDiagnostic(
+      documentPath: doc.path,
+      operation: 'update',
+      uid: user?.uid ?? '',
+      role: roleData.role,
+      userFamilyIds: roleData.familyIds,
+      userFamilyId: roleData.familyIds.contains(_tenantFamilyId)
+          ? _tenantFamilyId
+          : roleData.familyIds.join(', '),
+      documentFamilyId: _stringValue(existingData['familyId']),
+      requestFamilyId: _stringValue(data['familyId']),
+      sentData: _sanitizeDiagnosticMap(data),
+      existingData: _sanitizeDiagnosticMap(existingData),
+      diff: _diffMaps(existingData, data),
+      existingExists: existingExists,
+      roleActive: roleData.active,
+      rulePath: 'match /members/{memberId}',
+    );
+  }
+
+  Future<_DiagnosticRoleData> _readCurrentRoleForDiagnostic(String? uid) async {
+    if (uid == null || uid.isEmpty) return const _DiagnosticRoleData();
+    try {
+      final snapshot = await _firestore.collection('user_roles').doc(uid).get();
+      final data = snapshot.data() ?? const <String, dynamic>{};
+      final familyIds = (data['familyIds'] as List? ?? const [])
+          .map((value) => '$value')
+          .where((value) => value.trim().isNotEmpty)
+          .toList();
+      return _DiagnosticRoleData(
+        role: _stringValue(data['role']),
+        familyIds: familyIds,
+        active: data['active'] == true,
+      );
+    } catch (error) {
+      return _DiagnosticRoleData(role: 'role-read-error: $error');
+    }
+  }
+
+  Map<String, dynamic> _sanitizeDiagnosticMap(Map<String, dynamic> data) {
+    return data.map((key, value) {
+      final normalized = key.toLowerCase();
+      if (normalized.contains('password') ||
+          normalized.contains('token') ||
+          normalized.contains('secret') ||
+          normalized.contains('apikey') ||
+          normalized.contains('api_key') ||
+          normalized.contains('accesscode') ||
+          normalized.contains('access_code') ||
+          normalized.contains('codefamilial') ||
+          normalized.contains('familycode')) {
+        return MapEntry(key, '[masque]');
+      }
+      return MapEntry(key, _sanitizeDiagnosticValue(value));
+    });
+  }
+
+  Object? _sanitizeDiagnosticValue(Object? value) {
+    if (value is Map) {
+      return _sanitizeDiagnosticMap(Map<String, dynamic>.from(value));
+    }
+    if (value is List) {
+      return value.map(_sanitizeDiagnosticValue).toList();
+    }
+    if (value is FieldValue) return value.toString();
+    return value;
+  }
+
+  Map<String, dynamic> _diffMaps(
+    Map<String, dynamic> existing,
+    Map<String, dynamic> sent,
+  ) {
+    final diff = <String, dynamic>{};
+    final keys = {...existing.keys, ...sent.keys}.toList()..sort();
+    for (final key in keys) {
+      final previous = existing[key];
+      final next = sent[key];
+      if ('$previous' == '$next') continue;
+      diff[key] = {
+        'avant': _sanitizeDiagnosticValue(previous),
+        'apres': _sanitizeDiagnosticValue(next),
+      };
+    }
+    return diff;
+  }
+
+  void _debugFirestoreUpdateDiagnostic(FirestoreUpdateDiagnostic diagnostic) {
+    if (!kDebugMode) return;
+    debugPrint('FIRESTORE UPDATE DIAGNOSTIC');
+    debugPrint(diagnostic.toReport());
+  }
+
+  String _stringValue(Object? value) {
+    if (value == null) return '';
+    return '$value';
+  }
+
   int _safeVersion(Object? value) {
     if (value is num) return value.toInt();
     return int.tryParse('$value') ?? 0;
@@ -477,17 +662,117 @@ class FirestoreSaveException implements Exception {
     required this.documentPath,
     required this.message,
     this.firebaseCode,
+    this.diagnostic,
   });
 
   final String operation;
   final String documentPath;
   final String? firebaseCode;
   final String message;
+  final FirestoreUpdateDiagnostic? diagnostic;
 
   @override
   String toString() {
     final code = firebaseCode == null ? '' : ' [$firebaseCode]';
-    return 'Firestore save failed$code on $documentPath during $operation: '
+    final base =
+        'Firestore save failed$code on $documentPath during $operation: '
         '$message';
+    final report = diagnostic?.toReport();
+    if (report == null || report.isEmpty) return base;
+    return '$base\n\n$report';
   }
+}
+
+class FirestoreUpdateDiagnostic {
+  const FirestoreUpdateDiagnostic({
+    required this.documentPath,
+    required this.operation,
+    required this.uid,
+    required this.role,
+    required this.userFamilyIds,
+    required this.userFamilyId,
+    required this.documentFamilyId,
+    required this.requestFamilyId,
+    required this.sentData,
+    required this.existingData,
+    required this.diff,
+    required this.existingExists,
+    required this.roleActive,
+    required this.rulePath,
+  });
+
+  final String documentPath;
+  final String operation;
+  final String uid;
+  final String role;
+  final List<String> userFamilyIds;
+  final String userFamilyId;
+  final String documentFamilyId;
+  final String requestFamilyId;
+  final Map<String, dynamic> sentData;
+  final Map<String, dynamic> existingData;
+  final Map<String, dynamic> diff;
+  final bool existingExists;
+  final bool roleActive;
+  final String rulePath;
+
+  String get refusedCondition {
+    if (uid.isEmpty) return 'request.auth != null';
+    if (!roleActive) return 'currentRole().active == true';
+    if (!['editor', 'admin', 'superAdmin'].contains(role)) {
+      return "currentRole().role in ['editor', 'admin', 'superAdmin']";
+    }
+    if (!existingExists) {
+      return 'resource.data existe pour allow update';
+    }
+    if (!userFamilyIds.contains(documentFamilyId)) {
+      return 'currentRole().familyIds.hasAny([resource.data.familyId])';
+    }
+    if (requestFamilyId != documentFamilyId) {
+      return 'request.resource.data.familyId == resource.data.familyId';
+    }
+    final previousVersion = _version(existingData['version']);
+    final nextVersion = _version(sentData['version']);
+    if (previousVersion == null) {
+      if (nextVersion != 1) return 'hasValidNextVersion() version == 1';
+    } else if (nextVersion != previousVersion + 1) {
+      return 'hasValidNextVersion() version == resource.data.version + 1';
+    }
+    return 'Aucune condition refusée déduite côté client';
+  }
+
+  String toReport() {
+    return [
+      'Document : $documentPath',
+      'Operation : $operation',
+      'UID : ${uid.isEmpty ? 'non connecte' : uid}',
+      'Role : ${role.isEmpty ? 'inconnu' : role}',
+      'FamilyId utilisateur : ${userFamilyId.isEmpty ? userFamilyIds.join(', ') : userFamilyId}',
+      'FamilyId document : ${documentFamilyId.isEmpty ? 'absent' : documentFamilyId}',
+      'FamilyId envoye : ${requestFamilyId.isEmpty ? 'absent' : requestFamilyId}',
+      'Donnees envoyees : $sentData',
+      'Donnees existantes : $existingData',
+      'Difference : $diff',
+      'Regle Firestore concernee : $rulePath',
+      'Condition refusee : $refusedCondition',
+    ].join('\n');
+  }
+
+  static int? _version(Object? value) {
+    if (value == null) return null;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value');
+  }
+}
+
+class _DiagnosticRoleData {
+  const _DiagnosticRoleData({
+    this.role = '',
+    this.familyIds = const [],
+    this.active = false,
+  });
+
+  final String role;
+  final List<String> familyIds;
+  final bool active;
 }

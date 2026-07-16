@@ -73,9 +73,9 @@ class _ModificationCodeRequiredDialogState
     if (!mounted) return;
     if (ok) {
       Navigator.pop(context, true);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.validModificationCode)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Accès modification autorisé.')),
+      );
     } else {
       setState(() => _error = l10n.invalidModificationCode);
     }

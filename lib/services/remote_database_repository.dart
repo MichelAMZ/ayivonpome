@@ -17,6 +17,8 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
   @override
   Future<FamilyTreeData> loadFamilyTree() => _client.loadFamilyTree();
 
+  Stream<FamilyTreeData> watchFamilyTree() => _client.watchFamilyTree();
+
   @override
   Future<void> saveFamilyTree(FamilyTreeData data) =>
       _client.saveFamilyTree(data);
@@ -74,6 +76,7 @@ abstract class RemoteDatabaseClient {
   Future<void> updateFamilyLink(FamilyLink link);
   Future<void> createAuditLog(AuditLog log);
   Future<void> upsertSyncIncident(SyncIncident incident);
+  Stream<FamilyTreeData> watchFamilyTree();
 }
 
 class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
@@ -96,6 +99,15 @@ class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
 
   @override
   Future<FamilyTreeData> loadFamilyTree() => _notConfigured();
+
+  @override
+  Stream<FamilyTreeData> watchFamilyTree() {
+    return Stream.error(
+      const RemoteDatabaseUnavailableException(
+        'Remote database client is not configured yet.',
+      ),
+    );
+  }
 
   @override
   Future<void> createMarriage(MarriageRelation relation) => _notConfigured();

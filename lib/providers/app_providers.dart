@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -138,8 +137,19 @@ final firebaseAccessCodeAuthServiceProvider =
       return FirebaseAccessCodeAuthService(
         auth: FirebaseAuth.instance,
         firestore: FirebaseFirestore.instance,
-        functions: FirebaseFunctions.instance,
         familyId: config.familyId,
+        editorEmail: const String.fromEnvironment(
+          'AYIVON_EDITOR_EMAIL',
+          defaultValue: 'editor@ayivon.app',
+        ),
+        adminEmail: const String.fromEnvironment(
+          'AYIVON_ADMIN_EMAIL',
+          defaultValue: 'admin@ayivon.app',
+        ),
+        superAdminEmail: const String.fromEnvironment(
+          'AYIVON_SUPER_ADMIN_EMAIL',
+          defaultValue: 'ayivonaziangbede@gmail.com',
+        ),
       );
     });
 
