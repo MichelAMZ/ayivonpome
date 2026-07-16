@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:ayivonpome/models/audit_log.dart';
 import 'package:ayivonpome/models/family_link.dart';
 import 'package:ayivonpome/models/family_tree_data.dart';
@@ -53,7 +55,8 @@ void main() {
       expect(pending, hasLength(1));
       expect(pending.single.id, secondOperation.id);
       expect(pending.single.payload['firstName'], 'Kossi modifie');
-      expect(pending.single.status, 'failed');
+      expect(pending.single.status, 'retryScheduled');
+      expect(pending.single.nextAttemptAt, isNotEmpty);
       expect(pending.single.errorType, 'StateError');
       expect(pending.single.stackTrace, isNotEmpty);
       expect(pending.single.sourceFile, contains('sync_service_test.dart'));
@@ -122,10 +125,65 @@ void main() {
     expect(result.pendingSyncQueue, hasLength(1));
     expect(result.pendingSyncQueue.single.status, 'needsResolution');
     expect(result.pendingSyncQueue.single.retryCount, 3);
+    expect(result.pendingSyncQueue.single.requiresUserAction, isTrue);
     expect(
       result.pendingSyncQueue.single.lastError,
       contains('permission-denied'),
     );
+  });
+
+  test('does not retry a scheduled operation before nextAttemptAt', () async {
+    final repository = _FakeFamilyRepository();
+    final now = DateTime(2026, 7, 16, 10);
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: repository,
+      nowProvider: () => now,
+      random: Random(0),
+    );
+    const person = Person(id: 'person-123', firstName: 'Kossi');
+    final operation = service
+        .personOperation(person: person, action: 'create', updatedBy: 'test')
+        .copyWith(
+          status: 'retryScheduled',
+          retryCount: 1,
+          nextAttemptAt: now.add(const Duration(minutes: 1)).toIso8601String(),
+        );
+
+    final result = await service.syncPendingQueue(
+      _tree(people: const [person], pendingSyncQueue: [operation]),
+    );
+
+    expect(result.pendingSyncQueue, hasLength(1));
+    expect(result.pendingSyncQueue.single.id, operation.id);
+    expect(repository.createdPeople, isEmpty);
+  });
+
+  test('manual retry ignores retry delay for retryable operations', () async {
+    final repository = _FakeFamilyRepository();
+    final now = DateTime(2026, 7, 16, 10);
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: repository,
+      nowProvider: () => now,
+      random: Random(0),
+    );
+    const person = Person(id: 'person-123', firstName: 'Kossi');
+    final operation = service
+        .personOperation(person: person, action: 'create', updatedBy: 'test')
+        .copyWith(
+          status: 'retryScheduled',
+          retryCount: 1,
+          nextAttemptAt: now.add(const Duration(minutes: 1)).toIso8601String(),
+        );
+
+    final result = await service.syncPendingQueue(
+      _tree(people: const [person], pendingSyncQueue: [operation]),
+      force: true,
+    );
+
+    expect(result.pendingSyncQueue, isEmpty);
+    expect(repository.createdPeople.single.id, 'person-123');
   });
 }
 
@@ -155,6 +213,7 @@ class _FakeFamilyRepository implements FamilyRepository {
 
   final bool shouldFailUpdates;
   final bool shouldDenyCreates;
+  final createdPeople = <Person>[];
   final updatedPeople = <Person>[];
 
   @override
@@ -181,6 +240,7 @@ class _FakeFamilyRepository implements FamilyRepository {
         message: 'Missing or insufficient permissions.',
       );
     }
+    createdPeople.add(person);
   }
 
   @override

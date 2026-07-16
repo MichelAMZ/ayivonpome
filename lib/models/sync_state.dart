@@ -65,6 +65,11 @@ class PendingSyncItem {
     this.retryCount = 0,
     this.updatedBy = '',
     this.lastError = '',
+    this.lastErrorCode = '',
+    this.lastAttemptAt = '',
+    this.nextAttemptAt = '',
+    this.requiresUserAction = false,
+    this.dependsOnOperationIds = const [],
     this.errorType = '',
     this.stackTrace = '',
     this.sourceFile = '',
@@ -88,6 +93,11 @@ class PendingSyncItem {
   final int retryCount;
   final String updatedBy;
   final String lastError;
+  final String lastErrorCode;
+  final String lastAttemptAt;
+  final String nextAttemptAt;
+  final bool requiresUserAction;
+  final List<String> dependsOnOperationIds;
   final String errorType;
   final String stackTrace;
   final String sourceFile;
@@ -110,10 +120,17 @@ class PendingSyncItem {
     createdAt: json['createdAt'] as String? ?? '',
     updatedAt: json['updatedAt'] as String? ?? '',
     status: json['status'] as String? ?? 'pending',
-    retryCount: json['retryCount'] as int? ?? 0,
+    retryCount: json['retryCount'] as int? ?? json['attempts'] as int? ?? 0,
     updatedBy: json['updatedBy'] as String? ?? '',
     lastError:
         json['lastError'] as String? ?? json['errorMessage'] as String? ?? '',
+    lastErrorCode: json['lastErrorCode'] as String? ?? '',
+    lastAttemptAt: json['lastAttemptAt'] as String? ?? '',
+    nextAttemptAt: json['nextAttemptAt'] as String? ?? '',
+    requiresUserAction: json['requiresUserAction'] as bool? ?? false,
+    dependsOnOperationIds: (json['dependsOnOperationIds'] as List? ?? const [])
+        .map((item) => item.toString())
+        .toList(),
     errorType: json['errorType'] as String? ?? '',
     stackTrace: json['stackTrace'] as String? ?? '',
     sourceFile: json['sourceFile'] as String? ?? '',
@@ -136,8 +153,15 @@ class PendingSyncItem {
     'updatedAt': updatedAt,
     'status': status,
     'retryCount': retryCount,
+    'attempts': retryCount,
     if (updatedBy.isNotEmpty) 'updatedBy': updatedBy,
     if (lastError.isNotEmpty) 'lastError': lastError,
+    if (lastErrorCode.isNotEmpty) 'lastErrorCode': lastErrorCode,
+    if (lastAttemptAt.isNotEmpty) 'lastAttemptAt': lastAttemptAt,
+    if (nextAttemptAt.isNotEmpty) 'nextAttemptAt': nextAttemptAt,
+    if (requiresUserAction) 'requiresUserAction': requiresUserAction,
+    if (dependsOnOperationIds.isNotEmpty)
+      'dependsOnOperationIds': dependsOnOperationIds,
     if (errorType.isNotEmpty) 'errorType': errorType,
     if (stackTrace.isNotEmpty) 'stackTrace': stackTrace,
     if (sourceFile.isNotEmpty) 'sourceFile': sourceFile,
@@ -163,6 +187,11 @@ class PendingSyncItem {
     int? retryCount,
     String? updatedBy,
     String? lastError,
+    String? lastErrorCode,
+    String? lastAttemptAt,
+    String? nextAttemptAt,
+    bool? requiresUserAction,
+    List<String>? dependsOnOperationIds,
     String? errorType,
     String? stackTrace,
     String? sourceFile,
@@ -186,6 +215,12 @@ class PendingSyncItem {
       retryCount: retryCount ?? this.retryCount,
       updatedBy: updatedBy ?? this.updatedBy,
       lastError: lastError ?? this.lastError,
+      lastErrorCode: lastErrorCode ?? this.lastErrorCode,
+      lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      requiresUserAction: requiresUserAction ?? this.requiresUserAction,
+      dependsOnOperationIds:
+          dependsOnOperationIds ?? this.dependsOnOperationIds,
       errorType: errorType ?? this.errorType,
       stackTrace: stackTrace ?? this.stackTrace,
       sourceFile: sourceFile ?? this.sourceFile,

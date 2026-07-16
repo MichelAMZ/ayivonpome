@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -20,14 +22,21 @@ class SyncService {
     required ConnectivityService connectivity,
     required FamilyRepository remoteRepository,
     IncidentReporter? incidentReporter,
+    DateTime Function()? nowProvider,
+    Random? random,
   }) : _connectivity = connectivity,
        _remoteRepository = remoteRepository,
+       _nowProvider = nowProvider,
+       _random = random ?? Random(),
        _incidentReporter =
            incidentReporter ?? IncidentReporter(remoteRepository);
 
   final ConnectivityService _connectivity;
   final FamilyRepository _remoteRepository;
   final IncidentReporter _incidentReporter;
+  final DateTime Function()? _nowProvider;
+  final Random _random;
+  Future<FamilyTreeData>? _runningSync;
 
   Future<FamilyTreeData> enqueueOrSync(
     FamilyTreeData data, {
@@ -52,7 +61,12 @@ class SyncService {
     }
     final online = await _connectivity.isOnline;
     if (!online) {
-      return _enqueueAll(data, operations, status: 'offline');
+      return _enqueueAll(
+        data,
+        operations.map((operation) => _scheduleRetry(operation)).toList(),
+        status: 'offline',
+        operationStatus: 'retryScheduled',
+      );
     }
     final audit = [...data.auditLog];
     final failed = <PendingSyncItem>[];
@@ -136,10 +150,10 @@ class SyncService {
           ),
           failed,
           status: 'pending',
-          operationStatus: 'failed',
+          operationStatus: 'retryScheduled',
         );
       }
-      final now = DateTime.now().toIso8601String();
+      final now = _now().toIso8601String();
       final pendingQueue = _removeMatchingOperations(
         data.pendingSyncQueue,
         succeeded,
@@ -180,7 +194,7 @@ class SyncService {
         data,
         withError,
         status: 'pending',
-        operationStatus: 'failed',
+        operationStatus: 'retryScheduled',
       );
     } catch (error, stackTrace) {
       final withError = operations.map((operation) {
@@ -203,12 +217,30 @@ class SyncService {
         data,
         withError,
         status: 'pending',
-        operationStatus: 'failed',
+        operationStatus: 'retryScheduled',
       );
     }
   }
 
-  Future<FamilyTreeData> syncPendingQueue(FamilyTreeData data) async {
+  Future<FamilyTreeData> syncPendingQueue(
+    FamilyTreeData data, {
+    bool force = false,
+  }) {
+    final current = _runningSync;
+    if (current != null) return current;
+    final run = _syncPendingQueue(data, force: force);
+    _runningSync = run;
+    return run.whenComplete(() {
+      if (identical(_runningSync, run)) {
+        _runningSync = null;
+      }
+    });
+  }
+
+  Future<FamilyTreeData> _syncPendingQueue(
+    FamilyTreeData data, {
+    required bool force,
+  }) async {
     final storage = data.appSettings.storageSettings;
     if (!storage.remoteDatabaseEnabled ||
         !storage.autoSyncOnReconnect ||
@@ -225,8 +257,19 @@ class SyncService {
     var hadError = false;
     for (final item in working.pendingSyncQueue) {
       if (item.status == 'synced' ||
+          item.status == 'completed' ||
           item.status == 'resolved' ||
-          item.status == 'needsResolution') {
+          item.status == 'discarded' ||
+          item.status == 'needsResolution' ||
+          item.requiresUserAction) {
+        remaining.add(item);
+        continue;
+      }
+      if (!force && !_isDue(item)) {
+        remaining.add(item);
+        continue;
+      }
+      if (_hasUnresolvedDependency(item, working.pendingSyncQueue)) {
         remaining.add(item);
         continue;
       }
@@ -251,20 +294,21 @@ class SyncService {
           sourceFunction: 'syncPendingQueue',
         );
         hadError = true;
-        remaining.add(
-          _withFailureDiagnostic(
-            item,
-            working.mainFamilyCode,
-            lastError,
-            error,
-            stackTrace,
-            sourceFunction: 'syncPendingQueue',
-            retryCount: item.retryCount + 1,
-          ),
+        final failedItem = _withFailureDiagnostic(
+          item,
+          working.mainFamilyCode,
+          lastError,
+          error,
+          stackTrace,
+          sourceFunction: 'syncPendingQueue',
+          retryCount: item.retryCount + 1,
         );
-        audit.add(
-          _log('sync_queue_item_failed', item.entityId, item.entityType),
-        );
+        remaining.add(failedItem);
+        if (_shouldWriteFailureAudit(item, failedItem)) {
+          audit.add(
+            _log('sync_queue_item_failed', item.entityId, item.entityType),
+          );
+        }
       } catch (error, stackTrace) {
         final lastError = _logGenericFailure(
           item,
@@ -280,24 +324,25 @@ class SyncService {
           sourceFunction: 'syncPendingQueue',
         );
         hadError = true;
-        remaining.add(
-          _withFailureDiagnostic(
-            item,
-            working.mainFamilyCode,
-            lastError,
-            error,
-            stackTrace,
-            sourceFunction: 'syncPendingQueue',
-            retryCount: item.retryCount + 1,
-          ),
+        final failedItem = _withFailureDiagnostic(
+          item,
+          working.mainFamilyCode,
+          lastError,
+          error,
+          stackTrace,
+          sourceFunction: 'syncPendingQueue',
+          retryCount: item.retryCount + 1,
         );
-        audit.add(
-          _log('sync_queue_item_failed', item.entityId, item.entityType),
-        );
+        remaining.add(failedItem);
+        if (_shouldWriteFailureAudit(item, failedItem)) {
+          audit.add(
+            _log('sync_queue_item_failed', item.entityId, item.entityType),
+          );
+        }
       }
     }
 
-    final now = DateTime.now().toIso8601String();
+    final now = _now().toIso8601String();
     final status = remaining.isEmpty
         ? 'synced'
         : hadError
@@ -325,9 +370,9 @@ class SyncService {
     required String action,
     required String updatedBy,
   }) {
-    final now = DateTime.now().toIso8601String();
+    final now = _now().toIso8601String();
     return PendingSyncItem(
-      id: 'sync${DateTime.now().microsecondsSinceEpoch}',
+      id: 'sync${_now().microsecondsSinceEpoch}',
       entityType: 'person',
       entityId: person.id,
       action: action,
@@ -342,9 +387,9 @@ class SyncService {
     required String personId,
     required String updatedBy,
   }) {
-    final now = DateTime.now().toIso8601String();
+    final now = _now().toIso8601String();
     return PendingSyncItem(
-      id: 'sync${DateTime.now().microsecondsSinceEpoch}',
+      id: 'sync${_now().microsecondsSinceEpoch}',
       entityType: 'person',
       entityId: personId,
       action: 'delete',
@@ -359,9 +404,9 @@ class SyncService {
     required String action,
     required String updatedBy,
   }) {
-    final now = DateTime.now().toIso8601String();
+    final now = _now().toIso8601String();
     return PendingSyncItem(
-      id: 'sync${DateTime.now().microsecondsSinceEpoch}',
+      id: 'sync${_now().microsecondsSinceEpoch}',
       entityType: 'marriage',
       entityId: relation.id,
       action: action,
@@ -377,9 +422,9 @@ class SyncService {
     required String action,
     required String updatedBy,
   }) {
-    final now = DateTime.now().toIso8601String();
+    final now = _now().toIso8601String();
     return PendingSyncItem(
-      id: 'sync${DateTime.now().microsecondsSinceEpoch}',
+      id: 'sync${_now().microsecondsSinceEpoch}',
       entityType: 'familyLink',
       entityId: link.id,
       action: action,
@@ -489,8 +534,8 @@ class SyncService {
 
   AuditLog _log(String action, String entityId, String entityType) {
     return AuditLog(
-      id: 'log${DateTime.now().microsecondsSinceEpoch}',
-      date: DateTime.now().toIso8601String(),
+      id: 'log${_now().microsecondsSinceEpoch}',
+      date: _now().toIso8601String(),
       action: action,
       personId: entityType == 'person' ? entityId : '',
       description: '$entityType:$entityId',
@@ -609,15 +654,31 @@ class SyncService {
       sourceFunction: sourceFunction,
     );
     final nextRetryCount = retryCount ?? item.retryCount;
+    final errorCode = _errorCode(error, lastError);
+    final requiresResolution = _requiresManualResolution(
+      item,
+      lastError,
+      error,
+      nextRetryCount,
+    );
     final nextStatus =
         status ??
-        (_requiresManualResolution(item, lastError, error, nextRetryCount)
+        (requiresResolution
             ? 'needsResolution'
+            : _isRetryableError(errorCode, lastError)
+            ? 'retryScheduled'
             : 'failed');
+    final retryAt = nextStatus == 'retryScheduled'
+        ? _nextAttemptAt(nextRetryCount).toIso8601String()
+        : '';
     return item.copyWith(
       status: nextStatus,
       retryCount: nextRetryCount,
       lastError: lastError,
+      lastErrorCode: errorCode,
+      lastAttemptAt: _now().toIso8601String(),
+      nextAttemptAt: retryAt,
+      requiresUserAction: nextStatus == 'needsResolution',
       errorType: incident.errorType,
       stackTrace: incident.stackTrace,
       sourceFile: incident.sourceFile,
@@ -637,12 +698,130 @@ class SyncService {
     Object error,
     int retryCount,
   ) {
-    final denied =
-        error is FirebaseException && error.code == 'permission-denied' ||
-        lastError.contains('permission-denied') ||
-        lastError.toLowerCase().contains('acces refuse');
-    return denied && item.action == 'create' && retryCount >= 3;
+    final code = _errorCode(error, lastError);
+    final message = lastError.toLowerCase();
+    if (code == 'permission-denied') {
+      return retryCount >= 3;
+    }
+    if (code == 'invalid-argument' || code == 'failed-precondition') {
+      return true;
+    }
+    return message.contains('familyid') ||
+        message.contains('role insuffisant') ||
+        message.contains('champ obligatoire') ||
+        message.contains('document invalide') ||
+        message.contains('identifiant incoherent') ||
+        message.contains('identifiant incohérent');
   }
+
+  PendingSyncItem _scheduleRetry(PendingSyncItem item) {
+    final retryCount = item.retryCount == 0 ? 1 : item.retryCount;
+    return item.copyWith(
+      status: 'retryScheduled',
+      retryCount: retryCount,
+      lastAttemptAt: item.lastAttemptAt,
+      nextAttemptAt: item.nextAttemptAt.isEmpty
+          ? _nextAttemptAt(retryCount).toIso8601String()
+          : item.nextAttemptAt,
+      requiresUserAction: false,
+    );
+  }
+
+  bool _isDue(PendingSyncItem item) {
+    if (item.nextAttemptAt.isEmpty) return true;
+    final dueAt = DateTime.tryParse(item.nextAttemptAt);
+    if (dueAt == null) return true;
+    return !dueAt.isAfter(_now());
+  }
+
+  bool _hasUnresolvedDependency(
+    PendingSyncItem item,
+    List<PendingSyncItem> queue,
+  ) {
+    if (item.dependsOnOperationIds.isEmpty) return false;
+    final openIds = queue
+        .where((operation) {
+          return operation.status != 'completed' &&
+              operation.status != 'synced' &&
+              operation.status != 'resolved' &&
+              operation.status != 'discarded';
+        })
+        .map((operation) => operation.id)
+        .toSet();
+    return item.dependsOnOperationIds.any(openIds.contains);
+  }
+
+  bool _shouldWriteFailureAudit(PendingSyncItem before, PendingSyncItem after) {
+    return before.status != after.status ||
+        before.lastErrorCode != after.lastErrorCode ||
+        after.status == 'needsResolution';
+  }
+
+  bool _isRetryableError(String code, String lastError) {
+    final message = lastError.toLowerCase();
+    if (code == 'permission-denied') return true;
+    const retryableCodes = {
+      'aborted',
+      'deadline-exceeded',
+      'internal',
+      'network',
+      'resource-exhausted',
+      'sync-error',
+      'unavailable',
+      'unauthenticated',
+      'unknown',
+    };
+    return retryableCodes.contains(code) ||
+        message.contains('timeout') ||
+        message.contains('tempor') ||
+        message.contains('network') ||
+        message.contains('connexion') ||
+        message.contains('unavailable') ||
+        message.contains('converted future');
+  }
+
+  String _errorCode(Object error, String lastError) {
+    if (error is FirebaseException && error.code.isNotEmpty) {
+      return error.code;
+    }
+    final lower = lastError.toLowerCase();
+    const knownCodes = [
+      'permission-denied',
+      'deadline-exceeded',
+      'resource-exhausted',
+      'failed-precondition',
+      'invalid-argument',
+      'unauthenticated',
+      'unavailable',
+      'aborted',
+      'not-found',
+    ];
+    for (final code in knownCodes) {
+      if (lower.contains(code)) return code;
+    }
+    if (lower.contains('network') || lower.contains('connexion')) {
+      return 'network';
+    }
+    return 'sync-error';
+  }
+
+  DateTime _nextAttemptAt(int retryCount) {
+    final baseDelay = _retryDelay(retryCount);
+    final jitter = 0.8 + (_random.nextDouble() * 0.4);
+    final seconds = max(1, (baseDelay.inSeconds * jitter).round());
+    return _now().add(Duration(seconds: seconds));
+  }
+
+  Duration _retryDelay(int retryCount) {
+    if (retryCount <= 1) return const Duration(seconds: 10);
+    if (retryCount == 2) return const Duration(seconds: 30);
+    if (retryCount == 3) return const Duration(minutes: 1);
+    if (retryCount == 4) return const Duration(minutes: 5);
+    if (retryCount == 5) return const Duration(minutes: 15);
+    return const Duration(minutes: 30);
+  }
+
+  DateTime _now() => _nowProvider?.call() ?? DateTime.now();
 
   SyncIncident _failureDiagnostic(
     PendingSyncItem item,

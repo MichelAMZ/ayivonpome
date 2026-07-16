@@ -12,14 +12,27 @@ class SyncStatusBadge extends ConsumerWidget {
     if (data == null || !data.syncSettings.databaseEnabled) {
       return const SizedBox.shrink();
     }
-    final pendingCount = data.pendingSyncQueue
-        .where((item) => item.status != 'synced' && item.status != 'resolved')
+    final openItems = data.pendingSyncQueue
+        .where(
+          (item) =>
+              item.status != 'synced' &&
+              item.status != 'completed' &&
+              item.status != 'resolved' &&
+              item.status != 'discarded',
+        )
+        .toList();
+    final needsResolutionCount = openItems
+        .where((item) => item.status == 'needsResolution')
         .length;
+    final pendingCount = openItems
+        .where((item) => item.status != 'needsResolution')
+        .length;
+    final totalOpenCount = openItems.length;
     final rawStatus =
-        pendingCount > 0 && data.syncSettings.syncStatus == 'synced'
+        totalOpenCount > 0 && data.syncSettings.syncStatus == 'synced'
         ? 'pending'
         : data.syncSettings.syncStatus;
-    final status = rawStatus == 'error' && pendingCount > 0
+    final status = rawStatus == 'error' && totalOpenCount > 0
         ? 'pending'
         : rawStatus;
     final label = switch (status) {
@@ -27,31 +40,40 @@ class SyncStatusBadge extends ConsumerWidget {
       'offline' => 'Hors ligne',
       'syncing' => 'Synchronisation en cours',
       'pending' => 'Synchronisation en attente',
-      _ => pendingCount > 0 ? 'Synchronisation en attente' : 'Synchronisé',
+      _ => totalOpenCount > 0 ? 'Synchronisation en attente' : 'Synchronisé',
     };
     final icon = switch (status) {
       'synced' => Icons.cloud_done_outlined,
       'offline' => Icons.cloud_off_outlined,
       'syncing' => Icons.sync_outlined,
       'pending' => Icons.sync_outlined,
-      _ => pendingCount > 0 ? Icons.sync_outlined : Icons.cloud_done_outlined,
+      _ => totalOpenCount > 0 ? Icons.sync_outlined : Icons.cloud_done_outlined,
     };
     final color = switch (status) {
       'synced' => const Color(0xFF2E7D32),
       'offline' => const Color(0xFF6D6F75),
       'syncing' => const Color(0xFF1565C0),
       'pending' => const Color(0xFF9A6A00),
-      _ => pendingCount > 0 ? const Color(0xFF9A6A00) : const Color(0xFF2E7D32),
+      _ =>
+        totalOpenCount > 0 ? const Color(0xFF9A6A00) : const Color(0xFF2E7D32),
     };
-    final displayLabel = pendingCount == 0 ? label : '$label ($pendingCount)';
+    final displayLabel = totalOpenCount == 0
+        ? label
+        : needsResolutionCount > 0 && pendingCount > 0
+        ? '$pendingCount en attente · $needsResolutionCount à vérifier'
+        : needsResolutionCount > 0
+        ? '$needsResolutionCount à vérifier'
+        : '$label ($pendingCount)';
 
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
         child: Tooltip(
-          message: pendingCount == 0
+          message: totalOpenCount == 0
               ? label
+              : needsResolutionCount > 0
+              ? '$pendingCount en attente - $needsResolutionCount à vérifier'
               : '$label - $pendingCount modification(s)',
           child: DecoratedBox(
             decoration: BoxDecoration(

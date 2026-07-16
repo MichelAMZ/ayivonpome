@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/person.dart';
+import '../models/sync_state.dart';
 import '../providers/auth_provider.dart';
 import '../providers/app_providers.dart';
 import '../providers/app_settings_provider.dart';
@@ -43,14 +46,60 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell> {
+class _AppShellState extends ConsumerState<AppShell>
+    with WidgetsBindingObserver {
   var _index = 0;
   var _popupOpen = false;
   var _adminKpiUnlocked = false;
   var _familyAnnouncementsBootstrapped = false;
   var _syncAttemptedThisSession = false;
+  Timer? _syncRetryTimer;
   final _dismissedThisSession = <String>{};
   final _shownAnnouncementIds = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _syncRetryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _syncPendingIfDue(force: false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncRetryTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncPendingIfDue(force: false);
+    }
+  }
+
+  void _syncPendingIfDue({required bool force}) {
+    final data = ref
+        .read(familyTreeProvider)
+        .maybeWhen(data: (value) => value, orElse: () => null);
+    if (data == null || data.pendingSyncQueue.isEmpty) return;
+    if (!force && !data.pendingSyncQueue.any(_isSyncDue)) return;
+    ref.read(familyTreeProvider.notifier).syncPendingChanges(force: force);
+  }
+
+  bool _isSyncDue(PendingSyncItem item) {
+    if (item.status == 'needsResolution' ||
+        item.status == 'discarded' ||
+        item.requiresUserAction) {
+      return false;
+    }
+    if (item.nextAttemptAt.isEmpty) return true;
+    final dueAt = DateTime.tryParse(item.nextAttemptAt);
+    if (dueAt == null) return true;
+    return !dueAt.isAfter(DateTime.now());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +122,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               data.pendingSyncQueue.isNotEmpty &&
               data.syncSettings.syncStatus != 'error') {
             _syncAttemptedThisSession = true;
-            ref.read(familyTreeProvider.notifier).syncPendingChanges();
+            _syncPendingIfDue(force: false);
           }
           if (!_familyAnnouncementsBootstrapped) {
             _bootstrapFamilyAnnouncements();

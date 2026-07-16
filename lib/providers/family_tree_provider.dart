@@ -70,13 +70,15 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     });
   }
 
-  Future<FamilyTreeData> syncPendingChanges() async {
+  Future<FamilyTreeData> syncPendingChanges({bool force = true}) async {
     final data = await future;
     debugPrint(
       'SYNC PROVIDER syncPendingChanges START '
       'familyId=${data.mainFamilyCode} queue=${data.pendingSyncQueue.length}',
     );
-    final synced = await ref.read(syncServiceProvider).syncPendingQueue(data);
+    final synced = await ref
+        .read(syncServiceProvider)
+        .syncPendingQueue(data, force: force);
     if (_encode(synced) == _encode(data)) return data;
     debugPrint('SYNC PROVIDER local save after pending sync START');
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
@@ -102,6 +104,15 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         lastError: status == 'resolved' || status == 'pending'
             ? ''
             : item.lastError,
+        lastErrorCode: status == 'resolved' || status == 'pending'
+            ? ''
+            : item.lastErrorCode,
+        nextAttemptAt: status == 'resolved' || status == 'pending'
+            ? ''
+            : item.nextAttemptAt,
+        requiresUserAction: status == 'pending'
+            ? false
+            : item.requiresUserAction,
       );
     }).toList();
     final next = data.copyWith(pendingSyncQueue: queue);
