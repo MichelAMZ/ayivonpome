@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -213,17 +214,18 @@ class _AppShellState extends ConsumerState<AppShell>
         );
         final mobileSelectedIndex = mobileIndices.indexOf(_index);
         return ResponsiveScaffold(
-          backgroundColor: const Color(0xFFFBFCF7),
+          backgroundColor: const Color(0xFFF7F6F2),
           appBar: AppBar(
             toolbarHeight: device == ResponsiveDevice.desktop
-                ? 150
+                ? 102
                 : device == ResponsiveDevice.tablet
-                ? 128
-                : 96,
+                ? 88
+                : 72,
             elevation: 0,
             scrolledUnderElevation: 0,
-            backgroundColor: const Color(0xFFFFFEFA),
+            backgroundColor: Colors.white,
             surfaceTintColor: Colors.transparent,
+            shadowColor: const Color(0x1A000000),
             titleSpacing: device == ResponsiveDevice.mobile ? 0 : 24,
             title: const _BrandTitle(),
             actions: _topBarActions(context, device, auth, l10n, destinations),
@@ -251,8 +253,10 @@ class _AppShellState extends ConsumerState<AppShell>
           ),
           body: Column(
             children: [
-              const InfoNewsBar(),
-              const SyncStatusBadge(),
+              if (_index != 0) ...[
+                const InfoNewsBar(),
+                const SyncStatusBadge(),
+              ],
               const _OptionalFamilyLeadershipBanner(),
               Expanded(child: screens[_index]),
             ],
@@ -291,17 +295,25 @@ class _AppShellState extends ConsumerState<AppShell>
   ) {
     final authenticated = auth.isAuthenticated;
     final compact = device != ResponsiveDevice.desktop;
+    final notificationsIndex = authenticated ? 5 : -1;
+    final notificationCount = _notificationCount(auth);
     final authAction = authenticated
         ? () => ref.read(authSessionProvider.notifier).logout()
         : () => _showAccessDialog(context);
     if (compact) {
       return [
         const LanguageSelectorButton(compact: true),
-        IconButton(
-          tooltip: authenticated ? l10n.logout : l10n.enterAccessCode,
-          onPressed: authAction,
-          icon: Icon(authenticated ? Icons.logout : Icons.lock_open_outlined),
-        ),
+        if (authenticated)
+          _HeaderIconButton(
+            tooltip: l10n.notifications,
+            icon: Icons.notifications_outlined,
+            badgeCount: notificationCount,
+            onPressed: () => _selectDestination(
+              notificationsIndex,
+              destinations: destinations,
+              authenticated: authenticated,
+            ),
+          ),
         PopupMenuButton<String>(
           tooltip: 'Menu',
           icon: const Icon(Icons.more_vert),
@@ -376,6 +388,22 @@ class _AppShellState extends ConsumerState<AppShell>
             ),
           ],
         ),
+        _AccountMenuButton(
+          auth: auth,
+          compact: true,
+          onAccess: () => _showAccessDialog(context),
+          onLogout: authAction,
+          onProfile: () => _selectDestination(
+            destinations.length - 1,
+            destinations: destinations,
+            authenticated: authenticated,
+          ),
+          onSettings: () => _selectDestination(
+            destinations.length - 1,
+            destinations: destinations,
+            authenticated: authenticated,
+          ),
+        ),
         const SizedBox(width: 8),
       ];
     }
@@ -400,14 +428,34 @@ class _AppShellState extends ConsumerState<AppShell>
         ),
         const SizedBox(width: 10),
       ],
-      if (authenticated)
-        OutlinedButton.icon(
-          onPressed: authAction,
-          icon: const Icon(Icons.logout),
-          label: Text(l10n.logout),
-          style: _accessButtonStyle(context),
-        )
-      else
+      if (authenticated) ...[
+        _HeaderIconButton(
+          tooltip: l10n.notifications,
+          icon: Icons.notifications_outlined,
+          badgeCount: notificationCount,
+          onPressed: () => _selectDestination(
+            notificationsIndex,
+            destinations: destinations,
+            authenticated: authenticated,
+          ),
+        ),
+        const SizedBox(width: 10),
+        _AccountMenuButton(
+          auth: auth,
+          onAccess: () => _showAccessDialog(context),
+          onLogout: authAction,
+          onProfile: () => _selectDestination(
+            destinations.length - 1,
+            destinations: destinations,
+            authenticated: authenticated,
+          ),
+          onSettings: () => _selectDestination(
+            destinations.length - 1,
+            destinations: destinations,
+            authenticated: authenticated,
+          ),
+        ),
+      ] else
         OutlinedButton.icon(
           onPressed: authAction,
           icon: const Icon(Icons.lock_open_outlined),
@@ -416,6 +464,17 @@ class _AppShellState extends ConsumerState<AppShell>
         ),
       const SizedBox(width: 20),
     ];
+  }
+
+  int _notificationCount(AuthState auth) {
+    if (!auth.isAuthenticated) return 0;
+    final data = ref.watch(familyTreeProvider).value;
+    final code = auth.session?.familyCode ?? '';
+    if (data == null || code.isEmpty) return 0;
+    return ref
+        .read(changeNotificationServiceProvider)
+        .unseenForCode(data, code)
+        .length;
   }
 
   String _currentScreenName() {
@@ -672,6 +731,282 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 }
 
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.badgeCount = 0,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+    );
+    if (badgeCount <= 0) return button;
+    return Badge.count(
+      count: badgeCount,
+      backgroundColor: const Color(0xFF5D7E35),
+      child: button,
+    );
+  }
+}
+
+class _AccountMenuButton extends ConsumerWidget {
+  const _AccountMenuButton({
+    required this.auth,
+    required this.onAccess,
+    required this.onLogout,
+    required this.onProfile,
+    required this.onSettings,
+    this.compact = false,
+  });
+
+  final AuthState auth;
+  final VoidCallback onAccess;
+  final VoidCallback onLogout;
+  final VoidCallback onProfile;
+  final VoidCallback onSettings;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final appSettings = ref.watch(appSettingsProvider);
+    final familyName = appSettings.applicationTitle.trim().isEmpty
+        ? l10n.appTitle
+        : appSettings.applicationTitle.trim();
+    final authenticated = auth.isAuthenticated;
+    final initial = _familyInitial(familyName);
+
+    if (!authenticated) {
+      return OutlinedButton.icon(
+        onPressed: onAccess,
+        icon: const Icon(Icons.lock_open_outlined),
+        label: compact ? const SizedBox.shrink() : Text(l10n.enterAccessCode),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: Theme.of(context).colorScheme.primary,
+          side: BorderSide(color: Theme.of(context).colorScheme.primary),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: 'Profil',
+      offset: const Offset(0, 12),
+      position: PopupMenuPosition.under,
+      constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
+      onSelected: (value) {
+        if (value == 'profile') {
+          onProfile();
+        } else if (value == 'settings') {
+          onSettings();
+        } else if (value == 'logout') {
+          onLogout();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          enabled: false,
+          child: _AccountMenuHeader(initial: initial, familyName: familyName),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'profile',
+          child: _AccountMenuRow(icon: Icons.person_outline, label: 'Profil'),
+        ),
+        PopupMenuItem(
+          value: 'settings',
+          child: _AccountMenuRow(
+            icon: Icons.settings_outlined,
+            label: 'Paramètres du compte',
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'logout',
+          child: _AccountMenuRow(
+            icon: Icons.logout,
+            label: l10n.logout,
+            destructive: false,
+          ),
+        ),
+      ],
+      child: Semantics(
+        button: true,
+        label: 'Profil',
+        child: Container(
+          height: 48,
+          padding: EdgeInsets.only(left: compact ? 4 : 8, right: 8),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFD7DCCF)),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFFDCEAFF),
+                foregroundColor: const Color(0xFF2871C8),
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              if (!compact) ...[
+                const SizedBox(width: 8),
+                const Icon(Icons.keyboard_arrow_down_rounded),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _familyInitial(String familyName) {
+    final normalized = familyName.trim();
+    if (normalized.isEmpty) return 'A';
+    final parts = normalized.split(RegExp(r'\s+'));
+    final last = parts.isEmpty ? normalized : parts.last;
+    return last.substring(0, 1).toUpperCase();
+  }
+}
+
+class _AccountMenuHeader extends StatelessWidget {
+  const _AccountMenuHeader({required this.initial, required this.familyName});
+
+  final String initial;
+  final String familyName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 24,
+          backgroundColor: const Color(0xFFDCEAFF),
+          foregroundColor: const Color(0xFF2871C8),
+          child: Text(
+            initial,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                familyName.replaceFirst(
+                  RegExp(r'^Famille\s+', caseSensitive: false),
+                  '',
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              Text(
+                'Administrateur familial',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AccountMenuRow extends StatelessWidget {
+  const _AccountMenuRow({
+    required this.icon,
+    required this.label,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = destructive
+        ? Theme.of(context).colorScheme.error
+        : const Color(0xFF263428);
+    return Row(
+      children: [
+        Icon(icon, color: color),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TopbarGenerationBadge extends StatelessWidget {
+  const _TopbarGenerationBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBFEF5),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF7F9B62)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: const Color(0xFF375620),
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
 class _BrandTitle extends ConsumerWidget {
   const _BrandTitle();
 
@@ -686,6 +1021,13 @@ class _BrandTitle extends ConsumerWidget {
     final subtitle = appSettings.applicationSubtitle.trim();
     final branding = appSettings.branding;
     final membersCount = ref.watch(membersCountProvider);
+    final data = ref.watch(familyTreeProvider).value;
+    final generationsCount = data == null || data.people.isEmpty
+        ? 0
+        : data.people
+              .map((person) => person.generation)
+              .where((generation) => generation > 0)
+              .fold<int>(0, math.max);
     final l10n = AppLocalizations.of(context);
     final showSubtitle =
         appSettings.showApplicationSubtitle && subtitle.isNotEmpty;
@@ -759,6 +1101,12 @@ class _BrandTitle extends ConsumerWidget {
             if (showMobileTitleCounter) ...[
               const SizedBox(width: 6),
               MobileTitleMemberCountBadge(count: membersCount),
+            ],
+            if (desktop && generationsCount > 0) ...[
+              const SizedBox(width: 18),
+              _TopbarGenerationBadge(
+                label: '$generationsCount ${l10n.generations.toLowerCase()}',
+              ),
             ],
           ],
         ),
@@ -1579,7 +1927,7 @@ class _OptionalFamilyLeadershipBanner extends ConsumerWidget {
   }
 }
 
-class _DesktopSidebar extends StatelessWidget {
+class _DesktopSidebar extends ConsumerWidget {
   const _DesktopSidebar({
     required this.selectedIndex,
     required this.onDestinationSelected,
@@ -1591,7 +1939,15 @@ class _DesktopSidebar extends StatelessWidget {
   final List<NavigationDestination> destinations;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appSettings = ref.watch(appSettingsProvider);
+    final title = appSettings.applicationTitle.trim().isEmpty
+        ? AppLocalizations.of(context).appTitle
+        : appSettings.applicationTitle.trim();
+    final familyName = title.replaceFirst(
+      RegExp(r'^Famille\s+', caseSensitive: false),
+      '',
+    );
     final visiblePrimary = destinations.length > 2
         ? destinations.sublist(0, destinations.length - 1)
         : destinations;
@@ -1599,15 +1955,27 @@ class _DesktopSidebar extends StatelessWidget {
     final hasSettings = destinations.isNotEmpty;
 
     return Container(
-      width: 232,
+      width: 260,
       decoration: const BoxDecoration(
-        color: Color(0xFFFFFEFA),
+        color: Colors.white,
         border: Border(right: BorderSide(color: Color(0xFFE3E5DC))),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 28, 22, 18),
+        padding: const EdgeInsets.fromLTRB(16, 26, 16, 18),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 18),
+              child: Text(
+                'NAVIGATION',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: const Color(0xFF4E554D),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
             Expanded(
               child: SingleChildScrollView(
                 primary: false,
@@ -1641,6 +2009,8 @@ class _DesktopSidebar extends StatelessWidget {
                 outlined: true,
                 onTap: () => onDestinationSelected(settingsIndex),
               ),
+            const SizedBox(height: 14),
+            _SidebarFamilyCard(familyName: familyName),
           ],
         ),
       ),
@@ -1720,46 +2090,120 @@ class _SidebarItem extends StatelessWidget {
     final primary = Theme.of(context).colorScheme.primary;
     return Material(
       color: selected ? const Color(0xFFEAF3D7) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
         child: Container(
           height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: outlined
                 ? Border.all(color: const Color(0xFFE1E4DA))
                 : selected
                 ? Border.all(color: const Color(0x00000000))
                 : null,
           ),
-          child: IconTheme(
-            data: IconThemeData(
-              color: selected ? primary : const Color(0xFF4C4F46),
-              size: 24,
-            ),
-            child: Row(
-              children: [
-                icon,
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: selected ? primary : const Color(0xFF33352F),
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                      letterSpacing: 0,
+          child: Stack(
+            children: [
+              if (selected)
+                PositionedDirectional(
+                  start: -12,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(width: 4, color: primary),
+                ),
+              IconTheme(
+                data: IconThemeData(
+                  color: selected ? primary : const Color(0xFF20241F),
+                  size: 24,
+                ),
+                child: Row(
+                  children: [
+                    icon,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: selected ? primary : const Color(0xFF22251F),
+                          fontWeight: selected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
                     ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarFamilyCard extends StatelessWidget {
+  const _SidebarFamilyCard({required this.familyName});
+
+  final String familyName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE0E4D8)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: const Color(0xFFDCEAFF),
+            foregroundColor: const Color(0xFF2871C8),
+            child: Text(
+              familyName.trim().isEmpty
+                  ? 'A'
+                  : familyName.trim().substring(0, 1).toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Famille $familyName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                Text(
+                  'Administrateur',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    letterSpacing: 0,
                   ),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/web/context_menu_preventer.dart';
 import '../l10n/app_localizations.dart';
@@ -15,11 +16,13 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/linked_family_tree_provider.dart';
 import '../providers/tree_filter_provider.dart';
+import '../screens/person_edit_screen.dart';
 import 'members_counter_badge.dart';
 import '../services/location_filter_service.dart';
 import '../services/genealogy_layout_service.dart';
 import 'location_filter_panel.dart';
 import 'person_card.dart';
+import 'sync_status_badge.dart';
 import 'tutorial_floating_button.dart';
 
 class FamilyTreeCanvas extends ConsumerStatefulWidget {
@@ -51,6 +54,8 @@ class FamilyTreeCanvas extends ConsumerStatefulWidget {
 class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   static const _virtualCanvasMargin = 600.0;
   static const _panBoundaryMargin = 2000.0;
+  static const _welcomeBannerPreferenceKey =
+      'family_tree_canvas_welcome_banner_dismissed';
 
   final _canvasKey = GlobalKey();
   final _controller = TransformationController();
@@ -65,6 +70,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   Rect? _lastContentRect;
   Offset? _lastCanvasOffset;
   Map<String, Rect> _lastPersonRects = const {};
+  var _showWelcomeBanner = true;
 
   @override
   void initState() {
@@ -72,6 +78,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     _contextMenuPreventerDisposer = installContextMenuPreventer(
       _isPointerInsideCanvas,
     );
+    _loadWelcomeBannerPreference();
   }
 
   @override
@@ -120,12 +127,15 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
         final metrics = _TreeMetrics.fromWidth(constraints.maxWidth);
         final treeSettings = widget.data.appSettings.treeSettings;
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+        final compactSurface = constraints.maxWidth < 720;
+        final overlayReservedSpace = compactSurface ? 118.0 : 104.0;
         final hasDisplayPeople = displayData.people.isNotEmpty;
         final layout = hasDisplayPeople
             ? _TreeLayout.build(
                 data: displayData,
                 metrics: metrics,
-                topReservedSpace: widget.topReservedSpace,
+                topReservedSpace:
+                    widget.topReservedSpace + overlayReservedSpace,
               )
             : _TreeLayout.empty();
         final treeSize = Size(
@@ -158,6 +168,9 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
           color: const Color(0xFFFBFCF7),
           child: Stack(
             children: [
+              const Positioned.fill(
+                child: CustomPaint(painter: _TreeGridPainter()),
+              ),
               Listener(
                 onPointerDown: (_) => _isInteracting = true,
                 onPointerUp: (_) => _endInteraction(),
@@ -241,19 +254,24 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                 ),
               ),
               Positioned(
-                left: metrics.canvasPadding,
-                right: metrics.canvasPadding,
-                top: metrics.canvasPadding,
-                child: Align(
-                  alignment: AlignmentDirectional.topEnd,
+                left: compactSurface ? 12 : metrics.canvasPadding,
+                right: compactSurface ? 12 : metrics.canvasPadding,
+                top: compactSurface ? 10 : 12,
+                child: _TreeWorkspaceHeader(
+                  showWelcomeBanner: _showWelcomeBanner,
+                  compact: compactSurface,
+                  onDismissWelcomeBanner: _dismissWelcomeBanner,
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    reverse: true,
                     child: TreeToolbar(
+                      compact: compactSurface,
+                      canAddMember: ref.watch(authSessionProvider).canModify,
                       onSearch: _showSearchDialog,
-                      onFullscreen: _openFullscreenCanvas,
+                      onCenter: _resetView,
+                      onFit: _fitTreeView,
                       onFilters: _showFiltersSheet,
                       onOptions: _showOptionsMenu,
+                      onAddMember: _openNewMemberForm,
                       filterActive: filter.isActive,
                       filterCount: filteredPeople.length,
                     ),
@@ -307,6 +325,27 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     _controller.value = _centeredMatrix(_scale);
     _lastCenteredViewport = _lastViewport;
     _saveLastZoom();
+  }
+
+  Future<void> _loadWelcomeBannerPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _showWelcomeBanner =
+          !(prefs.getBool(_welcomeBannerPreferenceKey) ?? false);
+    });
+  }
+
+  Future<void> _dismissWelcomeBanner() async {
+    setState(() => _showWelcomeBanner = false);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_welcomeBannerPreferenceKey, true);
+  }
+
+  void _openNewMemberForm() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PersonEditScreen()));
   }
 
   void _resetView() {
@@ -1118,21 +1157,164 @@ class _TreeConnectorPainter extends CustomPainter {
   }
 }
 
+class _TreeGridPainter extends CustomPainter {
+  const _TreeGridPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFE8E6DD)
+      ..strokeWidth = 1;
+    const step = 18.0;
+    for (var x = 0.0; x < size.width; x += step) {
+      for (var y = 0.0; y < size.height; y += step) {
+        canvas.drawCircle(Offset(x, y), 0.55, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TreeGridPainter oldDelegate) => false;
+}
+
+class _TreeWorkspaceHeader extends StatelessWidget {
+  const _TreeWorkspaceHeader({
+    required this.showWelcomeBanner,
+    required this.compact,
+    required this.onDismissWelcomeBanner,
+    required this.child,
+  });
+
+  final bool showWelcomeBanner;
+  final bool compact;
+  final VoidCallback onDismissWelcomeBanner;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showWelcomeBanner)
+          _TreeWelcomeBanner(
+            compact: compact,
+            onDismiss: onDismissWelcomeBanner,
+          ),
+        SizedBox(height: showWelcomeBanner ? 8 : 0),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!compact) const SizedBox(width: 172),
+            Expanded(child: Center(child: child)),
+            if (!compact)
+              const SizedBox(
+                width: 172,
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: SyncStatusBadge(),
+                ),
+              ),
+          ],
+        ),
+        if (compact) ...[
+          const SizedBox(height: 6),
+          const Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: SyncStatusBadge(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TreeWelcomeBanner extends StatelessWidget {
+  const _TreeWelcomeBanner({required this.compact, required this.onDismiss});
+
+  final bool compact;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 1080),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: EdgeInsetsDirectional.only(
+          start: compact ? 12 : 18,
+          end: 6,
+          top: 8,
+          bottom: 8,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFDDE9F8)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F000000),
+              blurRadius: 14,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.info_outline_rounded,
+              color: Color(0xFF2871C8),
+              size: 22,
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Text(
+                'Bienvenue — consultez et explorez votre histoire familiale.',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Color(0xFF263428),
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Masquer',
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close_rounded),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class TreeToolbar extends StatelessWidget {
   const TreeToolbar({
     super.key,
     required this.onSearch,
-    required this.onFullscreen,
+    required this.onCenter,
+    required this.onFit,
     required this.onFilters,
     required this.onOptions,
+    required this.onAddMember,
+    this.compact = false,
+    this.canAddMember = false,
     this.filterActive = false,
     this.filterCount = 0,
   });
 
   final VoidCallback onSearch;
-  final VoidCallback onFullscreen;
+  final VoidCallback onCenter;
+  final VoidCallback onFit;
   final VoidCallback onFilters;
   final VoidCallback onOptions;
+  final VoidCallback onAddMember;
+  final bool compact;
+  final bool canAddMember;
   final bool filterActive;
   final int filterCount;
 
@@ -1156,14 +1338,23 @@ class TreeToolbar extends StatelessWidget {
         children: [
           _ToolbarButton(
             icon: Icons.search,
-            tooltip: 'Recherche',
+            label: compact ? null : 'Rechercher',
+            tooltip: 'Rechercher',
             onPressed: onSearch,
           ),
           _Divider(),
           _ToolbarButton(
-            icon: Icons.open_in_full,
-            tooltip: 'Plein écran',
-            onPressed: onFullscreen,
+            icon: Icons.my_location_outlined,
+            label: compact ? null : 'Centrer',
+            tooltip: 'Centrer',
+            onPressed: onCenter,
+          ),
+          _Divider(),
+          _ToolbarButton(
+            icon: Icons.fit_screen_outlined,
+            label: compact ? null : 'Ajuster',
+            tooltip: 'Ajuster',
+            onPressed: onFit,
           ),
           _Divider(),
           Stack(
@@ -1171,6 +1362,7 @@ class TreeToolbar extends StatelessWidget {
             children: [
               _ToolbarButton(
                 icon: Icons.tune,
+                label: compact ? null : 'Filtres',
                 tooltip: 'Filtres',
                 onPressed: onFilters,
               ),
@@ -1199,11 +1391,40 @@ class TreeToolbar extends StatelessWidget {
                 ),
             ],
           ),
+          _Divider(),
           _ToolbarButton(
-            icon: Icons.more_vert,
-            tooltip: 'Options',
+            icon: Icons.visibility_outlined,
+            label: compact ? null : 'Affichage',
+            tooltip: 'Affichage',
             onPressed: onOptions,
           ),
+          _ToolbarButton(
+            icon: Icons.more_horiz,
+            label: compact ? null : 'Plus',
+            tooltip: 'Plus',
+            onPressed: onOptions,
+          ),
+          if (canAddMember) ...[
+            _Divider(),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: OutlinedButton.icon(
+                onPressed: onAddMember,
+                icon: const Icon(Icons.add, size: 18),
+                label: compact
+                    ? const SizedBox.shrink()
+                    : const Text('Ajouter un membre'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(48, 42),
+                  foregroundColor: const Color(0xFF315B22),
+                  side: const BorderSide(color: Color(0xFF5D7E35)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1451,19 +1672,42 @@ class _ToolbarButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.label,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(icon, size: 20),
-      tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
-      onPressed: onPressed,
+    if (label == null) {
+      return IconButton(
+        icon: Icon(icon, size: 20),
+        tooltip: tooltip,
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        onPressed: onPressed,
+      );
+    }
+    return Tooltip(
+      message: tooltip,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(label!),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: const Color(0xFF263428),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          textStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
     );
   }
 }
