@@ -211,6 +211,53 @@
   "duplicatePerson": "Posible duplicado detectado",
   "requiredField": "Campo obligatorio",
   "requiredFieldsNotice": "Los campos marcados con * son obligatorios.",
+  "requiredFieldExplicit": "Este campo obligatorio debe completarse.",
+  "requiredFieldsMissingTitle": "Faltan campos obligatorios",
+  "requiredFieldsMissingMessage": "{count, plural, =1{Complete el siguiente campo obligatorio: {fields}.} other{Complete los siguientes campos obligatorios: {fields}.}}",
+  "@requiredFieldsMissingMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredFieldsMissingSnackbar": "{count, plural, =1{Queda 1 campo obligatorio por completar.} other{Quedan {count} campos obligatorios por completar.}}",
+  "@requiredFieldsMissingSnackbar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profileLoadError": "No se pudo cargar la ficha de la persona.",
+  "retry": "Reintentar",
+  "moreActions": "Más acciones",
+  "editThisPerson": "Modificar esta persona",
+  "viewInTree": "Ver en el árbol",
+  "personalInformation": "Información personal",
+  "notProvided": "No indicado",
+  "notProvidedFeminine": "No indicada",
+  "branchLabel": "Rama",
+  "bornOn": "Nació el {date}",
+  "@bornOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "noChildrenProvided": "Ningún hijo indicado",
+  "noSiblingsProvided": "Ningún hermano o hermana indicado",
+  "location": "Ubicación",
+  "noLocationAvailable": "No hay ubicación disponible",
+  "eventsAndPlaces": "Eventos y lugares",
+  "noHistoryEvents": "No hay eventos para mostrar por el momento.",
+  "noHistoryEventsHelp": "Los eventos importantes de esta persona aparecerán aquí cuando se agreguen.",
+  "noNotes": "Sin notas",
+  "viewMore": "Ver más",
   "profileProgress": "Progreso del perfil",
   "profileProgressHelp": "El progreso se calcula a partir de los campos obligatorios realmente completados. Los campos opcionales no impiden llegar al 100%.",
   "requiredFieldsRemaining": "{count, plural, =0{Todos los campos obligatorios están completos} =1{1 campo por completar} other{{count} campos por completar}}",

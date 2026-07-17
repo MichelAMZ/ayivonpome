@@ -211,6 +211,53 @@
   "duplicatePerson": "Wahrscheinliches Duplikat erkannt",
   "requiredField": "Pflichtfeld",
   "requiredFieldsNotice": "Mit * markierte Felder sind Pflichtfelder.",
+  "requiredFieldExplicit": "Dieses Pflichtfeld muss ausgefüllt werden.",
+  "requiredFieldsMissingTitle": "Pflichtfelder fehlen",
+  "requiredFieldsMissingMessage": "{count, plural, =1{Bitte füllen Sie dieses Pflichtfeld aus: {fields}.} other{Bitte füllen Sie diese Pflichtfelder aus: {fields}.}}",
+  "@requiredFieldsMissingMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredFieldsMissingSnackbar": "{count, plural, =1{1 Pflichtfeld muss noch ausgefüllt werden.} other{{count} Pflichtfelder müssen noch ausgefüllt werden.}}",
+  "@requiredFieldsMissingSnackbar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profileLoadError": "Das Personenprofil konnte nicht geladen werden.",
+  "retry": "Erneut versuchen",
+  "moreActions": "Weitere Aktionen",
+  "editThisPerson": "Diese Person bearbeiten",
+  "viewInTree": "Im Baum anzeigen",
+  "personalInformation": "Persönliche Informationen",
+  "notProvided": "Nicht angegeben",
+  "notProvidedFeminine": "Nicht angegeben",
+  "branchLabel": "Zweig",
+  "bornOn": "Geboren am {date}",
+  "@bornOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "noChildrenProvided": "Kein Kind angegeben",
+  "noSiblingsProvided": "Keine Geschwister angegeben",
+  "location": "Standort",
+  "noLocationAvailable": "Kein Standort verfügbar",
+  "eventsAndPlaces": "Ereignisse und Orte",
+  "noHistoryEvents": "Derzeit gibt es keine Ereignisse anzuzeigen.",
+  "noHistoryEventsHelp": "Wichtige Ereignisse dieser Person erscheinen hier, sobald sie hinzugefügt werden.",
+  "noNotes": "Keine Notizen",
+  "viewMore": "Mehr anzeigen",
   "profileProgress": "Profilfortschritt",
   "profileProgressHelp": "Der Fortschritt wird aus den tatsächlich ausgefüllten Pflichtfeldern berechnet. Optionale Felder verhindern 100 % nicht.",
   "requiredFieldsRemaining": "{count, plural, =0{Alle Pflichtfelder sind ausgefüllt} =1{1 Feld auszufüllen} other{{count} Felder auszufüllen}}",

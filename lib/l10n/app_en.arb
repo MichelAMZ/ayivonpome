@@ -211,6 +211,53 @@
   "duplicatePerson": "Probable duplicate detected",
   "requiredField": "Required field",
   "requiredFieldsNotice": "Fields marked with * are required.",
+  "requiredFieldExplicit": "This required field must be completed.",
+  "requiredFieldsMissingTitle": "Required fields missing",
+  "requiredFieldsMissingMessage": "{count, plural, =1{Please complete this required field: {fields}.} other{Please complete these required fields: {fields}.}}",
+  "@requiredFieldsMissingMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredFieldsMissingSnackbar": "{count, plural, =1{1 required field still needs to be completed.} other{{count} required fields still need to be completed.}}",
+  "@requiredFieldsMissingSnackbar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profileLoadError": "Unable to load the person profile.",
+  "retry": "Retry",
+  "moreActions": "More actions",
+  "editThisPerson": "Edit this person",
+  "viewInTree": "View in tree",
+  "personalInformation": "Personal information",
+  "notProvided": "Not provided",
+  "notProvidedFeminine": "Not provided",
+  "branchLabel": "Branch",
+  "bornOn": "Born on {date}",
+  "@bornOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "noChildrenProvided": "No child provided",
+  "noSiblingsProvided": "No sibling provided",
+  "location": "Location",
+  "noLocationAvailable": "No location available",
+  "eventsAndPlaces": "Events and places",
+  "noHistoryEvents": "No event to display for now.",
+  "noHistoryEventsHelp": "Important events for this person will appear here when they are added.",
+  "noNotes": "No notes",
+  "viewMore": "View more",
   "profileProgress": "Profile progress",
   "profileProgressHelp": "Progress is calculated from required fields that are actually completed. Optional fields do not prevent reaching 100%.",
   "requiredFieldsRemaining": "{count, plural, =0{All required fields are complete} =1{1 field to complete} other{{count} fields to complete}}",

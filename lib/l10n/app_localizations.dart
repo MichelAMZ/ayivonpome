@@ -1286,6 +1286,144 @@ abstract class AppLocalizations {
   /// **'Les champs marqués d’un * sont obligatoires.'**
   String get requiredFieldsNotice;
 
+  /// No description provided for @requiredFieldExplicit.
+  ///
+  /// In fr, this message translates to:
+  /// **'Ce champ obligatoire doit être rempli.'**
+  String get requiredFieldExplicit;
+
+  /// No description provided for @requiredFieldsMissingTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Champs obligatoires manquants'**
+  String get requiredFieldsMissingTitle;
+
+  /// No description provided for @requiredFieldsMissingMessage.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{Veuillez remplir le champ obligatoire suivant : {fields}.} other{Veuillez remplir les champs obligatoires suivants : {fields}.}}'**
+  String requiredFieldsMissingMessage(int count, String fields);
+
+  /// No description provided for @requiredFieldsMissingSnackbar.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{1 champ obligatoire reste à remplir.} other{{count} champs obligatoires restent à remplir.}}'**
+  String requiredFieldsMissingSnackbar(int count);
+
+  /// No description provided for @profileLoadError.
+  ///
+  /// In fr, this message translates to:
+  /// **'Impossible de charger la fiche personne.'**
+  String get profileLoadError;
+
+  /// No description provided for @retry.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réessayer'**
+  String get retry;
+
+  /// No description provided for @moreActions.
+  ///
+  /// In fr, this message translates to:
+  /// **'Plus d’actions'**
+  String get moreActions;
+
+  /// No description provided for @editThisPerson.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modifier cette personne'**
+  String get editThisPerson;
+
+  /// No description provided for @viewInTree.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir dans l’arbre'**
+  String get viewInTree;
+
+  /// No description provided for @personalInformation.
+  ///
+  /// In fr, this message translates to:
+  /// **'Informations personnelles'**
+  String get personalInformation;
+
+  /// No description provided for @notProvided.
+  ///
+  /// In fr, this message translates to:
+  /// **'Non renseigné'**
+  String get notProvided;
+
+  /// No description provided for @notProvidedFeminine.
+  ///
+  /// In fr, this message translates to:
+  /// **'Non renseignée'**
+  String get notProvidedFeminine;
+
+  /// No description provided for @branchLabel.
+  ///
+  /// In fr, this message translates to:
+  /// **'Branche'**
+  String get branchLabel;
+
+  /// No description provided for @bornOn.
+  ///
+  /// In fr, this message translates to:
+  /// **'Né le {date}'**
+  String bornOn(String date);
+
+  /// No description provided for @noChildrenProvided.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun enfant renseigné'**
+  String get noChildrenProvided;
+
+  /// No description provided for @noSiblingsProvided.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun frère ou sœur renseigné'**
+  String get noSiblingsProvided;
+
+  /// No description provided for @location.
+  ///
+  /// In fr, this message translates to:
+  /// **'Localisation'**
+  String get location;
+
+  /// No description provided for @noLocationAvailable.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune localisation disponible'**
+  String get noLocationAvailable;
+
+  /// No description provided for @eventsAndPlaces.
+  ///
+  /// In fr, this message translates to:
+  /// **'Événements et lieux'**
+  String get eventsAndPlaces;
+
+  /// No description provided for @noHistoryEvents.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun événement à afficher pour le moment.'**
+  String get noHistoryEvents;
+
+  /// No description provided for @noHistoryEventsHelp.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les événements marquants de cette personne apparaîtront ici lorsqu’ils seront ajoutés.'**
+  String get noHistoryEventsHelp;
+
+  /// No description provided for @noNotes.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune note'**
+  String get noNotes;
+
+  /// No description provided for @viewMore.
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir plus'**
+  String get viewMore;
+
   /// No description provided for @profileProgress.
   ///
   /// In fr, this message translates to:

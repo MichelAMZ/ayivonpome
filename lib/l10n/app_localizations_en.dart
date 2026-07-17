@@ -623,6 +623,94 @@ class AppLocalizationsEn extends AppLocalizations {
   String get requiredFieldsNotice => 'Fields marked with * are required.';
 
   @override
+  String get requiredFieldExplicit => 'This required field must be completed.';
+
+  @override
+  String get requiredFieldsMissingTitle => 'Required fields missing';
+
+  @override
+  String requiredFieldsMissingMessage(int count, String fields) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Please complete these required fields: $fields.',
+      one: 'Please complete this required field: $fields.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String requiredFieldsMissingSnackbar(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count required fields still need to be completed.',
+      one: '1 required field still needs to be completed.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get profileLoadError => 'Unable to load the person profile.';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get moreActions => 'More actions';
+
+  @override
+  String get editThisPerson => 'Edit this person';
+
+  @override
+  String get viewInTree => 'View in tree';
+
+  @override
+  String get personalInformation => 'Personal information';
+
+  @override
+  String get notProvided => 'Not provided';
+
+  @override
+  String get notProvidedFeminine => 'Not provided';
+
+  @override
+  String get branchLabel => 'Branch';
+
+  @override
+  String bornOn(String date) {
+    return 'Born on $date';
+  }
+
+  @override
+  String get noChildrenProvided => 'No child provided';
+
+  @override
+  String get noSiblingsProvided => 'No sibling provided';
+
+  @override
+  String get location => 'Location';
+
+  @override
+  String get noLocationAvailable => 'No location available';
+
+  @override
+  String get eventsAndPlaces => 'Events and places';
+
+  @override
+  String get noHistoryEvents => 'No event to display for now.';
+
+  @override
+  String get noHistoryEventsHelp =>
+      'Important events for this person will appear here when they are added.';
+
+  @override
+  String get noNotes => 'No notes';
+
+  @override
+  String get viewMore => 'View more';
+
+  @override
   String get profileProgress => 'Profile progress';
 
   @override

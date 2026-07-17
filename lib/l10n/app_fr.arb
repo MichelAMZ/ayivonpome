@@ -211,6 +211,53 @@
   "duplicatePerson": "Doublon probable détecté",
   "requiredField": "Champ obligatoire",
   "requiredFieldsNotice": "Les champs marqués d’un * sont obligatoires.",
+  "requiredFieldExplicit": "Ce champ obligatoire doit être rempli.",
+  "requiredFieldsMissingTitle": "Champs obligatoires manquants",
+  "requiredFieldsMissingMessage": "{count, plural, =1{Veuillez remplir le champ obligatoire suivant : {fields}.} other{Veuillez remplir les champs obligatoires suivants : {fields}.}}",
+  "@requiredFieldsMissingMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "requiredFieldsMissingSnackbar": "{count, plural, =1{1 champ obligatoire reste à remplir.} other{{count} champs obligatoires restent à remplir.}}",
+  "@requiredFieldsMissingSnackbar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profileLoadError": "Impossible de charger la fiche personne.",
+  "retry": "Réessayer",
+  "moreActions": "Plus d’actions",
+  "editThisPerson": "Modifier cette personne",
+  "viewInTree": "Voir dans l’arbre",
+  "personalInformation": "Informations personnelles",
+  "notProvided": "Non renseigné",
+  "notProvidedFeminine": "Non renseignée",
+  "branchLabel": "Branche",
+  "bornOn": "Né le {date}",
+  "@bornOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "noChildrenProvided": "Aucun enfant renseigné",
+  "noSiblingsProvided": "Aucun frère ou sœur renseigné",
+  "location": "Localisation",
+  "noLocationAvailable": "Aucune localisation disponible",
+  "eventsAndPlaces": "Événements et lieux",
+  "noHistoryEvents": "Aucun événement à afficher pour le moment.",
+  "noHistoryEventsHelp": "Les événements marquants de cette personne apparaîtront ici lorsqu’ils seront ajoutés.",
+  "noNotes": "Aucune note",
+  "viewMore": "Voir plus",
   "profileProgress": "Progression du profil",
   "profileProgressHelp": "La progression est calculée à partir des champs obligatoires réellement remplis. Les champs facultatifs n’empêchent pas d’atteindre 100 %.",
   "requiredFieldsRemaining": "{count, plural, =0{Tous les champs obligatoires sont complétés} =1{1 champ à compléter} other{{count} champs à compléter}}",
