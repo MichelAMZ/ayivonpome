@@ -14,6 +14,7 @@ import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
+import '../providers/family_leader_provider.dart';
 import '../providers/linked_family_tree_provider.dart';
 import '../providers/tree_filter_provider.dart';
 import '../screens/person_edit_screen.dart';
@@ -128,7 +129,10 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
         final treeSettings = widget.data.appSettings.treeSettings;
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
         final compactSurface = constraints.maxWidth < 720;
-        final overlayReservedSpace = compactSurface ? 118.0 : 104.0;
+        final familyHead = ref.watch(familyLeaderProvider);
+        final overlayReservedSpace = compactSurface
+            ? (familyHead == null ? 118.0 : 214.0)
+            : 128.0;
         final hasDisplayPeople = displayData.people.isNotEmpty;
         final layout = hasDisplayPeople
             ? _TreeLayout.build(
@@ -260,7 +264,11 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                 child: _TreeWorkspaceHeader(
                   showWelcomeBanner: _showWelcomeBanner,
                   compact: compactSurface,
+                  familyHead: familyHead,
                   onDismissWelcomeBanner: _dismissWelcomeBanner,
+                  onOpenFamilyHead: familyHead == null
+                      ? null
+                      : () => widget.onOpenPerson(familyHead),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: TreeToolbar(
@@ -1181,13 +1189,17 @@ class _TreeWorkspaceHeader extends StatelessWidget {
   const _TreeWorkspaceHeader({
     required this.showWelcomeBanner,
     required this.compact,
+    required this.familyHead,
     required this.onDismissWelcomeBanner,
+    required this.onOpenFamilyHead,
     required this.child,
   });
 
   final bool showWelcomeBanner;
   final bool compact;
+  final Person? familyHead;
   final VoidCallback onDismissWelcomeBanner;
+  final VoidCallback? onOpenFamilyHead;
   final Widget child;
 
   @override
@@ -1201,12 +1213,45 @@ class _TreeWorkspaceHeader extends StatelessWidget {
             onDismiss: onDismissWelcomeBanner,
           ),
         SizedBox(height: showWelcomeBanner ? 8 : 0),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!compact) const SizedBox(width: 172),
-            Expanded(child: Center(child: child)),
-            if (!compact)
+        if (compact)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (familyHead != null && onOpenFamilyHead != null) ...[
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FamilyHeadCard(
+                    member: familyHead!,
+                    compact: true,
+                    onOpen: onOpenFamilyHead!,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              Align(alignment: AlignmentDirectional.centerStart, child: child),
+            ],
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 172,
+                child: familyHead == null || onOpenFamilyHead == null
+                    ? const SizedBox.shrink()
+                    : Align(
+                        alignment: AlignmentDirectional.topStart,
+                        child: FamilyHeadCard(
+                          member: familyHead!,
+                          onOpen: onOpenFamilyHead!,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Align(alignment: Alignment.topCenter, child: child),
+              ),
+              const SizedBox(width: 16),
               const SizedBox(
                 width: 172,
                 child: Align(
@@ -1214,8 +1259,8 @@ class _TreeWorkspaceHeader extends StatelessWidget {
                   child: SyncStatusBadge(),
                 ),
               ),
-          ],
-        ),
+            ],
+          ),
         if (compact) ...[
           const SizedBox(height: 6),
           const Align(
@@ -1289,6 +1334,132 @@ class _TreeWelcomeBanner extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class FamilyHeadCard extends StatelessWidget {
+  const FamilyHeadCard({
+    super.key,
+    required this.member,
+    required this.onOpen,
+    this.compact = false,
+  });
+
+  final Person member;
+  final VoidCallback onOpen;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarSize = compact ? 56.0 : 64.0;
+    final photo = member.photo.trim();
+    final name = member.fullName.trim().isEmpty ? '-' : member.fullName.trim();
+    return Semantics(
+      button: true,
+      image: photo.isNotEmpty,
+      label: 'Chef de famille : $name',
+      child: Tooltip(
+        message: 'Voir la fiche du chef de famille',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onOpen,
+            child: Ink(
+              width: compact ? 150 : 164,
+              padding: EdgeInsets.fromLTRB(
+                compact ? 10 : 12,
+                compact ? 10 : 12,
+                compact ? 10 : 12,
+                compact ? 9 : 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E7DC)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x12000000),
+                    blurRadius: 16,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: avatarSize / 2,
+                        backgroundColor: const Color(0xFFE6F0FF),
+                        foregroundColor: const Color(0xFF1E6CC7),
+                        backgroundImage: photo.isEmpty
+                            ? null
+                            : NetworkImage(photo),
+                        child: photo.isEmpty
+                            ? Text(
+                                _initials(member),
+                                style: TextStyle(
+                                  fontSize: compact ? 19 : 22,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0,
+                                ),
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        top: compact ? -10 : -12,
+                        child: Icon(
+                          Icons.workspace_premium_rounded,
+                          color: const Color(0xFFC99A19),
+                          size: compact ? 22 : 25,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: compact ? 8 : 10),
+                  Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: const Color(0xFF183B2A),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                      height: 1.08,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Chef de famille',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: const Color(0xFF667085),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _initials(Person person) {
+    final first = person.firstName.trim();
+    final last = person.lastName.trim();
+    final value =
+        '${first.isEmpty ? '' : first.substring(0, 1)}${last.isEmpty ? '' : last.substring(0, 1)}';
+    return value.isEmpty ? '?' : value.toUpperCase();
   }
 }
 

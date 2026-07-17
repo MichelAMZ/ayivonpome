@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
-import '../models/person.dart';
 import '../models/sync_state.dart';
 import '../providers/auth_provider.dart';
 import '../providers/app_providers.dart';
@@ -22,7 +21,6 @@ import '../screens/family_link_requests_screen.dart';
 import '../screens/linked_families_screen.dart';
 import '../screens/modification_history_screen.dart';
 import '../screens/notifications_screen.dart';
-import '../screens/person_detail_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/tree_screen.dart';
 import '../services/admin_access_service.dart';
@@ -31,7 +29,6 @@ import 'bug_report_button.dart';
 import 'family_announcement_popup.dart';
 import 'family_council_button.dart';
 import 'family_history_button.dart';
-import 'family_leader_premium_badge.dart';
 import 'info_news_bar.dart';
 import 'language_selector_button.dart';
 import 'mobile_title_member_count_badge.dart';
@@ -1053,8 +1050,6 @@ class _BrandTitle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final leader = ref.watch(familyLeaderProvider);
-    final leadership = ref.watch(familyLeadershipProvider);
     final appSettings = ref.watch(appSettingsProvider);
     final title = appSettings.applicationTitle.trim().isEmpty
         ? AppLocalizations.of(context).appTitle
@@ -1072,27 +1067,10 @@ class _BrandTitle extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final showSubtitle =
         appSettings.showApplicationSubtitle && subtitle.isNotEmpty;
-    final showLeader =
-        leadership.showLeaderInTopBar &&
-        leadership.showLeaderBadge &&
-        leader != null;
-    final showLeaderBadge = showLeader;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final mobile = screenWidth <= ResponsiveBreakpoints.mobileMax;
     final compact = screenWidth <= ResponsiveBreakpoints.tabletMax;
     final desktop = !compact;
-    final leaderBadge = showLeaderBadge
-        ? FamilyLeaderPremiumBadge(
-            person: leader,
-            title: leadership.title,
-            subtitle: leadership.subtitle,
-            photo: leadership.officialPhoto,
-            compact: compact,
-            onTap: () => _openLeaderProfile(context, leader.id),
-            onMenuAction: (action) =>
-                _handleLeaderMenuAction(context, ref, leader, action),
-          )
-        : null;
     final showMobileTitleCounter =
         mobile && appSettings.treeSettings.showMembersCounter;
     final showTitleCounter =
@@ -1227,19 +1205,9 @@ class _BrandTitle extends ConsumerWidget {
             SizedBox(width: mobile ? 8 : 14),
           ],
           Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                titleBlock,
-                if (leaderBadge != null) ...[
-                  SizedBox(height: mobile ? 4 : 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: leaderBadge,
-                  ),
-                ],
-              ],
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: titleBlock,
             ),
           ),
           if (branding.logoPosition == 'rightOfTitle') ...[
@@ -1263,57 +1231,8 @@ class _BrandTitle extends ConsumerWidget {
           const SizedBox(width: 18),
           headerLogo(),
         ],
-        if (leaderBadge != null)
-          Expanded(
-            flex: 5,
-            child: Align(alignment: Alignment.center, child: leaderBadge),
-          ),
       ],
     );
-  }
-
-  void _openLeaderProfile(BuildContext context, String personId) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PersonDetailScreen(personId: personId)),
-    );
-  }
-
-  Future<void> _handleLeaderMenuAction(
-    BuildContext context,
-    WidgetRef ref,
-    Person leader,
-    FamilyLeaderMenuAction action,
-  ) async {
-    switch (action) {
-      case FamilyLeaderMenuAction.profile:
-        _openLeaderProfile(context, leader.id);
-        return;
-      case FamilyLeaderMenuAction.descendants:
-      case FamilyLeaderMenuAction.ancestors:
-        _openLeaderProfile(context, leader.id);
-        return;
-      case FamilyLeaderMenuAction.map:
-        final publicLocation = leader.publicMapLocation.trim();
-        final address = publicLocation.isNotEmpty
-            ? publicLocation
-            : leader.currentAddress.trim().isNotEmpty
-            ? leader.currentAddress
-            : leader.birthPlace;
-        if (address.trim().isEmpty &&
-            (leader.latitude == null || leader.longitude == null)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Aucun lieu disponible.')),
-          );
-          return;
-        }
-        await ref
-            .read(mapServiceProvider)
-            .openInGoogleMaps(
-              address: address,
-              latitude: leader.latitude,
-              longitude: leader.longitude,
-            );
-    }
   }
 }
 
