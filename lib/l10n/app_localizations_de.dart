@@ -1230,7 +1230,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get customaryMarriage => 'Traditionelle Ehe';
 
   @override
-  String get traditionalMarriage => 'Traditionelle Ehe';
+  String get traditionalMarriage => 'Gewohnheitsehe';
 
   @override
   String get civilMarriage => 'Zivile Ehe';
@@ -1248,7 +1248,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get addUnion => 'Verbindung hinzufügen';
 
   @override
-  String get traditionalMarriageDate => 'Datum der traditionellen Ehe';
+  String get traditionalMarriageDate => 'Datum der Gewohnheitsehe';
 
   @override
   String get marriagePlace => 'Ort der Ehe';

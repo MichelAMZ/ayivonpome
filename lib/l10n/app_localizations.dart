@@ -2375,7 +2375,7 @@ abstract class AppLocalizations {
   /// No description provided for @traditionalMarriage.
   ///
   /// In fr, this message translates to:
-  /// **'Mariage traditionnel'**
+  /// **'Mariage coutumier'**
   String get traditionalMarriage;
 
   /// No description provided for @civilMarriage.
@@ -2411,7 +2411,7 @@ abstract class AppLocalizations {
   /// No description provided for @traditionalMarriageDate.
   ///
   /// In fr, this message translates to:
-  /// **'Date du mariage traditionnel'**
+  /// **'Date du mariage coutumier'**
   String get traditionalMarriageDate;
 
   /// No description provided for @marriagePlace.

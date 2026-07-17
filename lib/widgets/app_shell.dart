@@ -1059,6 +1059,25 @@ class _BrandTitle extends ConsumerWidget {
         !showMobileTitleCounter &&
         appSettings.treeSettings.showMembersCounter &&
         branding.memberCountDisplayMode == 'superscriptTitle';
+    final headerLogoSize = desktop
+        ? 64.0
+        : mobile
+        ? 42.0
+        : 52.0;
+    Widget headerLogo() {
+      return SizedBox.square(
+        dimension: headerLogoSize,
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: TopbarFamilyLogo(
+            membersCount: membersCount,
+            settings: branding,
+            showCounter: false,
+          ),
+        ),
+      );
+    }
+
     final titleBlock = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1143,11 +1162,7 @@ class _BrandTitle extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (branding.logoPosition == 'leftOfTitle') ...[
-            TopbarFamilyLogo(
-              membersCount: membersCount,
-              settings: branding,
-              showCounter: appSettings.treeSettings.showMembersCounter,
-            ),
+            headerLogo(),
             SizedBox(width: mobile ? 8 : 14),
           ],
           Expanded(
@@ -1168,11 +1183,7 @@ class _BrandTitle extends ConsumerWidget {
           ),
           if (branding.logoPosition == 'rightOfTitle') ...[
             SizedBox(width: mobile ? 8 : 14),
-            TopbarFamilyLogo(
-              membersCount: membersCount,
-              settings: branding,
-              showCounter: appSettings.treeSettings.showMembersCounter,
-            ),
+            headerLogo(),
           ],
         ],
       );
@@ -1183,21 +1194,13 @@ class _BrandTitle extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (branding.logoPosition == 'leftOfTitle') ...[
-          TopbarFamilyLogo(
-            membersCount: membersCount,
-            settings: branding,
-            showCounter: appSettings.treeSettings.showMembersCounter,
-          ),
+          headerLogo(),
           const SizedBox(width: 18),
         ],
         Expanded(flex: 4, child: titleBlock),
         if (branding.logoPosition == 'rightOfTitle') ...[
           const SizedBox(width: 18),
-          TopbarFamilyLogo(
-            membersCount: membersCount,
-            settings: branding,
-            showCounter: appSettings.treeSettings.showMembersCounter,
-          ),
+          headerLogo(),
         ],
         if (leaderBadge != null)
           Expanded(

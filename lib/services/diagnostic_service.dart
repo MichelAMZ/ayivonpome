@@ -17,15 +17,18 @@ class DiagnosticService {
     required JsonStorageService localStorage,
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
+    Duration remoteTimeout = const Duration(seconds: 20),
   }) : _connectivity = connectivity,
        _localStorage = localStorage,
        _firestore = firestore,
-       _auth = auth;
+       _auth = auth,
+       _remoteTimeout = remoteTimeout;
 
   final ConnectivityService _connectivity;
   final JsonStorageService _localStorage;
   final FirebaseFirestore? _firestore;
   final FirebaseAuth? _auth;
+  final Duration _remoteTimeout;
 
   Future<DiagnosticReport> run({
     required FamilyTreeData data,
@@ -34,10 +37,15 @@ class DiagnosticService {
     final checks = <DiagnosticCheck>[];
     checks.add(await _checkInternet());
     checks.add(await _checkFirebase());
-    checks.add(await _checkAuthentication());
+    final authCheck = await _checkAuthentication();
+    checks.add(authCheck);
     checks.add(await _checkFirestoreFamilyRead(data.mainFamilyCode));
     checks.add(await _checkFirestoreMemberRead(data.mainFamilyCode));
-    checks.add(await _checkFirestoreMemberWrite(data.mainFamilyCode));
+    checks.add(
+      authCheck.ok
+          ? await _checkFirestoreMemberWrite(data.mainFamilyCode)
+          : _skippedWriteCheck(authCheck),
+    );
     checks.add(await _checkLocalDatabase());
     checks.add(_checkSynchronization(data));
 
@@ -48,12 +56,37 @@ class DiagnosticService {
     required FamilyTreeData data,
     required List<SyncIncident> incidents,
   }) async {
+    final authCheck = await _checkAuthentication();
     final checks = [
+      authCheck,
       await _checkFirestoreFamilyRead(data.mainFamilyCode),
       await _checkFirestoreMemberRead(data.mainFamilyCode),
-      await _checkFirestoreMemberWrite(data.mainFamilyCode),
+      authCheck.ok
+          ? await _checkFirestoreMemberWrite(data.mainFamilyCode)
+          : _skippedWriteCheck(authCheck),
     ];
     return _buildReport(data: data, incidents: incidents, checks: checks);
+  }
+
+  @visibleForTesting
+  static String diagnosticMessageForCode(String code, [String? message]) {
+    final detail = message == null || message.trim().isEmpty
+        ? ''
+        : ' - ${message.trim()}';
+    return switch (code) {
+      'permission-denied' => 'Accès refusé par les règles Firestore$detail',
+      'unauthenticated' => 'Session absente ou expirée$detail',
+      'unavailable' => 'Service Firebase ou réseau indisponible$detail',
+      'deadline-exceeded' ||
+      'local-timeout' => 'Réponse Firebase trop lente ou inaccessible',
+      'failed-precondition' =>
+        'Configuration Firebase ou persistance indisponible$detail',
+      'network-request-failed' => 'Requête Firebase Auth bloquée$detail',
+      'auth-not-initialized' => 'Firebase Auth non initialisé$detail',
+      'firebase-not-initialized' => 'Firebase non initialisé$detail',
+      'not-found' => 'Document Firebase absent$detail',
+      _ => '$code$detail',
+    };
   }
 
   String buildTextReport(DiagnosticReport report) {
@@ -203,24 +236,39 @@ class DiagnosticService {
   Future<DiagnosticCheck> _checkFirebase() async {
     return _timedCheck('Firebase', () async {
       if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp().timeout(const Duration(seconds: 8));
+        throw const _DiagnosticFailure(
+          code: 'firebase-not-initialized',
+          message: 'Firebase non initialisé.',
+        );
       }
-      return Firebase.apps.isEmpty
-          ? 'Firebase non initialisé.'
-          : 'Firebase initialisé.';
+      return 'Firebase initialisé.';
     });
   }
 
   Future<DiagnosticCheck> _checkAuthentication() async {
     return _timedCheck('Firebase Authentication', () async {
-      final user = _auth?.currentUser;
+      final auth = _auth;
+      if (auth == null) {
+        throw const _DiagnosticFailure(
+          code: 'auth-not-initialized',
+          message: 'Firebase Auth non initialisé.',
+        );
+      }
+      var user = auth.currentUser;
+      user ??= await _withRemoteTimeout(
+        auth.idTokenChanges().first,
+        code: 'local-timeout',
+      );
       if (user == null) {
         throw const _DiagnosticFailure(
           code: 'unauthenticated',
           message: 'Aucun utilisateur Firebase connecté.',
         );
       }
-      final token = await user.getIdTokenResult();
+      final token = await _withRemoteTimeout(
+        user.getIdTokenResult(),
+        code: 'local-timeout',
+      );
       final claims = token.claims ?? const <String, dynamic>{};
       final firestore = _firestore;
       if (firestore == null) {
@@ -229,11 +277,10 @@ class DiagnosticService {
           message: 'Firestore non initialisé.',
         );
       }
-      final roleSnapshot = await firestore
-          .collection('user_roles')
-          .doc(user.uid)
-          .get()
-          .timeout(const Duration(seconds: 8));
+      final roleSnapshot = await _withRemoteTimeout(
+        firestore.collection('user_roles').doc(user.uid).get(),
+        code: 'local-timeout',
+      );
       final roleData = roleSnapshot.data();
       final familyIds = (roleData?['familyIds'] as List<dynamic>? ?? const [])
           .whereType<String>()
@@ -269,11 +316,10 @@ class DiagnosticService {
             message: 'Firestore non initialisé.',
           );
         }
-        final doc = await firestore
-            .collection('families')
-            .doc(normalizedFamilyId)
-            .get()
-            .timeout(const Duration(seconds: 8));
+        final doc = await _withRemoteTimeout(
+          firestore.collection('families').doc(normalizedFamilyId).get(),
+          code: 'local-timeout',
+        );
         return doc.exists
             ? 'families/${doc.id} lu.'
             : 'warning:not-found|Firestore accessible, families/$normalizedFamilyId absent.';
@@ -296,12 +342,14 @@ class DiagnosticService {
             message: 'Firestore non initialisé.',
           );
         }
-        final snapshot = await firestore
-            .collection('members')
-            .where('familyId', isEqualTo: normalizedFamilyId)
-            .limit(1)
-            .get()
-            .timeout(const Duration(seconds: 8));
+        final snapshot = await _withRemoteTimeout(
+          firestore
+              .collection('members')
+              .where('familyId', isEqualTo: normalizedFamilyId)
+              .limit(1)
+              .get(),
+          code: 'local-timeout',
+        );
         if (snapshot.docs.isEmpty) {
           return 'warning:not-found|Firestore accessible, aucun membre $normalizedFamilyId trouvé.';
         }
@@ -336,23 +384,24 @@ class DiagnosticService {
         final docId =
             '_diagnostic_${user.uid}_${DateTime.now().microsecondsSinceEpoch}';
         final doc = firestore.collection('members').doc(docId);
-        await doc
-            .set({
-              'id': docId,
-              'familyId': normalizedFamilyId,
-              'firstName': 'Diagnostic',
-              'lastName': 'Firestore',
-              'gender': 'unknown',
-              'deletedAt': now,
-              'createdAt': now,
-              'updatedAt': now,
-              'version': 1,
-              'diagnostic': true,
-              'createdBy': user.uid,
-            })
-            .timeout(const Duration(seconds: 8));
-        await doc.get().timeout(const Duration(seconds: 8));
-        await doc.delete().timeout(const Duration(seconds: 8));
+        await _withRemoteTimeout(
+          doc.set({
+            'id': docId,
+            'familyId': normalizedFamilyId,
+            'firstName': 'Diagnostic',
+            'lastName': 'Firestore',
+            'gender': 'unknown',
+            'deletedAt': now,
+            'createdAt': now,
+            'updatedAt': now,
+            'version': 1,
+            'diagnostic': true,
+            'createdBy': user.uid,
+          }),
+          code: 'local-timeout',
+        );
+        await _withRemoteTimeout(doc.get(), code: 'local-timeout');
+        await _withRemoteTimeout(doc.delete(), code: 'local-timeout');
         return 'Création, lecture et suppression OK sur members/$docId.';
       },
       collectionName: 'members',
@@ -429,8 +478,7 @@ class DiagnosticService {
         ok: false,
         code: error.code,
         errorType: 'FirebaseException',
-        message:
-            '${error.code}${error.message == null ? '' : ' - ${error.message}'}',
+        message: diagnosticMessageForCode(error.code, error.message),
         stackTrace: stackTrace.toString(),
         collectionName: collectionName,
         documentPath: documentPath,
@@ -466,6 +514,31 @@ class DiagnosticService {
         responseTimeMs: stopwatch.elapsedMilliseconds,
       );
     }
+  }
+
+  Future<T> _withRemoteTimeout<T>(Future<T> future, {required String code}) {
+    return future.timeout(
+      _remoteTimeout,
+      onTimeout: () => throw _DiagnosticFailure(
+        code: code,
+        message: diagnosticMessageForCode(code),
+      ),
+    );
+  }
+
+  DiagnosticCheck _skippedWriteCheck(DiagnosticCheck authCheck) {
+    return DiagnosticCheck(
+      label: 'Firestore Ecriture members',
+      ok: false,
+      warning: true,
+      code: 'skipped-auth-not-ready',
+      message:
+          'Ecriture de diagnostic non exécutée : Auth non prête (${authCheck.code}).',
+      collectionName: 'members',
+      documentPath: 'members/_diagnostic_<uid>_<timestamp>',
+      ruleName:
+          'match /members/{memberId} allow create + allow read + allow delete',
+    );
   }
 
   List<SyncIncident> _latestErrors(List<SyncIncident> incidents) {
