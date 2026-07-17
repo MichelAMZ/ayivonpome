@@ -253,10 +253,8 @@ class _AppShellState extends ConsumerState<AppShell>
           ),
           body: Column(
             children: [
-              if (_index != 0) ...[
-                const InfoNewsBar(),
-                const SyncStatusBadge(),
-              ],
+              const InfoNewsBar(),
+              if (_index != 0) const SyncStatusBadge(),
               const _OptionalFamilyLeadershipBanner(),
               Expanded(child: screens[_index]),
             ],
@@ -1007,6 +1005,49 @@ class _TopbarGenerationBadge extends StatelessWidget {
   }
 }
 
+class _TopbarMemberCountBadge extends StatelessWidget {
+  const _TopbarMemberCountBadge({required this.count, required this.compact});
+
+  final int count;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(minWidth: compact ? 20 : 26),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 5 : 8,
+        vertical: compact ? 2 : 4,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE3C65B), width: 1),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 8,
+            color: Color(0x1A000000),
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        count.toString(),
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: const Color(0xFF4F6F1F),
+          fontSize: compact ? 10 : 13,
+          fontWeight: FontWeight.w900,
+          height: 1,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
 class _BrandTitle extends ConsumerWidget {
   const _BrandTitle();
 
@@ -1035,8 +1076,7 @@ class _BrandTitle extends ConsumerWidget {
         leadership.showLeaderInTopBar &&
         leadership.showLeaderBadge &&
         leader != null;
-    final showLeaderBadge =
-        showLeader && leadership.topBarLogoMode != 'classicLogo';
+    final showLeaderBadge = showLeader;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final mobile = screenWidth <= ResponsiveBreakpoints.mobileMax;
     final compact = screenWidth <= ResponsiveBreakpoints.tabletMax;
@@ -1059,6 +1099,9 @@ class _BrandTitle extends ConsumerWidget {
         !showMobileTitleCounter &&
         appSettings.treeSettings.showMembersCounter &&
         branding.memberCountDisplayMode == 'superscriptTitle';
+    final showHeaderLogoCounter =
+        appSettings.treeSettings.showMembersCounter &&
+        branding.memberCountDisplayMode == 'onLogo';
     final headerLogoSize = desktop
         ? 64.0
         : mobile
@@ -1066,14 +1109,32 @@ class _BrandTitle extends ConsumerWidget {
         : 52.0;
     Widget headerLogo() {
       return SizedBox.square(
-        dimension: headerLogoSize,
-        child: FittedBox(
-          fit: BoxFit.contain,
-          child: TopbarFamilyLogo(
-            membersCount: membersCount,
-            settings: branding,
-            showCounter: false,
-          ),
+        dimension: headerLogoSize + (showHeaderLogoCounter ? 8 : 0),
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            SizedBox.square(
+              dimension: headerLogoSize,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: TopbarFamilyLogo(
+                  membersCount: membersCount,
+                  settings: branding,
+                  showCounter: false,
+                ),
+              ),
+            ),
+            if (showHeaderLogoCounter)
+              PositionedDirectional(
+                top: 0,
+                end: 0,
+                child: _TopbarMemberCountBadge(
+                  count: membersCount,
+                  compact: mobile,
+                ),
+              ),
+          ],
         ),
       );
     }
