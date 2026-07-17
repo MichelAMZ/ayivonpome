@@ -13,6 +13,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/parent_auto_creation_service.dart';
+import '../widgets/modification_code_required_dialog.dart';
 import '../widgets/person_duplicate_dialog.dart';
 import 'person_edit_progress.dart';
 
@@ -2502,6 +2503,11 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         Navigator.pop(context);
         return;
       }
+      if (saveResults.any((item) => item.isAuthorizationRequired)) {
+        _hasUnsavedChanges = false;
+        await _requestAuthorizationAndRetrySave(draft: draft);
+        return;
+      }
       if (saveResults.any((item) => item.isLocalPending)) {
         _hasUnsavedChanges = false;
         _showSaveSnackBar(
@@ -2509,7 +2515,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           icon: Icons.sync_problem_outlined,
           message: draft
               ? l10n.draftSavedNow
-              : 'Modification enregistrée localement. Synchronisation en attente.',
+              : 'Modifications enregistrées sur cet appareil. Elles seront synchronisées automatiquement dès que Firestore sera disponible.',
           duration: const Duration(seconds: 5),
         );
         if (draft) setState(() => _lastDraftSavedAt = DateTime.now());
@@ -2545,6 +2551,71 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _requestAuthorizationAndRetrySave({required bool draft}) async {
+    _showSaveSnackBar(
+      color: Colors.orange.shade800,
+      icon: Icons.lock_outline,
+      message:
+          'Saisissez le code de modification pour autoriser l’enregistrement de ces changements.',
+      duration: const Duration(seconds: 4),
+    );
+    final unlocked = await showDialog<bool>(
+      context: context,
+      builder: (context) => const ModificationCodeRequiredDialog(),
+    );
+    if (!mounted) return;
+    if (unlocked != true) {
+      _showSaveSnackBar(
+        color: Colors.red,
+        icon: Icons.lock_outline,
+        message: 'Code incorrect ou accès non autorisé.',
+        duration: const Duration(seconds: 5),
+      );
+      return;
+    }
+    setState(() => _isSaving = true);
+    try {
+      final synced = await ref
+          .read(familyTreeProvider.notifier)
+          .syncPendingChanges(force: true);
+      if (!mounted) return;
+      final stillNeedsAuthorization = synced.pendingSyncQueue.any(
+        (item) =>
+            item.lastErrorCode == 'permission-denied' ||
+            item.lastErrorCode == 'unauthenticated',
+      );
+      if (stillNeedsAuthorization) {
+        _showSaveSnackBar(
+          color: Colors.red,
+          icon: Icons.lock_outline,
+          message: 'Code incorrect ou accès non autorisé.',
+          duration: const Duration(seconds: 5),
+        );
+        return;
+      }
+      _showSaveSnackBar(
+        color: Colors.green,
+        icon: Icons.check_circle,
+        message: 'Code validé. Les modifications ont été enregistrées.',
+        duration: const Duration(seconds: 3),
+      );
+      if (draft) {
+        setState(() => _lastDraftSavedAt = DateTime.now());
+        return;
+      }
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      _showSaveSnackBar(
+        color: Colors.orange.shade800,
+        icon: Icons.sync_problem_outlined,
+        message:
+            'Modifications enregistrées sur cet appareil. Elles seront synchronisées automatiquement dès que Firestore sera disponible.',
+        duration: const Duration(seconds: 5),
+      );
     }
   }
 

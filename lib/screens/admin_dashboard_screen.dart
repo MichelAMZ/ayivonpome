@@ -60,6 +60,8 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   _AdminCenterSection _selectedSection = _AdminCenterSection.dashboard;
   bool _isClearingActivityLog = false;
+  bool _isQuickSyncing = false;
+  bool _adminInfoDismissed = false;
 
   @override
   void initState() {
@@ -115,32 +117,42 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     AuthState auth,
     FamilyTreeData data,
   ) {
-    final sectionTitle = _adminSectionLabel(l10n, _selectedSection);
-    return Scaffold(
-      appBar: AppBar(title: Text(sectionTitle)),
-      drawer: _AdminCenterDrawer(
-        selected: _selectedSection,
-        data: data,
-        onSelect: _selectAdminSection,
-      ),
-      body: LayoutBuilder(
+    return ColoredBox(
+      color: const Color(0xFFF7F6F2),
+      child: LayoutBuilder(
         builder: (context, constraints) {
+          final children = _adminSectionChildren(context, l10n, auth, data);
           final content = ResponsivePage(
-            children: _adminSectionChildren(context, l10n, auth, data),
+            padding: EdgeInsets.fromLTRB(
+              constraints.maxWidth < 720 ? 12 : 32,
+              constraints.maxWidth < 720 ? 12 : 26,
+              constraints.maxWidth < 720 ? 12 : 32,
+              28,
+            ),
+            maxWidth: 1180,
+            children: [
+              if (constraints.maxWidth < 1000)
+                _AdminSectionSelector(
+                  selected: _selectedSection,
+                  data: data,
+                  onSelect: _selectAdminSection,
+                ),
+              ...children,
+            ],
           );
           if (constraints.maxWidth < 1000) return content;
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                width: 280,
+                width: 225,
                 child: _AdminCenterSideNavigation(
                   selected: _selectedSection,
                   data: data,
                   onSelect: _selectAdminSection,
                 ),
               ),
-              const VerticalDivider(width: 1),
+              const VerticalDivider(width: 1, color: Color(0xFFE1E4DA)),
               Expanded(child: content),
             ],
           );
@@ -207,83 +219,210 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final criticalCount = incidents
         .where((item) => item.severity == 'critical')
         .length;
-    final failedSyncCount = data.pendingSyncQueue
-        .where((item) => item.status == 'failed')
+    final pendingSyncCount = data.pendingSyncQueue
+        .where((item) => item.status != 'synced' && item.status != 'resolved')
         .length;
+    final activeCodes = kpi.activeCodes;
+    final expiredCodes = kpi.expiredCodes;
     return [
-      Text('Tableau de bord', style: Theme.of(context).textTheme.titleLarge),
-      const SizedBox(height: 12),
+      _AdminDashboardHeader(
+        title: 'Tableau de bord',
+        subtitle: 'Vue d’ensemble de la famille AYIVON',
+        syncStatus: _syncStatusLabel(data),
+        syncHealthy: pendingSyncCount == 0 && criticalCount == 0,
+      ),
+      if (!_adminInfoDismissed) ...[
+        const SizedBox(height: 18),
+        AdminInfoBanner(
+          onClose: () => setState(() => _adminInfoDismissed = true),
+        ),
+      ],
+      const SizedBox(height: 18),
       ResponsiveGrid(
         mobileColumns: 1,
         tabletColumns: 2,
         desktopColumns: 4,
-        mainAxisExtent: 126,
+        spacing: 16,
+        mainAxisExtent: 148,
         children: [
-          KpiCard(label: l10n.totalPeople, value: kpi.totalPeople),
-          KpiCard(label: l10n.familiesCount, value: kpi.linkedFamilies),
-          KpiCard(label: 'Administrateurs', value: data.admins.length),
-          KpiCard(label: 'Synchronisation', value: failedSyncCount),
-          KpiCard(label: 'Incidents critiques', value: criticalCount),
-          KpiCard(label: l10n.activityLog, value: data.auditLog.length),
-          KpiCard(label: l10n.activeCodes, value: kpi.activeCodes),
-          KpiCard(label: l10n.expiredCodes, value: kpi.expiredCodes),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          FilledButton.icon(
-            onPressed: () =>
+          AdminKpiCard(
+            label: 'Personnes au total',
+            value: kpi.totalPeople,
+            helper: 'Membres de la famille enregistrés',
+            icon: Icons.groups_2_outlined,
+            tone: AdminCardTone.green,
+            onTap: () => _selectAdminSection(_AdminCenterSection.members),
+          ),
+          AdminKpiCard(
+            label: 'Familles liées',
+            value: kpi.linkedFamilies,
+            helper: 'Familles connectées',
+            icon: Icons.groups_outlined,
+            tone: AdminCardTone.green,
+          ),
+          AdminKpiCard(
+            label: 'Administrateurs',
+            value: data.admins.length,
+            helper: 'Comptes avec privilèges d’administration',
+            icon: Icons.security_outlined,
+            tone: AdminCardTone.green,
+            onTap: () => _selectAdminSection(_AdminCenterSection.users),
+          ),
+          AdminKpiCard(
+            label: 'Synchronisation',
+            value: pendingSyncCount,
+            helper: pendingSyncCount == 0
+                ? 'Aucune opération en attente'
+                : '$pendingSyncCount opération(s) à traiter',
+            icon: Icons.sync_outlined,
+            tone: pendingSyncCount == 0
+                ? AdminCardTone.green
+                : AdminCardTone.orange,
+            healthy: pendingSyncCount == 0,
+            onTap: () =>
                 _selectAdminSection(_AdminCenterSection.synchronization),
-            icon: const Icon(Icons.sync_outlined),
-            label: const Text('Synchroniser'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () =>
-                _selectAdminSection(_AdminCenterSection.diagnostic),
-            icon: const Icon(Icons.health_and_safety_outlined),
-            label: const Text('Diagnostic'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () =>
-                _selectAdminSection(_AdminCenterSection.activityLog),
-            icon: const Icon(Icons.history_outlined),
-            label: const Text('Journal'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => _selectAdminSection(_AdminCenterSection.users),
-            icon: const Icon(Icons.manage_accounts_outlined),
-            label: const Text('Utilisateurs'),
           ),
         ],
       ),
       const SizedBox(height: 16),
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _InfoRow(
-                label: 'Dernière synchronisation',
-                value: data.syncSettings.lastSyncAt.isEmpty
-                    ? '-'
-                    : data.syncSettings.lastSyncAt,
-              ),
-              _InfoRow(
-                label: 'Dernière sauvegarde',
-                value: data.lastUpdatedAt.isEmpty ? '-' : data.lastUpdatedAt,
-              ),
-              _InfoRow(
-                label: 'Activité récente',
-                value: data.auditLog.isEmpty ? '-' : data.auditLog.last.action,
-              ),
-            ],
+      ResponsiveGrid(
+        mobileColumns: 1,
+        tabletColumns: 2,
+        desktopColumns: 4,
+        spacing: 16,
+        mainAxisExtent: 132,
+        children: [
+          AdminKpiCard(
+            label: 'Incidents critiques',
+            value: criticalCount,
+            helper: criticalCount == 0
+                ? 'Aucun incident signalé'
+                : '$criticalCount incident(s) critique(s)',
+            icon: Icons.verified_user_outlined,
+            tone: criticalCount == 0 ? AdminCardTone.green : AdminCardTone.red,
           ),
-        ),
+          AdminKpiCard(
+            label: 'Journal d’activité',
+            value: data.auditLog.length,
+            helper: 'Entrées récentes',
+            icon: Icons.article_outlined,
+            tone: AdminCardTone.blue,
+            onTap: () => _selectAdminSection(_AdminCenterSection.activityLog),
+          ),
+          AdminKpiCard(
+            label: 'Codes actifs',
+            value: activeCodes,
+            helper: 'Codes actuellement valides',
+            icon: Icons.key_outlined,
+            tone: AdminCardTone.orange,
+            onTap: () => _selectAdminSection(_AdminCenterSection.accessCodes),
+          ),
+          AdminKpiCard(
+            label: 'Codes expirés',
+            value: expiredCodes,
+            helper: expiredCodes == 0
+                ? 'Aucun code expiré'
+                : '$expiredCodes code(s) expiré(s)',
+            icon: Icons.vpn_key_off_outlined,
+            tone: expiredCodes == 0 ? AdminCardTone.green : AdminCardTone.red,
+            onTap: () => _selectAdminSection(_AdminCenterSection.accessCodes),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      AdminQuickActions(
+        syncing: _isQuickSyncing,
+        onSync: () => _quickSynchronize(context),
+        onDiagnostic: () => _selectAdminSection(_AdminCenterSection.diagnostic),
+        onActivityLog: () =>
+            _selectAdminSection(_AdminCenterSection.activityLog),
+        onUsers: () => _selectAdminSection(_AdminCenterSection.users),
+      ),
+      const SizedBox(height: 18),
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 980;
+          final cards = [
+            SystemStatusCard(data: data, criticalIncidents: criticalCount),
+            RecentActivityCard(data: data),
+            SecurityAccessCard(
+              adminCount: data.admins.length,
+              activeCodes: activeCodes,
+              expiredCodes: expiredCodes,
+              onUsers: () => _selectAdminSection(_AdminCenterSection.users),
+              onCodes: () =>
+                  _selectAdminSection(_AdminCenterSection.accessCodes),
+            ),
+          ];
+          return wide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: cards[0]),
+                    const SizedBox(width: 16),
+                    Expanded(child: cards[1]),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: cards[2]),
+                  ],
+                )
+              : Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    for (final card in cards)
+                      SizedBox(
+                        width: constraints.maxWidth >= 680
+                            ? (constraints.maxWidth - 16) / 2
+                            : constraints.maxWidth,
+                        child: card,
+                      ),
+                  ],
+                );
+        },
       ),
     ];
+  }
+
+  Future<void> _quickSynchronize(BuildContext context) async {
+    if (_isQuickSyncing) return;
+    setState(() => _isQuickSyncing = true);
+    try {
+      await ref.read(familyTreeProvider.notifier).syncPendingChanges();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Synchronisation terminée.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Synchronisation impossible : $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _isQuickSyncing = false);
+    }
+  }
+
+  String _syncStatusLabel(FamilyTreeData data) {
+    final pending = data.pendingSyncQueue
+        .where((item) => item.status != 'synced' && item.status != 'resolved')
+        .length;
+    if (data.syncSettings.syncStatus == 'syncing') {
+      return 'Synchronisation en cours';
+    }
+    if (data.syncSettings.syncStatus == 'error') return 'Erreur';
+    if (pending > 0) return 'Modifications en attente';
+    if (data.syncSettings.lastSyncAt.isEmpty) return 'Synchronisé';
+    return 'Synchronisé · ${_relativeSyncTime(data.syncSettings.lastSyncAt)}';
+  }
+
+  String _relativeSyncTime(String value) {
+    final date = DateTime.tryParse(value);
+    if (date == null) return 'à l’instant';
+    final delta = DateTime.now().difference(date);
+    if (delta.inMinutes < 1) return 'à l’instant';
+    if (delta.inHours < 1) return 'il y a ${delta.inMinutes} min';
+    if (delta.inDays < 1) return 'il y a ${delta.inHours} h';
+    return _formatAdminDate(value);
   }
 
   List<Widget> _membersChildren(
@@ -1160,32 +1299,808 @@ class _FirebaseRoleTile extends StatelessWidget {
   }
 }
 
-class _AdminCenterDrawer extends StatelessWidget {
-  const _AdminCenterDrawer({
-    required this.selected,
-    required this.data,
-    required this.onSelect,
+class _AdminDashboardHeader extends StatelessWidget {
+  const _AdminDashboardHeader({
+    required this.title,
+    required this.subtitle,
+    required this.syncStatus,
+    required this.syncHealthy,
   });
 
-  final _AdminCenterSection selected;
-  final FamilyTreeData data;
-  final ValueChanged<_AdminCenterSection> onSelect;
+  final String title;
+  final String subtitle;
+  final String syncStatus;
+  final bool syncHealthy;
 
   @override
   Widget build(BuildContext context) {
-    return Drawer(
-      child: SafeArea(
-        child: _AdminCenterNavigationList(
-          selected: selected,
-          data: data,
-          onSelect: (section) {
-            Navigator.pop(context);
-            onSelect(section);
+    final chip = SyncStatusChip(label: syncStatus, healthy: syncHealthy);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final titleBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Admin familial / Tableau de bord',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF667085),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: const Color(0xFF183B2A),
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: const Color(0xFF4A5148),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        );
+        if (constraints.maxWidth < 680) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [titleBlock, const SizedBox(height: 12), chip],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: titleBlock),
+            const SizedBox(width: 16),
+            chip,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class SyncStatusChip extends StatelessWidget {
+  const SyncStatusChip({super.key, required this.label, required this.healthy});
+
+  final String label;
+  final bool healthy;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = healthy ? const Color(0xFF55752B) : const Color(0xFFC58A17);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 36),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: healthy ? const Color(0xFFF1F7EA) : const Color(0xFFFFF7E8),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.65)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            healthy ? Icons.check_circle_outline : Icons.sync_problem_outlined,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: const Color(0xFF315B22),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AdminInfoBanner extends StatelessWidget {
+  const AdminInfoBanner({super.key, required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: const EdgeInsetsDirectional.only(start: 16, end: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F8FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFC8D8F3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Color(0xFF2F6FA3), size: 22),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Bienvenue — consultez les dernières informations de la famille.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Color(0xFF183B2A),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Fermer',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum AdminCardTone { green, blue, orange, red, neutral }
+
+class AdminKpiCard extends StatelessWidget {
+  const AdminKpiCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.helper,
+    required this.icon,
+    required this.tone,
+    this.healthy = false,
+    this.onTap,
+  });
+
+  final String label;
+  final int value;
+  final String helper;
+  final IconData icon;
+  final AdminCardTone tone;
+  final bool healthy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _toneColor(tone);
+    final content = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _adminCardDecoration(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _AdminIconCircle(icon: icon, color: color),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF3D443B),
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value.toString(),
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  helper,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF667085),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (healthy)
+            const Icon(
+              Icons.check_circle_outline,
+              color: Color(0xFF55752B),
+              size: 28,
+            ),
+        ],
+      ),
+    );
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: content,
+      ),
+    );
+  }
+}
+
+class AdminQuickActions extends StatelessWidget {
+  const AdminQuickActions({
+    super.key,
+    required this.syncing,
+    required this.onSync,
+    required this.onDiagnostic,
+    required this.onActivityLog,
+    required this.onUsers,
+  });
+
+  final bool syncing;
+  final VoidCallback onSync;
+  final VoidCallback onDiagnostic;
+  final VoidCallback onActivityLog;
+  final VoidCallback onUsers;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Actions rapides',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Colors.black,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final buttonWidth = constraints.maxWidth >= 820
+                ? (constraints.maxWidth - 48) / 4
+                : constraints.maxWidth >= 520
+                ? (constraints.maxWidth - 16) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: buttonWidth,
+                  child: FilledButton.icon(
+                    onPressed: syncing ? null : onSync,
+                    icon: syncing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync_outlined),
+                    label: Text(
+                      syncing ? 'Synchronisation…' : 'Synchroniser maintenant',
+                    ),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(48, 52),
+                      backgroundColor: const Color(0xFF183B2A),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                _QuickActionButton(
+                  width: buttonWidth,
+                  icon: Icons.health_and_safety_outlined,
+                  label: 'Lancer le diagnostic',
+                  onPressed: onDiagnostic,
+                ),
+                _QuickActionButton(
+                  width: buttonWidth,
+                  icon: Icons.history_outlined,
+                  label: 'Voir le journal',
+                  onPressed: onActivityLog,
+                ),
+                _QuickActionButton(
+                  width: buttonWidth,
+                  icon: Icons.manage_accounts_outlined,
+                  label: 'Gérer les utilisateurs',
+                  onPressed: onUsers,
+                ),
+              ],
+            );
           },
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  const _QuickActionButton({
+    required this.width,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final double width;
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 52),
+          foregroundColor: const Color(0xFF183B2A),
+          side: const BorderSide(color: Color(0xFF5F6A5A)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
   }
+}
+
+class SystemStatusCard extends StatelessWidget {
+  const SystemStatusCard({
+    super.key,
+    required this.data,
+    required this.criticalIncidents,
+  });
+
+  final FamilyTreeData data;
+  final int criticalIncidents;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = data.pendingSyncQueue
+        .where((item) => item.status != 'synced' && item.status != 'resolved')
+        .length;
+    return _AdminPanelCard(
+      title: 'État du système',
+      child: Column(
+        children: [
+          _StatusLine(
+            label: 'Firebase / Firestore',
+            value: data.syncSettings.databaseEnabled ? 'Connecté' : 'Désactivé',
+            color: data.syncSettings.databaseEnabled
+                ? const Color(0xFF2AAA16)
+                : const Color(0xFF98A2B3),
+          ),
+          const _StatusLine(
+            label: 'Authentication',
+            value: 'Active',
+            color: Color(0xFF2AAA16),
+          ),
+          const _StatusLine(
+            label: 'Base locale',
+            value: 'Disponible',
+            color: Color(0xFF2AAA16),
+          ),
+          _StatusLine(
+            label: 'Synchronisation',
+            value: criticalIncidents > 0
+                ? 'Incident'
+                : pending == 0
+                ? 'Saine'
+                : 'En attente',
+            color: criticalIncidents > 0
+                ? Colors.red
+                : pending == 0
+                ? const Color(0xFF2AAA16)
+                : const Color(0xFFC58A17),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class RecentActivityCard extends StatelessWidget {
+  const RecentActivityCard({super.key, required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final latestAudit = data.auditLog.isEmpty ? null : data.auditLog.last;
+    return _AdminPanelCard(
+      title: 'Activité récente',
+      child: Column(
+        children: [
+          _ActivityLine(
+            icon: Icons.sync_outlined,
+            color: const Color(0xFF55752B),
+            label: 'Dernière synchronisation',
+            value: _formatAdminDate(data.syncSettings.lastSyncAt),
+            rawValue: data.syncSettings.lastSyncAt,
+          ),
+          _ActivityLine(
+            icon: Icons.backup_outlined,
+            color: const Color(0xFF2F6FA3),
+            label: 'Dernière sauvegarde',
+            value: _formatAdminDate(data.lastUpdatedAt),
+            rawValue: data.lastUpdatedAt,
+          ),
+          _ActivityLine(
+            icon: Icons.check_circle_outline,
+            color: const Color(0xFF55752B),
+            label: 'Dernière activité',
+            value: latestAudit == null
+                ? '-'
+                : _humanActivityLabel(latestAudit.action),
+            rawValue: latestAudit?.action ?? '',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SecurityAccessCard extends StatelessWidget {
+  const SecurityAccessCard({
+    super.key,
+    required this.adminCount,
+    required this.activeCodes,
+    required this.expiredCodes,
+    required this.onUsers,
+    required this.onCodes,
+  });
+
+  final int adminCount;
+  final int activeCodes;
+  final int expiredCodes;
+  final VoidCallback onUsers;
+  final VoidCallback onCodes;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AdminPanelCard(
+      title: 'Sécurité et accès',
+      trailing: TextButton(onPressed: onUsers, child: const Text('Voir tout')),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth >= 520
+              ? (constraints.maxWidth - 24) / 3
+              : constraints.maxWidth;
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _SecurityMiniCard(
+                width: width,
+                icon: Icons.security_outlined,
+                color: const Color(0xFF55752B),
+                value: adminCount,
+                label: 'Administrateurs',
+                action: 'Voir les utilisateurs',
+                onPressed: onUsers,
+              ),
+              _SecurityMiniCard(
+                width: width,
+                icon: Icons.key_outlined,
+                color: const Color(0xFFC58A17),
+                value: activeCodes,
+                label: 'Code actif',
+                action: 'Gérer les codes',
+                onPressed: onCodes,
+              ),
+              _SecurityMiniCard(
+                width: width,
+                icon: Icons.vpn_key_off_outlined,
+                color: expiredCodes == 0 ? const Color(0xFF55752B) : Colors.red,
+                value: expiredCodes,
+                label: 'Codes expirés',
+                action: 'Voir les codes',
+                onPressed: onCodes,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AdminPanelCard extends StatelessWidget {
+  const _AdminPanelCard({
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _adminCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF183B2A),
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label)),
+          Text(value, style: const TextStyle(color: Color(0xFF4A5148))),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityLine extends StatelessWidget {
+  const _ActivityLine({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+    required this.rawValue,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+  final String rawValue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          _AdminIconCircle(icon: icon, color: color, small: true),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Tooltip(
+              message: rawValue.isEmpty ? value : rawValue,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Color(0xFF4A5148)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (rawValue.isNotEmpty)
+            IconButton(
+              tooltip: 'Copier',
+              onPressed: () => Clipboard.setData(ClipboardData(text: rawValue)),
+              icon: const Icon(Icons.copy_outlined, size: 18),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SecurityMiniCard extends StatelessWidget {
+  const _SecurityMiniCard({
+    required this.width,
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.label,
+    required this.action,
+    required this.onPressed,
+  });
+
+  final double width;
+  final IconData icon;
+  final Color color;
+  final int value;
+  final String label;
+  final String action;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE1E4DA)),
+        ),
+        child: Column(
+          children: [
+            _AdminIconCircle(icon: icon, color: color),
+            const SizedBox(height: 8),
+            Text(
+              value.toString(),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: onPressed,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(48, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              child: Text(action, textAlign: TextAlign.center),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminIconCircle extends StatelessWidget {
+  const _AdminIconCircle({
+    required this.icon,
+    required this.color,
+    this.small = false,
+  });
+
+  final IconData icon;
+  final Color color;
+  final bool small;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: small ? 40 : 52,
+      height: small ? 40 : 52,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: small ? 21 : 28),
+    );
+  }
+}
+
+BoxDecoration _adminCardDecoration() {
+  return BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(14),
+    border: Border.all(color: const Color(0xFFE1E4DA)),
+    boxShadow: const [
+      BoxShadow(color: Color(0x0F000000), blurRadius: 14, offset: Offset(0, 6)),
+    ],
+  );
+}
+
+Color _toneColor(AdminCardTone tone) {
+  return switch (tone) {
+    AdminCardTone.green => const Color(0xFF55752B),
+    AdminCardTone.blue => const Color(0xFF2F6FA3),
+    AdminCardTone.orange => const Color(0xFFC58A17),
+    AdminCardTone.red => Colors.red,
+    AdminCardTone.neutral => const Color(0xFF667085),
+  };
+}
+
+String _formatAdminDate(String value) {
+  if (value.trim().isEmpty) return '-';
+  final date = DateTime.tryParse(value);
+  if (date == null) return value;
+  const months = [
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
+  final local = date.toLocal();
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${local.day} ${months[local.month - 1]} ${local.year} à ${local.hour}:$minute';
+}
+
+String _humanActivityLabel(String value) {
+  return switch (value) {
+    'sync_remote_success' => 'Synchronisation distante réussie',
+    'admin_sync_success' => 'Synchronisation administrateur réussie',
+    'admin_sync_partial' => 'Synchronisation partielle',
+    'admin_sync_failed' => 'Synchronisation échouée',
+    'create_person' => 'Membre ajouté',
+    'edit_person' => 'Membre modifié',
+    'delete_person' => 'Membre supprimé',
+    _ =>
+      value
+          .split('_')
+          .where((part) => part.isNotEmpty)
+          .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+          .join(' '),
+  };
 }
 
 class _AdminCenterSideNavigation extends StatelessWidget {
@@ -1202,8 +2117,11 @@ class _AdminCenterSideNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: SafeArea(
+      color: Colors.white,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: Color(0xFFE1E4DA))),
+        ),
         child: _AdminCenterNavigationList(
           selected: selected,
           data: data,
@@ -1229,16 +2147,25 @@ class _AdminCenterNavigationList extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 18),
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
           child: Text(
             'Centre d’administration',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: const Color(0xFF3D443B),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
           ),
         ),
-        for (final section in _AdminCenterSection.values)
+        for (final section in _AdminCenterSection.values) ...[
+          if (section == _AdminCenterSection.statistics)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Divider(height: 1),
+            ),
           _AdminCenterNavigationTile(
             selected: section == selected,
             label: _adminSectionLabel(l10n, section),
@@ -1246,7 +2173,45 @@ class _AdminCenterNavigationList extends StatelessWidget {
             count: _adminSectionCount(section, data),
             onTap: () => onSelect(section),
           ),
+        ],
       ],
+    );
+  }
+}
+
+class _AdminSectionSelector extends StatelessWidget {
+  const _AdminSectionSelector({
+    required this.selected,
+    required this.data,
+    required this.onSelect,
+  });
+
+  final _AdminCenterSection selected;
+  final FamilyTreeData data;
+  final ValueChanged<_AdminCenterSection> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<_AdminCenterSection>(
+        initialValue: selected,
+        decoration: const InputDecoration(
+          labelText: 'Centre d’administration',
+          border: OutlineInputBorder(),
+        ),
+        items: [
+          for (final section in _AdminCenterSection.values)
+            DropdownMenuItem(
+              value: section,
+              child: Text(_adminSectionLabel(l10n, section)),
+            ),
+        ],
+        onChanged: (value) {
+          if (value != null) onSelect(value);
+        },
+      ),
     );
   }
 }
@@ -1268,23 +2233,79 @@ class _AdminCenterNavigationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primary = const Color(0xFF55752B);
+    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: selected ? const Color(0xFF315B22) : const Color(0xFF2F332D),
+      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+      letterSpacing: 0,
+    );
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: ListTile(
-        selected: selected,
-        selectedTileColor: Theme.of(context).colorScheme.primaryContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        leading: Icon(icon),
-        title: Text(label, overflow: TextOverflow.ellipsis),
-        trailing: count == null
-            ? null
-            : Badge(
-                label: Text(count.toString()),
-                backgroundColor: selected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.secondary,
-              ),
-        onTap: onTap,
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected ? const Color(0xFFE8F2D8) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: SizedBox(
+            height: 50,
+            child: Stack(
+              children: [
+                if (selected)
+                  PositionedDirectional(
+                    start: 0,
+                    top: 7,
+                    bottom: 7,
+                    child: Container(width: 4, color: primary),
+                  ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 14, end: 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        icon,
+                        size: 22,
+                        color: selected ? primary : const Color(0xFF20241F),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textStyle,
+                        ),
+                      ),
+                      if (count != null)
+                        Container(
+                          constraints: const BoxConstraints(minWidth: 22),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF55752B),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            count.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              height: 1,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

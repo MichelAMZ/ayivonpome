@@ -33,7 +33,7 @@ class _ModificationCodeRequiredDialogState
     final data = ref.watch(familyTreeProvider).value!;
     final admins = ref.read(adminServiceProvider).activeAdmins(data);
     return AlertDialog(
-      title: Text(l10n.modificationCodeRequired),
+      title: const Text('Autorisation requise'),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: SingleChildScrollView(
@@ -41,7 +41,9 @@ class _ModificationCodeRequiredDialogState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(l10n.modificationCodeRequiredMessage),
+              const Text(
+                'Saisissez le code de modification pour autoriser l’enregistrement de ces changements.',
+              ),
               const SizedBox(height: 12),
               ...admins.map((admin) => AdminContactCard(admin: admin)),
               const SizedBox(height: 12),
@@ -60,13 +62,15 @@ class _ModificationCodeRequiredDialogState
           onPressed: () => Navigator.pop(context, false),
           child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _unlock, child: Text(l10n.enter)),
+        FilledButton(
+          onPressed: _unlock,
+          child: const Text('Vérifier et enregistrer'),
+        ),
       ],
     );
   }
 
   Future<void> _unlock() async {
-    final l10n = AppLocalizations.of(context);
     final ok = await ref
         .read(authSessionProvider.notifier)
         .unlockModification(_controller.text);
@@ -77,7 +81,7 @@ class _ModificationCodeRequiredDialogState
         const SnackBar(content: Text('Accès modification autorisé.')),
       );
     } else {
-      setState(() => _error = l10n.invalidModificationCode);
+      setState(() => _error = 'Code incorrect ou accès non autorisé.');
     }
   }
 }

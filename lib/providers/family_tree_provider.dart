@@ -2302,11 +2302,33 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final queued = data.pendingSyncQueue
         .where((item) => operationIds.contains(item.id))
         .toList();
+    final authorizationErrors = queued.where(
+      (item) =>
+          item.lastErrorCode == 'permission-denied' ||
+          item.lastErrorCode == 'unauthenticated',
+    );
+    if (authorizationErrors.isNotEmpty) {
+      return MemberSaveResult(
+        status: MemberSaveStatus.authorizationRequired,
+        lastError: authorizationErrors
+            .map((item) => item.lastError)
+            .where((item) => item.trim().isNotEmpty)
+            .join('\n'),
+        lastErrorCode: authorizationErrors
+            .map((item) => item.lastErrorCode)
+            .where((item) => item.trim().isNotEmpty)
+            .join('\n'),
+      );
+    }
     if (queued.any((item) => item.status == 'failed')) {
       return MemberSaveResult(
         status: MemberSaveStatus.failed,
         lastError: queued
             .map((item) => item.lastError)
+            .where((item) => item.trim().isNotEmpty)
+            .join('\n'),
+        lastErrorCode: queued
+            .map((item) => item.lastErrorCode)
             .where((item) => item.trim().isNotEmpty)
             .join('\n'),
       );
