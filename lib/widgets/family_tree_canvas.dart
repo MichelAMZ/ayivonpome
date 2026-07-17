@@ -130,9 +130,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
         final compactSurface = constraints.maxWidth < 720;
         final familyHead = ref.watch(familyLeaderProvider);
-        final overlayReservedSpace = compactSurface
-            ? (familyHead == null ? 118.0 : 214.0)
-            : 128.0;
+        final overlayReservedSpace = compactSurface ? 118.0 : 128.0;
         final hasDisplayPeople = displayData.people.isNotEmpty;
         final layout = hasDisplayPeople
             ? _TreeLayout.build(
@@ -1204,6 +1202,9 @@ class _TreeWorkspaceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headAccordion = familyHead == null || onOpenFamilyHead == null
+        ? null
+        : FamilyHeadAccordion(member: familyHead!, onOpen: onOpenFamilyHead!);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1217,14 +1218,10 @@ class _TreeWorkspaceHeader extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (familyHead != null && onOpenFamilyHead != null) ...[
+              if (headAccordion != null) ...[
                 Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: FamilyHeadCard(
-                    member: familyHead!,
-                    compact: true,
-                    onOpen: onOpenFamilyHead!,
-                  ),
+                  child: headAccordion,
                 ),
                 const SizedBox(height: 8),
               ],
@@ -1235,19 +1232,13 @@ class _TreeWorkspaceHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 172,
-                child: familyHead == null || onOpenFamilyHead == null
-                    ? const SizedBox.shrink()
-                    : Align(
-                        alignment: AlignmentDirectional.topStart,
-                        child: FamilyHeadCard(
-                          member: familyHead!,
-                          onOpen: onOpenFamilyHead!,
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 16),
+              if (headAccordion != null) ...[
+                Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: headAccordion,
+                ),
+                const SizedBox(width: 16),
+              ],
               Expanded(
                 child: Align(alignment: Alignment.topCenter, child: child),
               ),
@@ -1337,27 +1328,150 @@ class _TreeWelcomeBanner extends StatelessWidget {
   }
 }
 
-class FamilyHeadCard extends StatelessWidget {
-  const FamilyHeadCard({
+class FamilyHeadAccordion extends StatefulWidget {
+  const FamilyHeadAccordion({
     super.key,
     required this.member,
     required this.onOpen,
-    this.compact = false,
   });
 
   final Person member;
   final VoidCallback onOpen;
-  final bool compact;
+
+  @override
+  State<FamilyHeadAccordion> createState() => _FamilyHeadAccordionState();
+}
+
+class _FamilyHeadAccordionState extends State<FamilyHeadAccordion> {
+  final MenuController _controller = MenuController();
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant FamilyHeadAccordion oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.member.id != widget.member.id && _expanded) {
+      _controller.close();
+      _expanded = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_expanded) _controller.close();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() {
+      _expanded = !_expanded;
+      if (_expanded) {
+        _controller.open();
+      } else {
+        _controller.close();
+      }
+    });
+  }
+
+  void _onOpenChanged(bool value) {
+    if (_expanded == value || !mounted) return;
+    setState(() => _expanded = value);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final avatarSize = compact ? 56.0 : 64.0;
+    return Semantics(
+      button: true,
+      toggled: _expanded,
+      label: _expanded
+          ? 'Masquer le chef de famille'
+          : 'Afficher le chef de famille',
+      value: _expanded ? 'développé' : 'réduit',
+      child: MenuAnchor(
+        controller: _controller,
+        alignmentOffset: const Offset(0, 8),
+        onOpen: () => _onOpenChanged(true),
+        onClose: () => _onOpenChanged(false),
+        style: MenuStyle(
+          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+          elevation: const WidgetStatePropertyAll(0),
+          side: const WidgetStatePropertyAll(BorderSide.none),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        menuChildren: [
+          FamilyHeadCard(member: widget.member, onOpen: widget.onOpen),
+        ],
+        builder: (context, controller, child) {
+          return Tooltip(
+            message: _expanded
+                ? 'Masquer le chef de famille'
+                : 'Afficher le chef de famille',
+            child: OutlinedButton.icon(
+              onPressed: _toggle,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                backgroundColor: Colors.white.withValues(alpha: 0.96),
+                foregroundColor: const Color(0xFF183B2A),
+                side: const BorderSide(color: Color(0xFF55752B)),
+                padding: const EdgeInsetsDirectional.only(
+                  start: 14,
+                  end: 10,
+                  top: 12,
+                  bottom: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(
+                Icons.workspace_premium_rounded,
+                color: Color(0xFFC99A19),
+                size: 21,
+              ),
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Chef de famille',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    semanticLabel: _expanded ? 'Réduire' : 'Développer',
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class FamilyHeadCard extends StatelessWidget {
+  const FamilyHeadCard({super.key, required this.member, required this.onOpen});
+
+  final Person member;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    const avatarSize = 64.0;
     final photo = member.photo.trim();
-    final name = member.fullName.trim().isEmpty ? '-' : member.fullName.trim();
+    final name = member.fullName.trim().isEmpty
+        ? '${member.firstName} ${member.lastName}'.trim()
+        : member.fullName.trim();
+    final displayName = name.isEmpty ? 'Chef de famille' : name;
     return Semantics(
       button: true,
       image: photo.isNotEmpty,
-      label: 'Chef de famille : $name',
+      label: 'Chef de famille : $displayName',
       child: Tooltip(
         message: 'Voir la fiche du chef de famille',
         child: Material(
@@ -1366,13 +1480,8 @@ class FamilyHeadCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             onTap: onOpen,
             child: Ink(
-              width: compact ? 150 : 164,
-              padding: EdgeInsets.fromLTRB(
-                compact ? 10 : 12,
-                compact ? 10 : 12,
-                compact ? 10 : 12,
-                compact ? 9 : 10,
-              ),
+              width: 252,
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.96),
                 borderRadius: BorderRadius.circular(14),
@@ -1394,16 +1503,16 @@ class FamilyHeadCard extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: avatarSize / 2,
-                        backgroundColor: const Color(0xFFE6F0FF),
-                        foregroundColor: const Color(0xFF1E6CC7),
+                        backgroundColor: const Color(0xFFE6F0FA),
+                        foregroundColor: const Color(0xFF2F6FA3),
                         backgroundImage: photo.isEmpty
                             ? null
                             : NetworkImage(photo),
                         child: photo.isEmpty
                             ? Text(
                                 _initials(member),
-                                style: TextStyle(
-                                  fontSize: compact ? 19 : 22,
+                                style: const TextStyle(
+                                  fontSize: 22,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0,
                                 ),
@@ -1411,18 +1520,18 @@ class FamilyHeadCard extends StatelessWidget {
                             : null,
                       ),
                       Positioned(
-                        top: compact ? -10 : -12,
-                        child: Icon(
+                        top: -12,
+                        child: const Icon(
                           Icons.workspace_premium_rounded,
-                          color: const Color(0xFFC99A19),
-                          size: compact ? 22 : 25,
+                          color: Color(0xFFC99A19),
+                          size: 25,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: compact ? 8 : 10),
+                  const SizedBox(height: 10),
                   Text(
-                    name,
+                    displayName,
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -1457,8 +1566,10 @@ class FamilyHeadCard extends StatelessWidget {
   String _initials(Person person) {
     final first = person.firstName.trim();
     final last = person.lastName.trim();
-    final value =
-        '${first.isEmpty ? '' : first.substring(0, 1)}${last.isEmpty ? '' : last.substring(0, 1)}';
+    final value = [
+      if (first.isNotEmpty) first.characters.first,
+      if (last.isNotEmpty) last.characters.first,
+    ].join();
     return value.isEmpty ? '?' : value.toUpperCase();
   }
 }
