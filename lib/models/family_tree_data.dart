@@ -122,12 +122,7 @@ class FamilyTreeData {
     syncSettings: SyncSettings.fromJson(
       Map<String, dynamic>.from(json['syncSettings'] as Map? ?? const {}),
     ),
-    pendingSyncQueue: (json['pendingSyncQueue'] as List? ?? const [])
-        .whereType<Map>()
-        .map(
-          (item) => PendingSyncItem.fromJson(Map<String, dynamic>.from(item)),
-        )
-        .toList(),
+    pendingSyncQueue: _pendingSyncQueueFromJson(json),
     appSettings: AppSettings.fromJson(
       Map<String, dynamic>.from(json['appSettings'] as Map? ?? const {}),
     ),
@@ -615,11 +610,16 @@ class FamilyTreeData {
   );
 
   Map<String, dynamic> toJson() => {
+    'schemaVersion': 2,
+    'familyId': mainFamilyCode,
     'appVersion': appVersion,
     'dataVersion': dataVersion,
     'lastUpdatedAt': lastUpdatedAt,
     'syncSettings': syncSettings.toJson(),
     'pendingSyncQueue': pendingSyncQueue.map((item) => item.toJson()).toList(),
+    'pendingSyncOperations': pendingSyncQueue
+        .map((item) => item.toJson())
+        .toList(),
     'appSettings': appSettings.toJson(),
     'mainFamilyCode': mainFamilyCode,
     'publicMode': publicMode.toJson(),
@@ -668,6 +668,21 @@ class FamilyTreeData {
         .toList(),
     'auditLog': auditLog.map((item) => item.toJson()).toList(),
   };
+
+  static List<PendingSyncItem> _pendingSyncQueueFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final raw =
+        json['pendingSyncQueue'] as List? ??
+        json['pendingSyncOperations'] as List? ??
+        const [];
+    return raw
+        .whereType<Map>()
+        .map(
+          (item) => PendingSyncItem.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
 
   FamilyTreeData copyWith({
     String? appVersion,

@@ -22,10 +22,26 @@ class SyncStatusBadge extends ConsumerWidget {
         )
         .toList();
     final needsResolutionCount = openItems
-        .where((item) => item.status == 'needsResolution')
+        .where(
+          (item) =>
+              item.status == 'needsResolution' ||
+              item.status == 'authorizationRequired' ||
+              item.lastErrorCode == 'permission-denied' ||
+              item.lastErrorCode == 'unauthenticated',
+        )
+        .length;
+    final conflictCount = openItems
+        .where((item) => item.status == 'conflict')
         .length;
     final pendingCount = openItems
-        .where((item) => item.status != 'needsResolution')
+        .where(
+          (item) =>
+              item.status != 'needsResolution' &&
+              item.status != 'authorizationRequired' &&
+              item.status != 'conflict' &&
+              item.lastErrorCode != 'permission-denied' &&
+              item.lastErrorCode != 'unauthenticated',
+        )
         .length;
     final totalOpenCount = openItems.length;
     final rawStatus =
@@ -35,35 +51,53 @@ class SyncStatusBadge extends ConsumerWidget {
     final status = rawStatus == 'error' && totalOpenCount > 0
         ? 'pending'
         : rawStatus;
-    final label = switch (status) {
-      'synced' => 'Synchronisé',
-      'offline' => 'Hors ligne',
-      'syncing' => 'Synchronisation en cours',
-      'pending' => 'Synchronisation en attente',
-      _ => totalOpenCount > 0 ? 'Synchronisation en attente' : 'Synchronisé',
-    };
-    final icon = switch (status) {
-      'synced' => Icons.cloud_done_outlined,
-      'offline' => Icons.cloud_off_outlined,
-      'syncing' => Icons.sync_outlined,
-      'pending' => Icons.sync_outlined,
-      _ => totalOpenCount > 0 ? Icons.sync_outlined : Icons.cloud_done_outlined,
-    };
-    final color = switch (status) {
-      'synced' => const Color(0xFF2E7D32),
-      'offline' => const Color(0xFF6D6F75),
-      'syncing' => const Color(0xFF1565C0),
-      'pending' => const Color(0xFF9A6A00),
-      _ =>
-        totalOpenCount > 0 ? const Color(0xFF9A6A00) : const Color(0xFF2E7D32),
-    };
-    final displayLabel = totalOpenCount == 0
-        ? label
-        : needsResolutionCount > 0 && pendingCount > 0
-        ? '$pendingCount en attente · $needsResolutionCount à vérifier'
+    final label = conflictCount > 0
+        ? 'Conflit à résoudre'
         : needsResolutionCount > 0
-        ? '$needsResolutionCount à vérifier'
-        : '$label ($pendingCount)';
+        ? 'Autorisation requise'
+        : totalOpenCount > 0
+        ? (totalOpenCount == 1
+              ? '1 sauvegarde en attente'
+              : '$totalOpenCount sauvegardes en attente')
+        : switch (status) {
+            'synced' => 'Synchronisé',
+            'offline' => 'Hors ligne',
+            'syncing' => 'Synchronisation en cours',
+            'pending' => 'Synchronisation en attente',
+            _ =>
+              totalOpenCount > 0 ? 'Synchronisation en attente' : 'Synchronisé',
+          };
+    final icon = conflictCount > 0
+        ? Icons.merge_type_outlined
+        : needsResolutionCount > 0
+        ? Icons.lock_outline
+        : totalOpenCount > 0
+        ? Icons.cloud_queue_outlined
+        : switch (status) {
+            'synced' => Icons.cloud_done_outlined,
+            'offline' => Icons.cloud_off_outlined,
+            'syncing' => Icons.sync_outlined,
+            'pending' => Icons.sync_outlined,
+            _ =>
+              totalOpenCount > 0
+                  ? Icons.sync_outlined
+                  : Icons.cloud_done_outlined,
+          };
+    final color = conflictCount > 0
+        ? Colors.red
+        : needsResolutionCount > 0 || totalOpenCount > 0
+        ? const Color(0xFF9A6A00)
+        : switch (status) {
+            'synced' => const Color(0xFF2E7D32),
+            'offline' => const Color(0xFF6D6F75),
+            'syncing' => const Color(0xFF1565C0),
+            'pending' => const Color(0xFF9A6A00),
+            _ =>
+              totalOpenCount > 0
+                  ? const Color(0xFF9A6A00)
+                  : const Color(0xFF2E7D32),
+          };
+    final displayLabel = label;
 
     return Align(
       alignment: AlignmentDirectional.centerEnd,
@@ -73,8 +107,8 @@ class SyncStatusBadge extends ConsumerWidget {
           message: totalOpenCount == 0
               ? label
               : needsResolutionCount > 0
-              ? '$pendingCount en attente - $needsResolutionCount à vérifier'
-              : '$label - $pendingCount modification(s)',
+              ? '$pendingCount en attente - $needsResolutionCount autorisation(s) requise(s)'
+              : label,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.10),

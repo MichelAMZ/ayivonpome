@@ -140,9 +140,14 @@ class JsonFamilyRepository implements FamilyRepository {
     await _write(data.copyWith(familyLinks: links));
   }
 
-  Future<void> _write(FamilyTreeData data) {
-    return storage.writeRaw(
-      const JsonEncoder.withIndent('  ').convert(data.toJson()),
-    );
+  Future<void> _write(FamilyTreeData data) async {
+    final raw = const JsonEncoder.withIndent('  ').convert(data.toJson());
+    FamilyTreeData.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    await storage.writeRaw(raw);
+    final persisted = await storage.readRaw();
+    if (persisted == null || persisted.trim().isEmpty) {
+      throw StateError('local_json_write_failed');
+    }
+    FamilyTreeData.fromJson(jsonDecode(persisted) as Map<String, dynamic>);
   }
 }

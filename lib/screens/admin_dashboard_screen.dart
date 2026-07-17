@@ -19,6 +19,7 @@ import '../models/family_tree_data.dart';
 import '../models/firebase_user_role.dart';
 import '../models/info_news.dart';
 import '../models/sync_incident.dart';
+import '../models/sync_state.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
@@ -269,18 +270,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             onTap: () => _selectAdminSection(_AdminCenterSection.users),
           ),
           AdminKpiCard(
-            label: 'Synchronisation',
+            label: 'Sauvegardes en attente',
             value: pendingSyncCount,
             helper: pendingSyncCount == 0
-                ? 'Aucune opération en attente'
-                : '$pendingSyncCount opération(s) à traiter',
-            icon: Icons.sync_outlined,
+                ? 'Toutes les données sont synchronisées'
+                : pendingSyncCount == 1
+                ? '1 sauvegarde à synchroniser'
+                : '$pendingSyncCount sauvegardes à synchroniser',
+            icon: Icons.cloud_queue_outlined,
             tone: pendingSyncCount == 0
                 ? AdminCardTone.green
                 : AdminCardTone.orange,
             healthy: pendingSyncCount == 0,
-            onTap: () =>
-                _selectAdminSection(_AdminCenterSection.synchronization),
+            onTap: () => _selectAdminSection(_AdminCenterSection.backups),
           ),
         ],
       ),
@@ -409,8 +411,26 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (data.syncSettings.syncStatus == 'syncing') {
       return 'Synchronisation en cours';
     }
+    final authorizationRequired = data.pendingSyncQueue
+        .where(
+          (item) =>
+              item.lastErrorCode == 'permission-denied' ||
+              item.lastErrorCode == 'unauthenticated' ||
+              item.status == 'authorizationRequired',
+        )
+        .length;
+    if (authorizationRequired > 0) return 'Autorisation requise';
+    final conflicts = data.pendingSyncQueue
+        .where((item) => item.status == 'conflict')
+        .length;
+    if (conflicts > 0) return 'Conflit à résoudre';
     if (data.syncSettings.syncStatus == 'error') return 'Erreur';
-    if (pending > 0) return 'Modifications en attente';
+    if (data.syncSettings.syncStatus == 'offline') return 'Hors ligne';
+    if (pending > 0) {
+      return pending == 1
+          ? '1 sauvegarde en attente'
+          : '$pending sauvegardes en attente';
+    }
     if (data.syncSettings.lastSyncAt.isEmpty) return 'Synchronisé';
     return 'Synchronisé · ${_relativeSyncTime(data.syncSettings.lastSyncAt)}';
   }
@@ -827,6 +847,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return [
       Text('Sauvegardes', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 8),
+      _PendingSavesAdminPanel(data: data),
+      const SizedBox(height: 16),
       _SyncManagementSection(data: data),
     ];
   }
@@ -2858,12 +2880,91 @@ int? _adminSectionCount(_AdminCenterSection section, FamilyTreeData data) {
     _AdminCenterSection.users => data.admins.length,
     _AdminCenterSection.accessCodes => data.familyCodes.length,
     _AdminCenterSection.synchronization => data.pendingSyncQueue.length,
+    _AdminCenterSection.backups => _openPendingSyncItems(data).length,
     _AdminCenterSection.incidents =>
       data.pendingSyncQueue
           .where((item) => item.status == 'failed' || item.lastError.isNotEmpty)
           .length,
     _AdminCenterSection.activityLog => data.auditLog.length,
     _ => null,
+  };
+}
+
+List<PendingSyncItem> _openPendingSyncItems(FamilyTreeData data) {
+  return data.pendingSyncQueue
+      .where(
+        (item) =>
+            item.status != 'synced' &&
+            item.status != 'completed' &&
+            item.status != 'resolved' &&
+            item.status != 'discarded',
+      )
+      .toList();
+}
+
+String _pendingStatus(PendingSyncItem item) {
+  if (item.status == 'conflict') return 'conflict';
+  if (item.status == 'failed') return 'failed';
+  if (item.status == 'needsResolution' ||
+      item.status == 'authorizationRequired' ||
+      item.lastErrorCode == 'permission-denied' ||
+      item.lastErrorCode == 'unauthenticated') {
+    return 'authorizationRequired';
+  }
+  if (item.status == 'inProgress' || item.status == 'syncing') {
+    return 'syncing';
+  }
+  return 'waiting';
+}
+
+String _pendingStatusLabel(String status) {
+  return switch (status) {
+    'syncing' => 'Synchronisation',
+    'authorizationRequired' => 'Autorisation requise',
+    'conflict' => 'Conflit',
+    'failed' => 'Échec',
+    _ => 'En attente',
+  };
+}
+
+Color _pendingStatusColor(String status) {
+  return switch (status) {
+    'syncing' => const Color(0xFF2F6FA3),
+    'authorizationRequired' => const Color(0xFFC58A17),
+    'conflict' => Colors.red,
+    'failed' => Colors.red,
+    _ => const Color(0xFFC58A17),
+  };
+}
+
+IconData _pendingStatusIcon(String status) {
+  return switch (status) {
+    'syncing' => Icons.cloud_sync_outlined,
+    'authorizationRequired' => Icons.lock_outline,
+    'conflict' => Icons.merge_type_outlined,
+    'failed' => Icons.error_outline,
+    _ => Icons.cloud_queue_outlined,
+  };
+}
+
+String _pendingActionLabel(String action) {
+  return switch (action) {
+    'create' => 'Création',
+    'update' => 'Modification',
+    'delete' => 'Suppression',
+    'restore' => 'Restauration',
+    _ => action,
+  };
+}
+
+String _friendlyPendingError(PendingSyncItem item) {
+  return switch (item.lastErrorCode) {
+    'permission-denied' || 'unauthenticated' => 'Autorisation requise',
+    'unavailable' ||
+    'deadline-exceeded' ||
+    'network' => 'Firestore temporairement indisponible',
+    'invalid-argument' || 'failed-precondition' => 'Donnée à corriger',
+    _ => item.lastErrorCode.isEmpty ? item.lastError : item.lastErrorCode,
   };
 }
 
@@ -3072,6 +3173,202 @@ class _ApplicationSettingsSection extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Données rechargées et arbre recentré')),
+    );
+  }
+}
+
+class _PendingSavesAdminPanel extends ConsumerWidget {
+  const _PendingSavesAdminPanel({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = _openPendingSyncItems(data);
+    final creates = pending.where((item) => item.action == 'create').length;
+    final updates = pending.where((item) => item.action == 'update').length;
+    final deletes = pending.where((item) => item.action == 'delete').length;
+    final authorizationRequired = pending
+        .where((item) => _pendingStatus(item) == 'authorizationRequired')
+        .length;
+    final conflicts = pending
+        .where((item) => _pendingStatus(item) == 'conflict')
+        .length;
+    final failed = pending
+        .where((item) => _pendingStatus(item) == 'failed')
+        .length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 760;
+                final title = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sauvegardes en attente',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      pending.isEmpty
+                          ? 'Toutes les données locales sont synchronisées avec Firestore.'
+                          : '${pending.length} sauvegarde(s) protégée(s) dans le JSON local.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                );
+                final actions = Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: pending.isEmpty
+                          ? null
+                          : () => ref
+                                .read(familyTreeProvider.notifier)
+                                .syncPendingChanges(force: true),
+                      icon: const Icon(Icons.cloud_sync_outlined),
+                      label: const Text('Tout synchroniser'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: pending.isEmpty
+                          ? null
+                          : () => _exportPendingSaves(context, pending),
+                      icon: const Icon(Icons.file_download_outlined),
+                      label: const Text('Exporter la file'),
+                    ),
+                  ],
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [title, const SizedBox(height: 12), actions],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: title),
+                    const SizedBox(width: 16),
+                    actions,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            ResponsiveGrid(
+              mobileColumns: 2,
+              tabletColumns: 3,
+              desktopColumns: 6,
+              mainAxisExtent: 76,
+              children: [
+                KpiCard(label: 'Total', value: pending.length),
+                KpiCard(label: 'Créations', value: creates),
+                KpiCard(label: 'Modifications', value: updates),
+                KpiCard(label: 'Suppressions', value: deletes),
+                KpiCard(label: 'Autorisations', value: authorizationRequired),
+                KpiCard(label: 'Conflits / échecs', value: conflicts + failed),
+              ],
+            ),
+            if (pending.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              for (final item in pending.take(20))
+                _PendingOperationTile(item: item),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportPendingSaves(
+    BuildContext context,
+    List<PendingSyncItem> pending,
+  ) async {
+    final payload = {
+      'schemaVersion': 2,
+      'familyId': data.mainFamilyCode,
+      'exportedAt': DateTime.now().toIso8601String(),
+      'pendingSyncOperations': pending.map((item) => item.toJson()).toList(),
+    };
+    await Clipboard.setData(
+      ClipboardData(text: const JsonEncoder.withIndent('  ').convert(payload)),
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('File de sauvegardes copiée en JSON.')),
+    );
+  }
+}
+
+class _PendingOperationTile extends StatelessWidget {
+  const _PendingOperationTile({required this.item});
+
+  final PendingSyncItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _pendingStatus(item);
+    final color = _pendingStatusColor(status);
+    final title = [
+      _pendingActionLabel(item.action),
+      item.entityType,
+      item.entityId,
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: Color(0xFFE1E4DA)),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.12),
+          foregroundColor: color,
+          child: Icon(_pendingStatusIcon(status)),
+        ),
+        title: Text(title.isEmpty ? item.id : title),
+        subtitle: Text(
+          [
+            'Sauvegarde locale : ${_formatAdminDate(item.createdAt)}',
+            'Dernière tentative : ${_formatAdminDate(item.lastAttemptAt)}',
+            'Tentatives : ${item.retryCount}',
+            if (item.lastErrorCode.isNotEmpty)
+              'Erreur : ${_friendlyPendingError(item)}',
+          ].join('\n'),
+        ),
+        isThreeLine: true,
+        trailing: Wrap(
+          spacing: 4,
+          children: [
+            Tooltip(
+              message: status,
+              child: Chip(
+                label: Text(_pendingStatusLabel(status)),
+                visualDensity: VisualDensity.compact,
+                side: BorderSide(color: color.withValues(alpha: 0.45)),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Copier les détails',
+              onPressed: () => Clipboard.setData(
+                ClipboardData(
+                  text: const JsonEncoder.withIndent(
+                    '  ',
+                  ).convert(item.toJson()),
+                ),
+              ),
+              icon: const Icon(Icons.copy_outlined),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

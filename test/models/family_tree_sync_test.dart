@@ -43,6 +43,31 @@ void main() {
     expect(parsed.pendingSyncQueue.single.updatedAt, '2026-07-01T12:00:00');
     expect(parsed.pendingSyncQueue.single.updatedBy, 'admin');
     expect(parsed.pendingSyncQueue.single.lastError, 'network');
+    expect(data.toJson()['schemaVersion'], 2);
+    expect(data.toJson()['pendingSyncOperations'], isA<List>());
+  });
+
+  test('FamilyTreeData migrates pendingSyncOperations alias', () {
+    final parsed = FamilyTreeData.fromJson({
+      'schemaVersion': 2,
+      'familyId': 'ayivon',
+      'pendingSyncOperations': [
+        {
+          'id': 'op001',
+          'entityType': 'person',
+          'entityId': 'p001',
+          'action': 'update',
+          'payload': {'id': 'p001', 'firstName': 'Ama'},
+          'status': 'retryScheduled',
+          'retryCount': 1,
+        },
+      ],
+    });
+
+    expect(parsed.pendingSyncQueue, hasLength(1));
+    expect(parsed.pendingSyncQueue.single.id, 'op001');
+    expect(parsed.pendingSyncQueue.single.action, 'update');
+    expect(parsed.pendingSyncQueue.single.payload['firstName'], 'Ama');
   });
 
   test('FamilyTreeData serializes families and linked tree references', () {
