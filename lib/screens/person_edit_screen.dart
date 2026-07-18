@@ -2199,6 +2199,26 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     );
   }
 
+  ParentDraft? _parentDraftForSave(
+    ParentDraft draft, {
+    required _ParentInputMode? mode,
+    required String originalExistingId,
+  }) {
+    if (!draft.hasIdentity) return null;
+    if (mode == _ParentInputMode.create) {
+      return draft.createsNewPerson ? draft : null;
+    }
+    if (mode == _ParentInputMode.existing) {
+      final selectedId = draft.existingPersonId.trim();
+      if (selectedId.isEmpty) return null;
+      if (widget.person != null && selectedId == originalExistingId.trim()) {
+        return null;
+      }
+      return draft;
+    }
+    return widget.person == null ? draft : null;
+  }
+
   String _initials(Person person) {
     final first = person.firstName.trim().isEmpty
         ? ''
@@ -2452,8 +2472,16 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           .upsertPersonWithParents(
             person,
             widget.person == null ? 'create_person' : 'edit_person',
-            fatherDraft: fatherDraft.hasIdentity ? fatherDraft : null,
-            motherDraft: motherDraft.hasIdentity ? motherDraft : null,
+            fatherDraft: _parentDraftForSave(
+              fatherDraft,
+              mode: _fatherMode,
+              originalExistingId: widget.person?.fatherId ?? '',
+            ),
+            motherDraft: _parentDraftForSave(
+              motherDraft,
+              mode: _motherMode,
+              originalExistingId: widget.person?.motherId ?? '',
+            ),
             linkParentsAsCouple: _linkParentsAsCouple,
             parentCoupleStatus: _parentCoupleStatus,
             actorRole: actorRole,
@@ -2539,6 +2567,10 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             'Votre code ne permet pas cette modification. Saisissez un code de modification valide ou contactez un administrateur.',
           'local_json_write_failed' =>
             'Sauvegarde locale impossible. Vérifiez l’espace disponible du navigateur puis réessayez.',
+          'parent_not_found' =>
+            'Le parent sélectionné est introuvable dans l’arbre. Vérifiez l’onglet Relations ou sélectionnez à nouveau le parent.',
+          'invalid_relationship' || 'invalid_relationship_cycle' =>
+            'La relation familiale sélectionnée est incohérente. Vérifiez l’onglet Relations puis réessayez.',
           _ =>
             'Enregistrement interrompu. Vos modifications sont conservées sur cet appareil.',
         };
