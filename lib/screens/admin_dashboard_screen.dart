@@ -31,6 +31,7 @@ import '../widgets/bug_report_button.dart';
 import '../widgets/bug_report_card.dart';
 import '../widgets/edit_application_title_dialog.dart';
 import '../widgets/kpi_card.dart';
+import '../widgets/modification_code_required_dialog.dart';
 import '../widgets/responsive.dart';
 import '../widgets/secure_code_text_field.dart';
 
@@ -387,10 +388,24 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   Future<void> _quickSynchronize(BuildContext context) async {
     if (_isQuickSyncing) return;
+    final data = ref
+        .read(familyTreeProvider)
+        .maybeWhen(data: (value) => value, orElse: () => null);
+    if (data != null &&
+        !await _requestSyncAuthorizationIfNeeded(context, ref, data)) {
+      return;
+    }
     setState(() => _isQuickSyncing = true);
     try {
-      await ref.read(familyTreeProvider.notifier).syncPendingChanges();
+      final synced = await ref
+          .read(familyTreeProvider.notifier)
+          .syncPendingChanges(force: true);
       if (!context.mounted) return;
+      final blocked = _authorizationRequiredSyncItems(synced).length;
+      if (blocked > 0) {
+        _showAuthorizationRequiredSnackBar(context, blocked);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Synchronisation terminée.')),
       );
@@ -2902,6 +2917,50 @@ List<PendingSyncItem> _openPendingSyncItems(FamilyTreeData data) {
       .toList();
 }
 
+List<PendingSyncItem> _authorizationRequiredSyncItems(FamilyTreeData data) {
+  return _openPendingSyncItems(
+    data,
+  ).where((item) => _pendingStatus(item) == 'authorizationRequired').toList();
+}
+
+Future<bool> _requestSyncAuthorizationIfNeeded(
+  BuildContext context,
+  WidgetRef ref,
+  FamilyTreeData data,
+) async {
+  final blocked = _authorizationRequiredSyncItems(data);
+  if (blocked.isEmpty) return true;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        blocked.length == 1
+            ? 'Une sauvegarde attend un code de modification.'
+            : '${blocked.length} sauvegardes attendent un code de modification.',
+      ),
+    ),
+  );
+  final unlocked = await showDialog<bool>(
+    context: context,
+    builder: (context) => const ModificationCodeRequiredDialog(),
+  );
+  if (!context.mounted) return false;
+  if (unlocked == true) return true;
+  _showAuthorizationRequiredSnackBar(context, blocked.length);
+  return false;
+}
+
+void _showAuthorizationRequiredSnackBar(BuildContext context, int count) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        count <= 1
+            ? 'Synchronisation en attente : un code de modification valide est nécessaire.'
+            : 'Synchronisation en attente : un code de modification valide est nécessaire pour $count sauvegardes.',
+      ),
+    ),
+  );
+}
+
 String _pendingStatus(PendingSyncItem item) {
   if (item.status == 'conflict') return 'conflict';
   if (item.status == 'failed') return 'failed';
@@ -3229,9 +3288,34 @@ class _PendingSavesAdminPanel extends ConsumerWidget {
                     FilledButton.icon(
                       onPressed: pending.isEmpty
                           ? null
-                          : () => ref
-                                .read(familyTreeProvider.notifier)
-                                .syncPendingChanges(force: true),
+                          : () async {
+                              if (!await _requestSyncAuthorizationIfNeeded(
+                                context,
+                                ref,
+                                data,
+                              )) {
+                                return;
+                              }
+                              final synced = await ref
+                                  .read(familyTreeProvider.notifier)
+                                  .syncPendingChanges(force: true);
+                              if (!context.mounted) return;
+                              final blocked = _authorizationRequiredSyncItems(
+                                synced,
+                              ).length;
+                              if (blocked > 0) {
+                                _showAuthorizationRequiredSnackBar(
+                                  context,
+                                  blocked,
+                                );
+                                return;
+                              }
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Synchronisation terminée.'),
+                                ),
+                              );
+                            },
                       icon: const Icon(Icons.cloud_sync_outlined),
                       label: const Text('Tout synchroniser'),
                     ),

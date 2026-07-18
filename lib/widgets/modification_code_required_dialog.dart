@@ -30,8 +30,10 @@ class _ModificationCodeRequiredDialogState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final data = ref.watch(familyTreeProvider).value!;
-    final admins = ref.read(adminServiceProvider).activeAdmins(data);
+    final data = ref.watch(familyTreeProvider).value;
+    final admins = data == null
+        ? const []
+        : ref.read(adminServiceProvider).activeAdmins(data);
     return AlertDialog(
       title: const Text('Autorisation requise'),
       content: ConstrainedBox(
@@ -42,7 +44,8 @@ class _ModificationCodeRequiredDialogState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Saisissez le code de modification pour autoriser l’enregistrement de ces changements.',
+                'Vos modifications sont conservées sur cet appareil. '
+                'Pour les envoyer dans la base familiale partagée, saisissez un code de modification valide.',
               ),
               const SizedBox(height: 12),
               ...admins.map((admin) => AdminContactCard(admin: admin)),

@@ -4,7 +4,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/web/context_menu_preventer.dart';
 import '../l10n/app_localizations.dart';
@@ -55,8 +54,6 @@ class FamilyTreeCanvas extends ConsumerStatefulWidget {
 class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   static const _virtualCanvasMargin = 600.0;
   static const _panBoundaryMargin = 2000.0;
-  static const _welcomeBannerPreferenceKey =
-      'family_tree_canvas_welcome_banner_dismissed';
 
   final _canvasKey = GlobalKey();
   final _controller = TransformationController();
@@ -71,7 +68,6 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   Rect? _lastContentRect;
   Offset? _lastCanvasOffset;
   Map<String, Rect> _lastPersonRects = const {};
-  var _showWelcomeBanner = true;
 
   @override
   void initState() {
@@ -79,7 +75,6 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     _contextMenuPreventerDisposer = installContextMenuPreventer(
       _isPointerInsideCanvas,
     );
-    _loadWelcomeBannerPreference();
   }
 
   @override
@@ -260,10 +255,8 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                 right: compactSurface ? 12 : metrics.canvasPadding,
                 top: compactSurface ? 10 : 12,
                 child: _TreeWorkspaceHeader(
-                  showWelcomeBanner: _showWelcomeBanner,
                   compact: compactSurface,
                   familyHead: familyHead,
-                  onDismissWelcomeBanner: _dismissWelcomeBanner,
                   onOpenFamilyHead: familyHead == null
                       ? null
                       : () => widget.onOpenPerson(familyHead),
@@ -331,21 +324,6 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     _controller.value = _centeredMatrix(_scale);
     _lastCenteredViewport = _lastViewport;
     _saveLastZoom();
-  }
-
-  Future<void> _loadWelcomeBannerPreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      _showWelcomeBanner =
-          !(prefs.getBool(_welcomeBannerPreferenceKey) ?? false);
-    });
-  }
-
-  Future<void> _dismissWelcomeBanner() async {
-    setState(() => _showWelcomeBanner = false);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_welcomeBannerPreferenceKey, true);
   }
 
   void _openNewMemberForm() {
@@ -1185,18 +1163,14 @@ class _TreeGridPainter extends CustomPainter {
 
 class _TreeWorkspaceHeader extends StatelessWidget {
   const _TreeWorkspaceHeader({
-    required this.showWelcomeBanner,
     required this.compact,
     required this.familyHead,
-    required this.onDismissWelcomeBanner,
     required this.onOpenFamilyHead,
     required this.child,
   });
 
-  final bool showWelcomeBanner;
   final bool compact;
   final Person? familyHead;
-  final VoidCallback onDismissWelcomeBanner;
   final VoidCallback? onOpenFamilyHead;
   final Widget child;
 
@@ -1208,12 +1182,6 @@ class _TreeWorkspaceHeader extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (showWelcomeBanner)
-          _TreeWelcomeBanner(
-            compact: compact,
-            onDismiss: onDismissWelcomeBanner,
-          ),
-        SizedBox(height: showWelcomeBanner ? 8 : 0),
         if (compact)
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -1260,70 +1228,6 @@ class _TreeWorkspaceHeader extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _TreeWelcomeBanner extends StatelessWidget {
-  const _TreeWelcomeBanner({required this.compact, required this.onDismiss});
-
-  final bool compact;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 1080),
-      child: Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(minHeight: 48),
-        padding: EdgeInsetsDirectional.only(
-          start: compact ? 12 : 18,
-          end: 6,
-          top: 8,
-          bottom: 8,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFDDE9F8)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0F000000),
-              blurRadius: 14,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.info_outline_rounded,
-              color: Color(0xFF2871C8),
-              size: 22,
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Text(
-                'Bienvenue — consultez et explorez votre histoire familiale.',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Color(0xFF263428),
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Masquer',
-              onPressed: onDismiss,
-              icon: const Icon(Icons.close_rounded),
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

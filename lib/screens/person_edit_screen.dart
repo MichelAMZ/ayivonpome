@@ -2444,6 +2444,9 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         }
         return;
       }
+      final auth = ref.read(authSessionProvider);
+      final actorRole = auth.firebaseRole ?? auth.session?.role ?? 'viewer';
+      final adminId = auth.firebaseUid ?? auth.firebaseEmail ?? actorRole;
       final result = await ref
           .read(familyTreeProvider.notifier)
           .upsertPersonWithParents(
@@ -2453,14 +2456,13 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             motherDraft: motherDraft.hasIdentity ? motherDraft : null,
             linkParentsAsCouple: _linkParentsAsCouple,
             parentCoupleStatus: _parentCoupleStatus,
+            actorRole: actorRole,
+            adminId: adminId,
             allowDuplicate:
                 duplicateDecision == PersonDuplicateDecision.saveAnyway,
           );
       final saveResults = [result];
       if (_pendingUnions.isNotEmpty) {
-        final auth = ref.read(authSessionProvider);
-        final actorRole = auth.firebaseRole ?? auth.session?.role ?? 'viewer';
-        final adminId = auth.firebaseUid ?? auth.firebaseEmail ?? actorRole;
         for (final union in _pendingUnions) {
           saveResults.add(
             await ref
@@ -2531,12 +2533,19 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       );
     } on StateError catch (error) {
       if (mounted) {
+        final message = switch (error.message) {
+          'duplicate_person' => l10n.duplicatePerson,
+          'forbidden' =>
+            'Votre code ne permet pas cette modification. Saisissez un code de modification valide ou contactez un administrateur.',
+          'local_json_write_failed' =>
+            'Sauvegarde locale impossible. Vérifiez l’espace disponible du navigateur puis réessayez.',
+          _ =>
+            'Enregistrement interrompu. Vos modifications sont conservées sur cet appareil.',
+        };
         _showSaveSnackBar(
           color: Colors.red,
           icon: Icons.error,
-          message: error.message == 'duplicate_person'
-              ? l10n.duplicatePerson
-              : 'Échec de l’enregistrement dans la base de données.',
+          message: message,
           duration: const Duration(seconds: 5),
         );
       }

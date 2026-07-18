@@ -84,11 +84,21 @@ class _AppShellState extends ConsumerState<AppShell>
         .maybeWhen(data: (value) => value, orElse: () => null);
     if (data == null || data.pendingSyncQueue.isEmpty) return;
     if (!force && !data.pendingSyncQueue.any(_isSyncDue)) return;
-    ref.read(familyTreeProvider.notifier).syncPendingChanges(force: force);
+    unawaited(
+      ref
+          .read(familyTreeProvider.notifier)
+          .syncPendingChanges(force: force)
+          .catchError((Object error, StackTrace stackTrace) {
+            debugPrint('Background synchronization skipped: $error');
+            debugPrintStack(stackTrace: stackTrace);
+            return data;
+          }),
+    );
   }
 
   bool _isSyncDue(PendingSyncItem item) {
     if (item.status == 'needsResolution' ||
+        item.status == 'authorizationRequired' ||
         item.status == 'discarded' ||
         item.requiresUserAction) {
       return false;

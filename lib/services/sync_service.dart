@@ -260,8 +260,8 @@ class SyncService {
           item.status == 'completed' ||
           item.status == 'resolved' ||
           item.status == 'discarded' ||
-          item.status == 'needsResolution' ||
-          item.requiresUserAction) {
+          (!force &&
+              (item.status == 'needsResolution' || item.requiresUserAction))) {
         remaining.add(item);
         continue;
       }
@@ -700,8 +700,8 @@ class SyncService {
   ) {
     final code = _errorCode(error, lastError);
     final message = lastError.toLowerCase();
-    if (code == 'permission-denied') {
-      return retryCount >= 3;
+    if (code == 'permission-denied' || code == 'unauthenticated') {
+      return true;
     }
     if (code == 'invalid-argument' || code == 'failed-precondition') {
       return true;
@@ -759,7 +759,9 @@ class SyncService {
 
   bool _isRetryableError(String code, String lastError) {
     final message = lastError.toLowerCase();
-    if (code == 'permission-denied') return true;
+    if (code == 'permission-denied' || code == 'unauthenticated') {
+      return false;
+    }
     const retryableCodes = {
       'aborted',
       'deadline-exceeded',
@@ -768,7 +770,6 @@ class SyncService {
       'resource-exhausted',
       'sync-error',
       'unavailable',
-      'unauthenticated',
       'unknown',
     };
     return retryableCodes.contains(code) ||

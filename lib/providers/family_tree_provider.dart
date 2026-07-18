@@ -813,6 +813,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   }) async {
     final data = await future;
     final now = DateTime.now().toIso8601String();
+    final updatedBy = adminId.trim().isEmpty ? actorRole : adminId.trim();
     final people = [...data.people];
     final index = people.indexWhere((item) => item.id == person.id);
     if (index == -1 && !allowDuplicate) {
@@ -828,7 +829,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ? (person.createdAt.isEmpty ? now : person.createdAt)
           : people[index].createdAt,
       updatedAt: now,
-      updatedBy: action,
+      updatedBy: updatedBy.isEmpty ? action : updatedBy,
       version: index == -1 ? 1 : people[index].version + 1,
       deletedAt: '',
     );
@@ -841,7 +842,16 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
 
     var nextData = data.copyWith(
       people: people,
-      auditLog: [...data.auditLog, _log(action, person.id, person.familyCode)],
+      auditLog: [
+        ...data.auditLog,
+        _log(
+          action,
+          person.id,
+          person.familyCode,
+          actorRole: actorRole,
+          adminId: adminId,
+        ),
+      ],
     );
     final parentResult = ref
         .read(parentAutoCreationServiceProvider)
@@ -885,7 +895,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           .personOperation(
             person: updatedChild,
             action: index == -1 ? 'create' : 'update',
-            updatedBy: action,
+            updatedBy: updatedBy.isEmpty ? action : updatedBy,
           ),
       ...parentResult.createdParents.map(
         (parent) => ref
@@ -893,7 +903,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
             .personOperation(
               person: parent,
               action: 'create',
-              updatedBy: 'auto_parent_creation',
+              updatedBy: updatedBy.isEmpty ? 'auto_parent_creation' : updatedBy,
             ),
       ),
       ...parentResult.updatedParents.map(
@@ -902,7 +912,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
             .personOperation(
               person: parent,
               action: 'update',
-              updatedBy: 'parent_link',
+              updatedBy: updatedBy.isEmpty ? 'parent_link' : updatedBy,
             ),
       ),
       ...parentResult.createdMarriageRelations.map(

@@ -107,30 +107,33 @@ void main() {
     },
   );
 
-  test('marks repeated permission-denied create as needsResolution', () async {
-    final repository = _FakeFamilyRepository(shouldDenyCreates: true);
-    final service = SyncService(
-      connectivity: const _OnlineConnectivityService(),
-      remoteRepository: repository,
-    );
-    const person = Person(id: 'p1784208484332000', firstName: 'Nouveau');
-    final operation = service
-        .personOperation(person: person, action: 'create', updatedBy: 'test')
-        .copyWith(retryCount: 2, status: 'failed');
+  test(
+    'marks permission-denied create as needsResolution immediately',
+    () async {
+      final repository = _FakeFamilyRepository(shouldDenyCreates: true);
+      final service = SyncService(
+        connectivity: const _OnlineConnectivityService(),
+        remoteRepository: repository,
+      );
+      const person = Person(id: 'p1784208484332000', firstName: 'Nouveau');
+      final operation = service
+          .personOperation(person: person, action: 'create', updatedBy: 'test')
+          .copyWith(status: 'pending');
 
-    final result = await service.syncPendingQueue(
-      _tree(people: const [person], pendingSyncQueue: [operation]),
-    );
+      final result = await service.syncPendingQueue(
+        _tree(people: const [person], pendingSyncQueue: [operation]),
+      );
 
-    expect(result.pendingSyncQueue, hasLength(1));
-    expect(result.pendingSyncQueue.single.status, 'needsResolution');
-    expect(result.pendingSyncQueue.single.retryCount, 3);
-    expect(result.pendingSyncQueue.single.requiresUserAction, isTrue);
-    expect(
-      result.pendingSyncQueue.single.lastError,
-      contains('permission-denied'),
-    );
-  });
+      expect(result.pendingSyncQueue, hasLength(1));
+      expect(result.pendingSyncQueue.single.status, 'needsResolution');
+      expect(result.pendingSyncQueue.single.retryCount, 1);
+      expect(result.pendingSyncQueue.single.requiresUserAction, isTrue);
+      expect(
+        result.pendingSyncQueue.single.lastError,
+        contains('permission-denied'),
+      );
+    },
+  );
 
   test('does not retry a scheduled operation before nextAttemptAt', () async {
     final repository = _FakeFamilyRepository();
@@ -185,6 +188,29 @@ void main() {
     expect(result.pendingSyncQueue, isEmpty);
     expect(repository.createdPeople.single.id, 'person-123');
   });
+
+  test(
+    'manual retry can resume an operation waiting for authorization',
+    () async {
+      final repository = _FakeFamilyRepository();
+      final service = SyncService(
+        connectivity: const _OnlineConnectivityService(),
+        remoteRepository: repository,
+      );
+      const person = Person(id: 'person-123', firstName: 'Kossi');
+      final operation = service
+          .personOperation(person: person, action: 'create', updatedBy: 'test')
+          .copyWith(status: 'needsResolution', requiresUserAction: true);
+
+      final result = await service.syncPendingQueue(
+        _tree(people: const [person], pendingSyncQueue: [operation]),
+        force: true,
+      );
+
+      expect(result.pendingSyncQueue, isEmpty);
+      expect(repository.createdPeople.single.id, 'person-123');
+    },
+  );
 }
 
 FamilyTreeData _tree({
