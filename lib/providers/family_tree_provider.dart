@@ -250,7 +250,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final syncStatus = pendingQueue.isEmpty ? 'synced' : 'pending';
     var merged = current.copyWith(
       mainFamilyCode: remoteData.mainFamilyCode,
-      people: remoteData.people,
+      people: _mergeRemotePeopleKeepingLocalChanges(current, remoteData),
       marriageRelations: remoteData.marriageRelations,
       familyLinks: remoteData.familyLinks,
       lastUpdatedAt: DateTime.now().toIso8601String(),
@@ -274,6 +274,54 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     );
   }
 
+  List<Person> _mergeRemotePeopleKeepingLocalChanges(
+    FamilyTreeData current,
+    FamilyTreeData remoteData,
+  ) {
+    final pendingPersonIds = current.pendingSyncQueue
+        .where(
+          (item) => item.entityType == 'person' && _isOpenPendingSyncItem(item),
+        )
+        .map((item) => item.entityId)
+        .where((id) => id.trim().isNotEmpty)
+        .toSet();
+    final remoteById = {
+      for (final person in remoteData.people) person.id: person,
+    };
+    final mergedById = Map<String, Person>.from(remoteById);
+
+    for (final localPerson in current.people) {
+      final remotePerson = remoteById[localPerson.id];
+      if (pendingPersonIds.contains(localPerson.id) ||
+          remotePerson == null ||
+          _isLocalVersionNewer(localPerson.updatedAt, remotePerson.updatedAt)) {
+        mergedById[localPerson.id] = localPerson;
+      }
+    }
+
+    return [
+      for (final remotePerson in remoteData.people)
+        mergedById[remotePerson.id]!,
+      for (final localPerson in current.people)
+        if (!remoteById.containsKey(localPerson.id) &&
+            mergedById.containsKey(localPerson.id))
+          mergedById[localPerson.id]!,
+    ];
+  }
+
+  bool _isOpenPendingSyncItem(PendingSyncItem item) {
+    const closedStatuses = {'completed', 'discarded', 'resolved', 'synced'};
+    return !closedStatuses.contains(item.status);
+  }
+
+  bool _isLocalVersionNewer(String localUpdatedAt, String remoteUpdatedAt) {
+    final local = DateTime.tryParse(localUpdatedAt);
+    final remote = DateTime.tryParse(remoteUpdatedAt);
+    if (local == null) return false;
+    if (remote == null) return true;
+    return local.isAfter(remote);
+  }
+
   Future<FamilyTreeData> save(
     FamilyTreeData data, {
     PendingSyncItem? syncOperation,
@@ -282,7 +330,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final generationSynced = ref
         .read(genealogyGenerationServiceProvider)
         .recalculate(data);
-    var synced = ref
+    var localFirst = ref
         .read(changeNotificationServiceProvider)
         .syncFromAuditLog(
           ref
@@ -291,23 +339,84 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         )
         .copyWith(lastUpdatedAt: DateTime.now().toIso8601String());
     final operations = [?syncOperation, ...syncOperations];
+    final locallySaved = operations.isEmpty
+        ? localFirst
+        : _queueLocalSyncOperations(localFirst, operations);
     debugPrint(
-      'FAMILY SAVE START familyId=${synced.mainFamilyCode} '
+      'FAMILY SAVE START familyId=${localFirst.mainFamilyCode} '
       'operations=${operations.length}',
     );
-    synced = await ref
-        .read(syncServiceProvider)
-        .enqueueOrSyncMany(synced, operations: operations);
-    debugPrint(
-      'FAMILY SAVE remote sync STEP DONE status=${synced.syncSettings.syncStatus} '
-      'queue=${synced.pendingSyncQueue.length}',
-    );
     debugPrint('FAMILY SAVE local JSON START');
-    await ref.read(localJsonRepositoryProvider).saveFamilyTree(synced);
+    await ref.read(localJsonRepositoryProvider).saveFamilyTree(locallySaved);
     debugPrint('FAMILY SAVE local JSON SUCCESS');
-    state = AsyncData(synced);
-    debugPrint('FAMILY SAVE state updated');
-    return synced;
+    state = AsyncData(locallySaved);
+    debugPrint('FAMILY SAVE state updated from local JSON');
+    if (operations.isNotEmpty) {
+      unawaited(_syncSavedDataInBackground(locallySaved, operations));
+    }
+    return locallySaved;
+  }
+
+  FamilyTreeData _queueLocalSyncOperations(
+    FamilyTreeData data,
+    List<PendingSyncItem> operations,
+  ) {
+    var queue = [...data.pendingSyncQueue];
+    for (final operation in operations) {
+      queue = [
+        ..._removeMatchingSyncOperations(queue, [operation]),
+        operation.copyWith(status: 'pending'),
+      ];
+    }
+    return data.copyWith(
+      pendingSyncQueue: queue,
+      syncSettings: data.syncSettings.copyWith(syncStatus: 'pending'),
+      appSettings: data.appSettings.copyWith(
+        storageSettings: data.appSettings.storageSettings.copyWith(
+          syncStatus: 'pending',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _syncSavedDataInBackground(
+    FamilyTreeData localData,
+    List<PendingSyncItem> operations,
+  ) async {
+    final syncService = ref.read(syncServiceProvider);
+    final localRepository = ref.read(localJsonRepositoryProvider);
+    try {
+      final synced = await syncService.enqueueOrSyncMany(
+        localData,
+        operations: operations,
+      );
+      if (!ref.mounted) return;
+      if (_encode(synced) == _encode(state.value ?? localData)) return;
+      await localRepository.saveFamilyTree(synced);
+      if (!ref.mounted) return;
+      state = AsyncData(synced);
+      debugPrint('FAMILY SAVE state updated after remote sync');
+    } catch (error, stackTrace) {
+      debugPrint('FAMILY SAVE remote sync failed after local save: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  List<PendingSyncItem> _removeMatchingSyncOperations(
+    List<PendingSyncItem> queue,
+    List<PendingSyncItem> operations,
+  ) {
+    if (operations.isEmpty || queue.isEmpty) return queue;
+    return queue
+        .where(
+          (item) => !operations.any(
+            (operation) =>
+                item.entityType == operation.entityType &&
+                item.entityId == operation.entityId &&
+                item.action == operation.action,
+          ),
+        )
+        .toList();
   }
 
   Future<MemberSaveResult> saveRelationshipChange(

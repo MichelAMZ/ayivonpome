@@ -1,6 +1,7 @@
 import 'package:ayivonpome/l10n/app_localizations.dart';
 import 'package:ayivonpome/models/family_tree_data.dart';
 import 'package:ayivonpome/models/person.dart';
+import 'package:ayivonpome/models/person_privacy.dart';
 import 'package:ayivonpome/providers/family_tree_provider.dart';
 import 'package:ayivonpome/screens/person_edit_screen.dart';
 import 'package:flutter/material.dart';
@@ -108,6 +109,127 @@ void main() {
 
     expect(find.text('Amouzou Aziangbédé'), findsWidgets);
     expect(find.text('Bassadji'), findsOneWidget);
+  });
+
+  testWidgets('privacy step shows the compact dashboard categories', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          home: PersonEditScreen(person: child),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confidentialité'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Visibilité des informations'), findsOneWidget);
+    expect(find.text('Informations toujours visibles'), findsOneWidget);
+    expect(find.text('Naissance, décès et sépulture'), findsOneWidget);
+    expect(find.text('Coordonnées'), findsOneWidget);
+    expect(find.text('Lieux et localisation'), findsOneWidget);
+    expect(find.text('Autorisations publiques avancées'), findsOneWidget);
+  });
+
+  testWidgets('privacy photo switch updates visible state locally', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          home: PersonEditScreen(person: child),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confidentialité'));
+    await tester.pumpAndSettle();
+
+    final firstSwitch = find.byType(Switch).first;
+    expect(tester.widget<Switch>(firstSwitch).value, isTrue);
+
+    await tester.tap(firstSwitch);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Switch>(firstSwitch).value, isFalse);
+  });
+
+  testWidgets('hide sensitive information requires confirmation', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          locale: Locale('fr'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          home: PersonEditScreen(
+            person: Person(
+              id: 'p001',
+              firstName: 'Djidonou',
+              lastName: 'AMOUZOU',
+              gender: 'male',
+              birthDate: '1942-02-10',
+              familyCode: 'AYIVON',
+              privacy: PersonPrivacy(
+                emailVisible: true,
+                phoneVisible: true,
+                whatsappVisible: true,
+                familyRelationsVisible: true,
+                notesVisible: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confidentialité'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Masquer les informations sensibles'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Masquer les informations sensibles ?'), findsOneWidget);
+
+    await tester.tap(find.text('Masquer').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Les informations sensibles sont masquées.'),
+      findsOneWidget,
+    );
   });
 }
 

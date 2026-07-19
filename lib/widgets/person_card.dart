@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,11 +51,29 @@ class PersonCard extends ConsumerStatefulWidget {
 class _PersonCardState extends ConsumerState<PersonCard> {
   OverlayEntry? _entry;
   bool _hovered = false;
+  bool _showScheduled = false;
+  bool _removeScheduled = false;
 
   @override
   void dispose() {
     _remove();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant PersonCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final personChanged =
+        oldWidget.person.id != widget.person.id ||
+        oldWidget.person.updatedAt != widget.person.updatedAt ||
+        oldWidget.data.lastUpdatedAt != widget.data.lastUpdatedAt;
+    if (!personChanged || (_entry == null && !_showScheduled)) {
+      return;
+    }
+    _remove();
+    if (_hovered) {
+      _show();
+    }
   }
 
   @override
@@ -386,10 +405,24 @@ class _PersonCardState extends ConsumerState<PersonCard> {
   }
 
   void _show() {
-    if (_entry != null || !mounted) {
+    if (_entry != null || _showScheduled || !mounted) {
       return;
     }
+    _showScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _showScheduled = false;
+      if (!mounted || !_hovered || _entry != null) {
+        return;
+      }
+      _insertPreviewOverlay();
+    });
+  }
+
+  void _insertPreviewOverlay() {
     final box = context.findRenderObject() as RenderBox;
+    if (!box.hasSize || box.size.isEmpty) {
+      return;
+    }
     final offset = box.localToGlobal(Offset.zero);
     final viewport = MediaQuery.sizeOf(context);
     const margin = 12.0;
@@ -725,8 +758,15 @@ class _PersonCardState extends ConsumerState<PersonCard> {
   }
 
   void _remove() {
-    _entry?.remove();
-    _entry = null;
+    if (_entry == null || _removeScheduled) {
+      return;
+    }
+    _removeScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _removeScheduled = false;
+      _entry?.remove();
+      _entry = null;
+    });
   }
 
   String get _publicMapLocation => widget.person.privacy.showMapInPublicMode

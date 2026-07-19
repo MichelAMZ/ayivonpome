@@ -15,6 +15,7 @@ import '../providers/family_tree_provider.dart';
 import '../services/parent_auto_creation_service.dart';
 import '../widgets/modification_code_required_dialog.dart';
 import '../widgets/person_duplicate_dialog.dart';
+import 'person_detail_screen.dart';
 import 'person_edit_progress.dart';
 
 class PersonEditScreen extends ConsumerStatefulWidget {
@@ -972,264 +973,719 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   }
 
   Widget _privacyStep() {
-    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _visibilitySettingsCard(),
+        _privacyDashboardHeader(),
         const SizedBox(height: 12),
-        SwitchListTile(
-          value: _showMapInPublicMode,
-          title: Text(l10n.showMapInPublicMode),
-          subtitle: Text(l10n.alwaysVisible),
-          secondary: const Icon(Icons.lock_outline),
-          onChanged: null,
+        _privacyDashboardGrid(),
+        const SizedBox(height: 12),
+        _advancedPrivacyDashboardSection(),
+      ],
+    );
+  }
+
+  Widget _privacyDashboardHeader() {
+    final l10n = AppLocalizations.of(context);
+    return _privacyDashboardSurface(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 760;
+              final title = Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE9F1DF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.shield_outlined,
+                      color: Color(0xFF173B57),
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.informationVisibility,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: const Color(0xFF173B57),
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(l10n.choosePublicProfileVisibility),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+              final legend = _privacyDashboardLegend();
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [title, const SizedBox(height: 14), legend],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: title),
+                  const SizedBox(width: 16),
+                  Flexible(
+                    child: Align(alignment: Alignment.topRight, child: legend),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _isSaving ? null : _hideSensitiveVisibility,
+                icon: const Icon(Icons.visibility_off_outlined),
+                label: Text(l10n.hideSensitiveInfo),
+                style: _privacyActionButtonStyle(),
+              ),
+              OutlinedButton.icon(
+                onPressed: _isSaving ? null : _restoreDefaultVisibility,
+                icon: const Icon(Icons.restore),
+                label: Text(l10n.restoreDefaultVisibility),
+                style: _privacyActionButtonStyle(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  ButtonStyle _privacyActionButtonStyle() {
+    return OutlinedButton.styleFrom(
+      minimumSize: const Size(44, 44),
+      foregroundColor: const Color(0xFF55752B),
+      side: const BorderSide(color: Color(0xFF55752B)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
+  }
+
+  Widget _privacyDashboardLegend() {
+    final l10n = AppLocalizations.of(context);
+    return Wrap(
+      spacing: 10,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      children: [
+        _privacyDashboardPill(
+          icon: Icons.lock_outline,
+          label: l10n.alwaysVisible,
+          background: const Color(0xFFF6F1DF),
+          foreground: const Color(0xFF53632B),
         ),
-        SwitchListTile(
-          value: _showBirthPlaceInPublicMode,
-          title: Text(l10n.showBirthPlaceInPublicMode),
-          onChanged: (value) =>
-              setState(() => _showBirthPlaceInPublicMode = value),
+        _privacyDashboardPill(
+          icon: Icons.visibility_outlined,
+          label: l10n.visible,
+          background: const Color(0xFFE9F1DF),
+          foreground: const Color(0xFF55752B),
         ),
-        SwitchListTile(
-          value: _showCurrentAddressInPublicMode,
-          title: Text(l10n.showCurrentAddressInPublicMode),
-          onChanged: (value) =>
-              setState(() => _showCurrentAddressInPublicMode = value),
-        ),
-        SwitchListTile(
-          value: _showContactInPublicMode,
-          title: Text(l10n.showContactInPublicMode),
-          onChanged: (value) =>
-              setState(() => _showContactInPublicMode = value),
-        ),
-        SwitchListTile(
-          value: _showHistoryInPublicMode,
-          title: Text(l10n.showHistoryInPublicMode),
-          onChanged: (value) =>
-              setState(() => _showHistoryInPublicMode = value),
+        _privacyDashboardPill(
+          icon: Icons.visibility_off_outlined,
+          label: l10n.hidden,
+          background: const Color(0xFFEAE8E2),
+          foreground: const Color(0xFF4F5459),
         ),
       ],
     );
   }
 
-  Widget _visibilitySettingsCard() {
+  Widget _privacyDashboardGrid() {
     final l10n = AppLocalizations.of(context);
-    return _sectionCard(
+    final sections = [
+      _PrivacyDashboardSection(
+        icon: Icons.lock_outline,
+        title: 'Informations toujours visibles',
+        rows: [
+          _lockedPrivacyDashboardRow(l10n.lastName, Icons.lock_outline),
+          _lockedPrivacyDashboardRow(l10n.firstName, Icons.lock_outline),
+          _lockedPrivacyDashboardRow(
+            l10n.publicMapLocation,
+            Icons.lock_outline,
+          ),
+        ],
+      ),
+      _PrivacyDashboardSection(
+        icon: Icons.person_outline,
+        title: l10n.identity,
+        rows: [
+          _privacyDashboardRow(
+            label: l10n.photo,
+            icon: Icons.image_outlined,
+            value: _photoVisible,
+            onChanged: (value) => setState(() => _photoVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.gender,
+            icon: Icons.wc_outlined,
+            value: _genderVisible,
+            onChanged: (value) => setState(() => _genderVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.bornLastName,
+            icon: Icons.drive_file_rename_outline,
+            value: _birthLastNameVisible,
+            onChanged: (value) => setState(() => _birthLastNameVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.familyBranch,
+            icon: Icons.account_tree_outlined,
+            value: _familyBranchVisible,
+            onChanged: (value) => setState(() => _familyBranchVisible = value),
+          ),
+        ],
+      ),
+      _PrivacyDashboardSection(
+        icon: Icons.family_restroom,
+        title: l10n.familyRelationships,
+        rows: [
+          _privacyDashboardRow(
+            label: l10n.relationships,
+            description: l10n.familyRelationsVisibilityDescription,
+            icon: Icons.account_tree_outlined,
+            value: _familyRelationsVisible,
+            sensitive: true,
+            onChanged: (value) =>
+                setState(() => _familyRelationsVisible = value),
+          ),
+        ],
+      ),
+      _PrivacyDashboardSection(
+        icon: Icons.event_busy_outlined,
+        title: 'Naissance, décès et sépulture',
+        rows: [
+          _privacyDashboardRow(
+            label: l10n.birthDate,
+            icon: Icons.calendar_month_outlined,
+            value: _birthDateVisible,
+            onChanged: (value) => setState(() => _birthDateVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.birthPlace,
+            icon: Icons.location_on_outlined,
+            value: _showBirthPlaceInPublicMode,
+            sensitive: true,
+            onChanged: (value) =>
+                setState(() => _showBirthPlaceInPublicMode = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.deathDate,
+            icon: Icons.event_busy_outlined,
+            value: _deathDateVisible,
+            onChanged: (value) => setState(() => _deathDateVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.deathPlace,
+            icon: Icons.location_off_outlined,
+            value: _deathPlaceVisible,
+            sensitive: true,
+            onChanged: (value) => setState(() => _deathPlaceVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.burialPlace,
+            icon: Icons.terrain_outlined,
+            value: _burialPlaceVisible,
+            sensitive: true,
+            onChanged: (value) => setState(() => _burialPlaceVisible = value),
+          ),
+        ],
+      ),
+      _PrivacyDashboardSection(
+        icon: Icons.mail_outline,
+        title: 'Coordonnées',
+        rows: [
+          _privacyDashboardRow(
+            label: l10n.email,
+            icon: Icons.mail_outline,
+            value: _emailVisible,
+            sensitive: true,
+            onChanged: (value) => setState(() => _emailVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.phoneNumber,
+            icon: Icons.phone_outlined,
+            value: _phoneVisible,
+            sensitive: true,
+            onChanged: (value) => setState(() => _phoneVisible = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.whatsappNumber,
+            icon: Icons.chat_outlined,
+            value: _whatsappVisible,
+            sensitive: true,
+            onChanged: (value) => setState(() => _whatsappVisible = value),
+          ),
+        ],
+      ),
+      _PrivacyDashboardSection(
+        icon: Icons.place_outlined,
+        title: 'Lieux et localisation',
+        rows: [
+          _privacyDashboardRow(
+            label: l10n.currentAddress,
+            icon: Icons.home_outlined,
+            value: _showCurrentAddressInPublicMode,
+            sensitive: true,
+            onChanged: (value) =>
+                setState(() => _showCurrentAddressInPublicMode = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.privateCoordinates,
+            icon: Icons.my_location_outlined,
+            value: _privateCoordinatesVisible,
+            sensitive: true,
+            onChanged: (value) =>
+                setState(() => _privateCoordinatesVisible = value),
+          ),
+        ],
+      ),
+      _PrivacyDashboardSection(
+        icon: Icons.history_outlined,
+        title: l10n.history,
+        rows: [
+          _privacyDashboardRow(
+            label: l10n.history,
+            icon: Icons.history_outlined,
+            value: _showHistoryInPublicMode,
+            sensitive: true,
+            onChanged: (value) =>
+                setState(() => _showHistoryInPublicMode = value),
+          ),
+          _privacyDashboardRow(
+            label: l10n.notes,
+            icon: Icons.notes_outlined,
+            value: _notesVisible,
+            sensitive: true,
+            onChanged: (value) => setState(() => _notesVisible = value),
+          ),
+        ],
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 620
+            ? 1
+            : constraints.maxWidth < 980
+            ? 2
+            : constraints.maxWidth < 1260
+            ? 3
+            : 4;
+        const gap = 12.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final section in sections)
+              SizedBox(width: width, child: _privacyDashboardSection(section)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _privacyDashboardSection(_PrivacyDashboardSection section) {
+    return _privacyDashboardSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.informationVisibility,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(l10n.choosePublicProfileVisibility),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Row(
             children: [
-              OutlinedButton.icon(
-                onPressed: _hideSensitiveVisibility,
-                icon: const Icon(Icons.visibility_off_outlined),
-                label: Text(l10n.hideSensitiveInfo),
-              ),
-              OutlinedButton.icon(
-                onPressed: _restoreDefaultVisibility,
-                icon: const Icon(Icons.restore),
-                label: Text(l10n.restoreDefaultVisibility),
+              Icon(section.icon, size: 22, color: const Color(0xFF173B57)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  section.title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: const Color(0xFF173B57),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _visibilityGroup(l10n.identity, [
-            _lockedVisibilityTile(l10n.lastName, Icons.lock_outline),
-            _lockedVisibilityTile(l10n.firstName, Icons.lock_outline),
-            _visibilityTile(
-              label: l10n.photo,
-              icon: Icons.photo_outlined,
-              value: _photoVisible,
-              onChanged: (value) => setState(() => _photoVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.gender,
-              icon: Icons.badge_outlined,
-              value: _genderVisible,
-              onChanged: (value) => setState(() => _genderVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.bornLastName,
-              icon: Icons.drive_file_rename_outline,
-              value: _birthLastNameVisible,
-              onChanged: (value) =>
-                  setState(() => _birthLastNameVisible = value),
-            ),
-          ]),
-          _visibilityGroup(l10n.familyRelationships, [
-            _visibilityTile(
-              label: l10n.familyBranch,
-              icon: Icons.account_tree_outlined,
-              value: _familyBranchVisible,
-              onChanged: (value) =>
-                  setState(() => _familyBranchVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.relationships,
-              description: l10n.familyRelationsVisibilityDescription,
-              icon: Icons.family_restroom,
-              value: _familyRelationsVisible,
-              sensitive: true,
-              onChanged: (value) =>
-                  setState(() => _familyRelationsVisible = value),
-            ),
-          ]),
-          _visibilityGroup(l10n.birthDate, [
-            _visibilityTile(
-              label: l10n.birthDate,
-              icon: Icons.cake_outlined,
-              value: _birthDateVisible,
-              onChanged: (value) => setState(() => _birthDateVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.birthPlace,
-              icon: Icons.place_outlined,
-              value: _showBirthPlaceInPublicMode,
-              onChanged: (value) =>
-                  setState(() => _showBirthPlaceInPublicMode = value),
-            ),
-            _visibilityTile(
-              label: l10n.deathDate,
-              icon: Icons.event_busy_outlined,
-              value: _deathDateVisible,
-              onChanged: (value) => setState(() => _deathDateVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.deathPlace,
-              icon: Icons.location_off_outlined,
-              value: _deathPlaceVisible,
-              onChanged: (value) => setState(() => _deathPlaceVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.burialPlace,
-              icon: Icons.landscape_outlined,
-              value: _burialPlaceVisible,
-              onChanged: (value) => setState(() => _burialPlaceVisible = value),
-            ),
-          ]),
-          _visibilityGroup(l10n.contact, [
-            _visibilityTile(
-              label: l10n.email,
-              icon: Icons.mail_outline,
-              value: _emailVisible,
-              sensitive: true,
-              onChanged: (value) => setState(() => _emailVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.phoneNumber,
-              icon: Icons.phone_outlined,
-              value: _phoneVisible,
-              sensitive: true,
-              onChanged: (value) => setState(() => _phoneVisible = value),
-            ),
-            _visibilityTile(
-              label: l10n.whatsappNumber,
-              icon: Icons.chat_outlined,
-              value: _whatsappVisible,
-              sensitive: true,
-              onChanged: (value) => setState(() => _whatsappVisible = value),
-            ),
-          ]),
-          _visibilityGroup(l10n.places, [
-            _lockedVisibilityTile(l10n.publicMapLocation, Icons.lock_outline),
-            _visibilityTile(
-              label: l10n.currentAddress,
-              icon: Icons.home_outlined,
-              value: _showCurrentAddressInPublicMode,
-              sensitive: true,
-              onChanged: (value) =>
-                  setState(() => _showCurrentAddressInPublicMode = value),
-            ),
-            _visibilityTile(
-              label: l10n.privateCoordinates,
-              icon: Icons.my_location_outlined,
-              value: _privateCoordinatesVisible,
-              sensitive: true,
-              onChanged: (value) =>
-                  setState(() => _privateCoordinatesVisible = value),
-            ),
-          ]),
-          _visibilityGroup(l10n.history, [
-            _visibilityTile(
-              label: l10n.history,
-              icon: Icons.history_outlined,
-              value: _showHistoryInPublicMode,
-              sensitive: true,
-              onChanged: (value) =>
-                  setState(() => _showHistoryInPublicMode = value),
-            ),
-            _visibilityTile(
-              label: l10n.notes,
-              icon: Icons.notes_outlined,
-              value: _notesVisible,
-              sensitive: true,
-              onChanged: (value) => setState(() => _notesVisible = value),
-            ),
-          ]),
+          const SizedBox(height: 10),
+          for (var i = 0; i < section.rows.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: Color(0xFFE5E8EA)),
+            section.rows[i],
+          ],
         ],
       ),
     );
   }
 
-  Widget _visibilityGroup(String title, List<Widget> children) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
+  Widget _advancedPrivacyDashboardSection() {
+    final l10n = AppLocalizations.of(context);
+    return _privacyDashboardSurface(
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 6),
-          ...children,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.enhanced_encryption_outlined,
+                color: Color(0xFF173B57),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Autorisations publiques avancées',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF173B57),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Ces autorisations complètent les réglages de visibilité ci-dessus.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 680
+                  ? 1
+                  : constraints.maxWidth < 1060
+                  ? 2
+                  : 5;
+              const gap = 10.0;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  SizedBox(
+                    width: width,
+                    child: _lockedPrivacyDashboardRow(
+                      l10n.showMapInPublicMode,
+                      Icons.lock_outline,
+                      explanation:
+                          'Cette information est nécessaire pour localiser le membre sur la fiche publique.',
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _privacyDashboardRow(
+                      label: l10n.showBirthPlaceInPublicMode,
+                      icon: Icons.location_on_outlined,
+                      value: _showBirthPlaceInPublicMode,
+                      sensitive: true,
+                      explanation:
+                          'Le lieu de naissance public dépend aussi du réglage du champ correspondant.',
+                      onChanged: (value) =>
+                          setState(() => _showBirthPlaceInPublicMode = value),
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _privacyDashboardRow(
+                      label: l10n.showCurrentAddressInPublicMode,
+                      icon: Icons.home_outlined,
+                      value: _showCurrentAddressInPublicMode,
+                      sensitive: true,
+                      explanation:
+                          'L’adresse actuelle est publiée seulement si ce réglage et le champ sont visibles.',
+                      onChanged: (value) => setState(
+                        () => _showCurrentAddressInPublicMode = value,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _privacyDashboardRow(
+                      label: l10n.showContactInPublicMode,
+                      icon: Icons.contact_phone_outlined,
+                      value: _showContactInPublicMode,
+                      sensitive: true,
+                      explanation:
+                          'Les contacts publics restent masqués si chaque champ de contact est masqué.',
+                      onChanged: (value) =>
+                          setState(() => _showContactInPublicMode = value),
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _privacyDashboardRow(
+                      label: l10n.showHistoryInPublicMode,
+                      icon: Icons.history_outlined,
+                      value: _showHistoryInPublicMode,
+                      sensitive: true,
+                      explanation:
+                          'L’historique public dépend aussi de la visibilité des lignes Historique et Notes.',
+                      onChanged: (value) =>
+                          setState(() => _showHistoryInPublicMode = value),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _lockedVisibilityTile(String label, IconData icon) {
+  Widget _privacyDashboardSurface({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(14),
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE0E4E8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _lockedPrivacyDashboardRow(
+    String label,
+    IconData icon, {
+    String? explanation,
+  }) {
     final l10n = AppLocalizations.of(context);
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon),
-      title: Text(label),
-      trailing: Chip(
-        avatar: const Icon(Icons.lock_outline, size: 16),
-        label: Text(l10n.alwaysVisible),
+    final message =
+        explanation ??
+        'Cette donnée est nécessaire pour identifier ou localiser le membre.';
+    return Tooltip(
+      message: message,
+      child: Semantics(
+        label: '$label, ${l10n.alwaysVisible}',
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final leading = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 20, color: const Color(0xFF30363A)),
+                  const SizedBox(width: 12),
+                ],
+              );
+              final badge = _privacyDashboardPill(
+                icon: Icons.lock_outline,
+                label: l10n.alwaysVisible,
+                background: const Color(0xFFF6F1DF),
+                foreground: const Color(0xFF53632B),
+              );
+              if (constraints.maxWidth < 260) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          leading,
+                          Expanded(child: Text(label)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Align(alignment: Alignment.centerRight, child: badge),
+                    ],
+                  ),
+                );
+              }
+              return Row(
+                children: [
+                  leading,
+                  Expanded(child: Text(label)),
+                  const SizedBox(width: 8),
+                  badge,
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _visibilityTile({
+  Widget _privacyDashboardRow({
     required String label,
     required IconData icon,
     required bool value,
     required ValueChanged<bool> onChanged,
     String? description,
+    String? explanation,
     bool sensitive = false,
   }) {
     final l10n = AppLocalizations.of(context);
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      secondary: Icon(icon),
-      title: Text(label),
-      subtitle: Text(description ?? (value ? l10n.visible : l10n.hidden)),
-      value: value,
-      onChanged: (next) async {
-        if (next && sensitive && !await _confirmSensitiveVisible()) return;
-        _markDirty();
-        onChanged(next);
-      },
+    final row = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final labelColumn = Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label),
+              if (description != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF52606D),
+                  ),
+                ),
+              ],
+            ],
+          );
+          final badge = _privacyDashboardPill(
+            icon: value
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
+            label: value ? l10n.visible : l10n.hidden,
+            background: value
+                ? const Color(0xFFE9F1DF)
+                : const Color(0xFFEAE8E2),
+            foreground: value
+                ? const Color(0xFF55752B)
+                : const Color(0xFF4F5459),
+          );
+          final toggle = Semantics(
+            label: '$label : ${value ? l10n.visible : l10n.hidden}',
+            toggled: value,
+            child: Switch(
+              value: value,
+              activeThumbColor: const Color(0xFF55752B),
+              onChanged: _isSaving
+                  ? null
+                  : (next) async {
+                      if (next &&
+                          sensitive &&
+                          !await _confirmSensitiveVisible()) {
+                        return;
+                      }
+                      _markDirty();
+                      onChanged(next);
+                    },
+            ),
+          );
+          if (constraints.maxWidth < 280) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(icon, size: 20, color: const Color(0xFF30363A)),
+                      const SizedBox(width: 12),
+                      Expanded(child: labelColumn),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [badge, const SizedBox(width: 8), toggle],
+                  ),
+                ],
+              ),
+            );
+          }
+          return Row(
+            children: [
+              Icon(icon, size: 20, color: const Color(0xFF30363A)),
+              const SizedBox(width: 12),
+              Expanded(child: labelColumn),
+              const SizedBox(width: 8),
+              badge,
+              const SizedBox(width: 8),
+              toggle,
+            ],
+          );
+        },
+      ),
+    );
+    return explanation == null
+        ? row
+        : Tooltip(message: explanation, child: row);
+  }
+
+  Widget _privacyDashboardPill({
+    required IconData icon,
+    required String label,
+    required Color background,
+    required Color foreground,
+  }) {
+    return Tooltip(
+      message: label,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 156),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: foreground),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1255,7 +1711,14 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     return result ?? false;
   }
 
-  void _hideSensitiveVisibility() {
+  Future<void> _hideSensitiveVisibility() async {
+    final confirmed = await _confirmPrivacyBulkAction(
+      title: 'Masquer les informations sensibles ?',
+      message:
+          'Les coordonnées, relations, adresses privées, historique et notes seront masqués sur la fiche publique.',
+      confirmLabel: 'Masquer',
+    );
+    if (!confirmed || !mounted) return;
     setState(() {
       _showMapInPublicMode = true;
       _showCurrentAddressInPublicMode = false;
@@ -1269,9 +1732,17 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _notesVisible = false;
       _markDirty();
     });
+    _showPrivacyActionSnackBar('Les informations sensibles sont masquées.');
   }
 
-  void _restoreDefaultVisibility() {
+  Future<void> _restoreDefaultVisibility() async {
+    final confirmed = await _confirmPrivacyBulkAction(
+      title: 'Restaurer les réglages par défaut ?',
+      message:
+          'Les réglages de confidentialité de ce formulaire seront réinitialisés aux valeurs par défaut.',
+      confirmLabel: 'Restaurer',
+    );
+    if (!confirmed || !mounted) return;
     const defaults = PersonPrivacy();
     setState(() {
       _showMapInPublicMode = true;
@@ -1295,6 +1766,43 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _notesVisible = defaults.notesVisible;
       _markDirty();
     });
+    _showPrivacyActionSnackBar('Les réglages par défaut sont restaurés.');
+  }
+
+  Future<bool> _confirmPrivacyBulkAction({
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  void _showPrivacyActionSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   Widget _historyStep() {
@@ -1428,7 +1936,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.chevron_right),
-          label: Text(l10n.saveAndContinue),
+          label: Text(_isSaving ? 'Enregistrement...' : l10n.saveAndContinue),
         ),
         if (_lastDraftSavedAt != null)
           Padding(
@@ -1449,12 +1957,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       .every((field) => field.isComplete);
 
   Future<void> _saveAndContinue() async {
-    if (!_formKey.currentState!.validate()) return;
-    await _save(draft: true);
-    if (!mounted) return;
-    if (_activeStep < _stepTitles.length - 1) {
-      setState(() => _activeStep += 1);
-    }
+    await _save();
   }
 
   Widget _personRelationChip({
@@ -1600,7 +2103,9 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
                         _requiredErrorsCard(),
                         const SizedBox(height: 12),
                       ],
-                      _sectionCard(child: _activeStepContent(data)),
+                      _activeStep == 5
+                          ? _activeStepContent(data)
+                          : _sectionCard(child: _activeStepContent(data)),
                       const SizedBox(height: 12),
                       _stepActions(),
                     ],
@@ -1681,7 +2186,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           child: FilledButton.icon(
             onPressed: _isSaving ? null : _save,
             icon: saveIcon,
-            label: Text(l10n.save),
+            label: Text(_isSaving ? 'Enregistrement...' : l10n.save),
             style: FilledButton.styleFrom(
               minimumSize: const Size(48, 48),
               backgroundColor: const Color(0xFF2F6FA3),
@@ -2756,7 +3261,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       phoneVisibility: _phoneVisibility,
       whatsappVisibility: _whatsappVisibility,
       privacy: PersonPrivacy(
-        showMapInPublicMode: true,
+        showMapInPublicMode: _showMapInPublicMode,
         showBirthPlaceInPublicMode: _showBirthPlaceInPublicMode,
         showCurrentAddressInPublicMode: _showCurrentAddressInPublicMode,
         showContactInPublicMode: _showContactInPublicMode,
@@ -2902,19 +3407,23 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       if (!mounted) return;
       if (saveResults.every((item) => item.isFirestoreConfirmed)) {
         _hasUnsavedChanges = false;
-        _showSaveSnackBar(
-          color: Colors.green,
-          icon: Icons.check_circle,
-          message: draft
-              ? l10n.draftSavedNow
-              : 'Modification enregistrée dans la base de données.',
-          duration: const Duration(seconds: 3),
-        );
         if (draft) {
           setState(() => _lastDraftSavedAt = DateTime.now());
+          _showSaveSnackBar(
+            color: Colors.green,
+            icon: Icons.check_circle,
+            message: l10n.draftSavedNow,
+            duration: const Duration(seconds: 3),
+          );
           return;
         }
-        Navigator.pop(context);
+        _returnToProfileAfterLocalSave(
+          personId: id,
+          color: Colors.green,
+          icon: Icons.check_circle,
+          message: 'Modifications enregistrées et synchronisées.',
+          duration: const Duration(seconds: 3),
+        );
         return;
       }
       if (saveResults.any((item) => item.isAuthorizationRequired)) {
@@ -2926,15 +3435,24 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       if (saveResults.any((item) => item.isLocalPending)) {
         debugPrint('Save flow: result=localPending mounted=$mounted');
         _hasUnsavedChanges = false;
-        _showSaveSnackBar(
+        if (draft) {
+          setState(() => _lastDraftSavedAt = DateTime.now());
+          _showSaveSnackBar(
+            color: Colors.orange.shade800,
+            icon: Icons.sync_problem_outlined,
+            message: l10n.draftSavedNow,
+            duration: const Duration(seconds: 5),
+          );
+          return;
+        }
+        _returnToProfileAfterLocalSave(
+          personId: id,
           color: Colors.orange.shade800,
           icon: Icons.sync_problem_outlined,
-          message: draft
-              ? l10n.draftSavedNow
-              : 'Modifications enregistrées sur cet appareil. Elles seront synchronisées automatiquement dès que Firestore sera disponible.',
+          message:
+              'Modifications enregistrées sur cet appareil. Synchronisation en attente.',
           duration: const Duration(seconds: 5),
         );
-        if (draft) setState(() => _lastDraftSavedAt = DateTime.now());
         return;
       }
       _showSaveSnackBar(
@@ -3377,6 +3895,49 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     );
   }
 
+  void _returnToProfileAfterLocalSave({
+    required String personId,
+    required Color color,
+    required IconData icon,
+    required String message,
+    required Duration duration,
+  }) {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isSaving = false);
+    _hasUnsavedChanges = false;
+    if (widget.person != null && navigator.canPop()) {
+      navigator.pop();
+    } else {
+      navigator.pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => PersonDetailScreen(personId: personId),
+        ),
+      );
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: color,
+          duration: duration,
+          content: Row(
+            children: [
+              Icon(icon, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
   String _databaseErrorMessage(String error) =>
       'Enregistrement impossible. Vos modifications ont été conservées.';
 
@@ -3418,6 +3979,18 @@ class _PendingUnionDraft {
 enum _RelationsTab { parents, unions, children }
 
 enum _ParentInputMode { existing, create }
+
+class _PrivacyDashboardSection {
+  const _PrivacyDashboardSection({
+    required this.icon,
+    required this.title,
+    required this.rows,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> rows;
+}
 
 class RequiredFieldLabel extends StatelessWidget {
   const RequiredFieldLabel({
