@@ -74,6 +74,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   late bool _notesVisible;
   late final TextEditingController _familyCode;
   late final TextEditingController _fatherId;
+  late final TextEditingController _fatherExistingDisplay;
+  late final FocusNode _fatherExistingFocus;
   late final TextEditingController _fatherFirstName;
   late final TextEditingController _fatherLastName;
   late final TextEditingController _fatherBirthDate;
@@ -83,6 +85,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   late final TextEditingController _fatherCity;
   late final TextEditingController _fatherBirthPlace;
   late final TextEditingController _motherId;
+  late final TextEditingController _motherExistingDisplay;
+  late final FocusNode _motherExistingFocus;
   late final TextEditingController _motherFirstName;
   late final TextEditingController _motherBirthLastName;
   late final TextEditingController _motherMaritalLastName;
@@ -185,6 +189,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     _notesVisible = p?.privacy.notesVisible ?? false;
     _familyCode = TextEditingController(text: p?.familyCode ?? 'AMOUZOU2026');
     _fatherId = TextEditingController(text: p?.fatherId ?? '');
+    _fatherExistingDisplay = TextEditingController(text: p?.fatherId ?? '');
+    _fatherExistingFocus = FocusNode();
     _fatherFirstName = TextEditingController();
     _fatherLastName = TextEditingController();
     _fatherBirthDate = TextEditingController();
@@ -194,6 +200,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     _fatherCity = TextEditingController();
     _fatherBirthPlace = TextEditingController();
     _motherId = TextEditingController(text: p?.motherId ?? '');
+    _motherExistingDisplay = TextEditingController(text: p?.motherId ?? '');
+    _motherExistingFocus = FocusNode();
     _motherFirstName = TextEditingController();
     _motherBirthLastName = TextEditingController();
     _motherMaritalLastName = TextEditingController();
@@ -283,9 +291,19 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _fatherId.text = father.id;
       _fatherMode = _ParentInputMode.existing;
     }
+    if (father != null) {
+      _fatherExistingDisplay.text = father.fullName;
+    } else {
+      _fatherExistingDisplay.text = _relationName(_fatherId.text, data);
+    }
     if (mother != null && _motherId.text.trim().isEmpty) {
       _motherId.text = mother.id;
       _motherMode = _ParentInputMode.existing;
+    }
+    if (mother != null) {
+      _motherExistingDisplay.text = mother.fullName;
+    } else {
+      _motherExistingDisplay.text = _relationName(_motherId.text, data);
     }
     _parents.text = _joinUnique([
       if (father != null) father.id,
@@ -587,7 +605,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   Widget _activeStepContent(FamilyTreeData? data) {
     return switch (_activeStep) {
       0 => _identityStep(),
-      1 => _familyStep(),
+      1 => _familyStep(data),
       2 => _relationshipsStep(data),
       3 => _communicationStep(),
       4 => _placesStep(),
@@ -624,7 +642,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     );
   }
 
-  Widget _familyStep() {
+  Widget _familyStep(FamilyTreeData? data) {
     final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -635,9 +653,18 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           required: true,
           fieldId: 'familyCode',
         ),
-        _field(_parents, l10n.parents),
-        _field(_spouses, l10n.spouses),
-        _field(_children, l10n.children),
+        _readonlyField(
+          label: l10n.parents,
+          value: _relationNames(_parents.text, data),
+        ),
+        _readonlyField(
+          label: l10n.spouses,
+          value: _relationNames(_spouses.text, data),
+        ),
+        _readonlyField(
+          label: l10n.children,
+          value: _relationNames(_children.text, data),
+        ),
         _field(_notes, l10n.notes, maxLines: 3),
       ],
     );
@@ -741,6 +768,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         _markDirty();
       }),
       existingId: _fatherId,
+      existingDisplay: _fatherExistingDisplay,
+      existingFocus: _fatherExistingFocus,
       firstName: _fatherFirstName,
       lastName: _fatherLastName,
       birthLastName: null,
@@ -762,6 +791,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         _markDirty();
       }),
       existingId: _motherId,
+      existingDisplay: _motherExistingDisplay,
+      existingFocus: _motherExistingFocus,
       firstName: _motherFirstName,
       lastName: null,
       birthLastName: _motherBirthLastName,
@@ -1485,6 +1516,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _whatsappNumber,
       _familyCode,
       _fatherId,
+      _fatherExistingDisplay,
       _fatherFirstName,
       _fatherLastName,
       _fatherBirthDate,
@@ -1494,6 +1526,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _fatherCity,
       _fatherBirthPlace,
       _motherId,
+      _motherExistingDisplay,
       _motherFirstName,
       _motherBirthLastName,
       _motherMaritalLastName,
@@ -1518,6 +1551,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     ]) {
       controller.dispose();
     }
+    _fatherExistingFocus.dispose();
+    _motherExistingFocus.dispose();
     super.dispose();
   }
 
@@ -1913,6 +1948,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
+        key: fieldId == null ? null : ValueKey('${fieldId}Field'),
         controller: controller,
         maxLines: maxLines,
         onChanged: (_) => setState(() {
@@ -1972,12 +2008,119 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     );
   }
 
+  Widget _readonlyField({required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        key: ValueKey('readonly-$label-$value'),
+        initialValue: value,
+        readOnly: true,
+        decoration: InputDecoration(labelText: label),
+      ),
+    );
+  }
+
+  String _relationNames(String rawValue, FamilyTreeData? data) {
+    final values = _split(rawValue);
+    if (values.isEmpty) return '';
+    final peopleById = {
+      for (final person in data?.people ?? const <Person>[]) person.id: person,
+    };
+    var hasUnresolvedPersonId = false;
+    final names = <String>[];
+    for (final value in values) {
+      final person = peopleById[value];
+      if (person != null) {
+        names.add(person.fullName);
+      } else if (_looksLikePersonId(value)) {
+        hasUnresolvedPersonId = true;
+      } else {
+        names.add(value);
+      }
+    }
+    if (names.isNotEmpty) return _joinUnique(names);
+    return hasUnresolvedPersonId ? 'Membre introuvable' : '';
+  }
+
+  String _relationName(String rawValue, FamilyTreeData? data) {
+    final value = rawValue.trim();
+    if (value.isEmpty) return '';
+    final people = data?.people ?? const <Person>[];
+    for (final person in people) {
+      if (person.id == value) return person.fullName;
+    }
+    return _looksLikePersonId(value) ? 'Membre introuvable' : value;
+  }
+
+  String _resolveRelationInput(String rawValue, FamilyTreeData? data) {
+    final value = rawValue.trim();
+    if (value.isEmpty) return '';
+    final normalized = _normalizeMemberSearch(value);
+    for (final person in data?.people ?? const <Person>[]) {
+      if (person.id == value ||
+          _normalizeMemberSearch(person.fullName) == normalized) {
+        return person.id;
+      }
+    }
+    return '';
+  }
+
+  String _normalizeMemberSearch(String value) {
+    return _stripDiacritics(
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' '),
+    );
+  }
+
+  String _stripDiacritics(String value) {
+    const replacements = {
+      'à': 'a',
+      'á': 'a',
+      'â': 'a',
+      'ã': 'a',
+      'ä': 'a',
+      'å': 'a',
+      'æ': 'ae',
+      'ç': 'c',
+      'è': 'e',
+      'é': 'e',
+      'ê': 'e',
+      'ë': 'e',
+      'ì': 'i',
+      'í': 'i',
+      'î': 'i',
+      'ï': 'i',
+      'ñ': 'n',
+      'ò': 'o',
+      'ó': 'o',
+      'ô': 'o',
+      'õ': 'o',
+      'ö': 'o',
+      'œ': 'oe',
+      'ù': 'u',
+      'ú': 'u',
+      'û': 'u',
+      'ü': 'u',
+      'ý': 'y',
+      'ÿ': 'y',
+    };
+    final buffer = StringBuffer();
+    for (final char in value.characters) {
+      buffer.write(replacements[char] ?? char);
+    }
+    return buffer.toString();
+  }
+
+  bool _looksLikePersonId(String value) =>
+      RegExp(r'^p\d+$', caseSensitive: false).hasMatch(value.trim());
+
   Widget _parentSection({
     required String title,
     required ParentRole role,
     required _ParentInputMode? mode,
     required ValueChanged<_ParentInputMode> onModeChanged,
     required TextEditingController existingId,
+    required TextEditingController existingDisplay,
+    required FocusNode existingFocus,
     required TextEditingController firstName,
     required TextEditingController? lastName,
     required TextEditingController? birthLastName,
@@ -1988,7 +2131,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     required TextEditingController country,
     required TextEditingController city,
     required TextEditingController birthPlace,
-    required dynamic data,
+    required FamilyTreeData? data,
   }) {
     final l10n = AppLocalizations.of(context);
     final draft = _draft(
@@ -2044,11 +2187,29 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
               ),
               const SizedBox(height: 12),
               if (mode == _ParentInputMode.existing) ...[
-                _field(
-                  existingId,
-                  l10n.existingTreeMember,
+                _existingMemberField(
+                  existingId: existingId,
+                  displayController: existingDisplay,
+                  focusNode: existingFocus,
+                  label: l10n.existingTreeMember,
+                  data: data,
                   required: true,
                   fieldId: role == ParentRole.father ? 'fatherId' : 'motherId',
+                  onSelected: (person) {
+                    _fillParentControllersFromPerson(
+                      source: person,
+                      firstName: firstName,
+                      lastName: lastName,
+                      birthLastName: birthLastName,
+                      maritalLastName: maritalLastName,
+                      birthDate: birthDate,
+                      deathDate: deathDate,
+                      photo: photo,
+                      country: country,
+                      city: city,
+                      birthPlace: birthPlace,
+                    );
+                  },
                 ),
                 Text(
                   l10n.parentSelectionRequired,
@@ -2126,6 +2287,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
                           onPressed: () {
                             setState(() {
                               existingId.text = match.person.id;
+                              existingDisplay.text = match.person.fullName;
                               firstName.clear();
                               lastName?.clear();
                               birthLastName?.clear();
@@ -2142,6 +2304,228 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         ),
       ),
     );
+  }
+
+  Widget _existingMemberField({
+    required TextEditingController existingId,
+    required TextEditingController displayController,
+    required FocusNode focusNode,
+    required String label,
+    required FamilyTreeData? data,
+    required bool required,
+    required String fieldId,
+    required ValueChanged<Person> onSelected,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final hasRequiredError =
+        required &&
+        _showRequiredErrors &&
+        _highlightedRequiredFieldIds.contains(fieldId) &&
+        existingId.text.trim().isEmpty;
+    final errorColor = Theme.of(context).colorScheme.error;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: RawAutocomplete<Person>(
+        textEditingController: displayController,
+        focusNode: focusNode,
+        displayStringForOption: (person) => person.fullName,
+        optionsBuilder: (textEditingValue) =>
+            _memberSuggestions(query: textEditingValue.text, data: data),
+        onSelected: (person) {
+          setState(() {
+            existingId.text = person.id;
+            displayController.text = person.fullName;
+            _highlightedRequiredFieldIds.remove(fieldId);
+            _markDirty();
+          });
+          onSelected(person);
+        },
+        fieldViewBuilder:
+            (context, textEditingController, fieldFocusNode, onFieldSubmitted) {
+              return TextFormField(
+                key: ValueKey('existing-member-$fieldId'),
+                controller: textEditingController,
+                focusNode: fieldFocusNode,
+                onChanged: (value) {
+                  final resolvedId = _resolveRelationInput(value, data);
+                  setState(() {
+                    existingId.text = resolvedId;
+                    _markDirty();
+                    if (resolvedId.trim().isNotEmpty) {
+                      _highlightedRequiredFieldIds.remove(fieldId);
+                    }
+                  });
+                },
+                onFieldSubmitted: (_) => onFieldSubmitted(),
+                decoration: InputDecoration(
+                  label: RequiredFieldLabel(label: label, required: required),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  filled: true,
+                  fillColor: hasRequiredError
+                      ? errorColor.withValues(alpha: 0.06)
+                      : Colors.white,
+                  helperText: hasRequiredError
+                      ? l10n.requiredFieldExplicit
+                      : existingId.text.trim().isEmpty &&
+                            textEditingController.text.trim().isNotEmpty
+                      ? 'Sélectionnez un membre dans la liste.'
+                      : null,
+                  helperStyle: TextStyle(
+                    color: hasRequiredError ? errorColor : null,
+                    fontWeight: hasRequiredError ? FontWeight.w600 : null,
+                  ),
+                  suffixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: hasRequiredError
+                          ? errorColor
+                          : const Color(0xFFE0E4E8),
+                      width: hasRequiredError ? 2 : 1,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: hasRequiredError
+                          ? errorColor
+                          : const Color(0xFF2F6FA3),
+                      width: 2,
+                    ),
+                  ),
+                ),
+                validator: required
+                    ? (_) => existingId.text.trim().isEmpty
+                          ? l10n.requiredField
+                          : null
+                    : null,
+              );
+            },
+        optionsViewBuilder: (context, onSelectedOption, options) {
+          final items = options.toList(growable: false);
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(12),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxHeight: 360,
+                  maxWidth: 520,
+                ),
+                child: ListView.separated(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final person = items[index];
+                    return Semantics(
+                      button: true,
+                      label: person.fullName,
+                      child: ListTile(
+                        minVerticalPadding: 10,
+                        leading: CircleAvatar(
+                          backgroundImage: person.photo.isEmpty
+                              ? null
+                              : NetworkImage(person.photo),
+                          child: person.photo.isEmpty
+                              ? Text(_initials(person))
+                              : null,
+                        ),
+                        title: Text(
+                          person.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          _memberSuggestionSubtitle(person),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => onSelectedOption(person),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Iterable<Person> _memberSuggestions({
+    required String query,
+    required FamilyTreeData? data,
+  }) {
+    final normalizedQuery = _normalizeMemberSearch(query);
+    if (normalizedQuery.length < 2 || data == null) return const <Person>[];
+    final currentPersonId = widget.person?.id ?? _draftPersonId ?? '';
+    final results =
+        data.people.where((person) {
+          if (person.id == currentPersonId) return false;
+          return _memberSearchText(person).contains(normalizedQuery);
+        }).toList()..sort(
+          (a, b) => _memberSearchRank(
+            a,
+            normalizedQuery,
+          ).compareTo(_memberSearchRank(b, normalizedQuery)),
+        );
+    return results.take(10);
+  }
+
+  int _memberSearchRank(Person person, String query) {
+    final fullName = _normalizeMemberSearch(person.fullName);
+    final firstName = _normalizeMemberSearch(person.firstName);
+    final lastName = _normalizeMemberSearch(person.lastName);
+    if (fullName.startsWith(query)) return 0;
+    if (firstName.startsWith(query)) return 1;
+    if (lastName.startsWith(query)) return 2;
+    final nameWords =
+        '$firstName $lastName ${_normalizeMemberSearch(person.originLastName)}'
+            .split(' ');
+    if (nameWords.any((word) => word == query || word.startsWith(query))) {
+      return 3;
+    }
+    if ('$fullName $firstName $lastName'.contains(query)) return 4;
+    return 5;
+  }
+
+  String _memberSearchText(Person person) {
+    return _normalizeMemberSearch(
+      [
+        person.firstName,
+        person.lastName,
+        person.fullName,
+        person.originLastName,
+        person.familyCode,
+        person.currentCity,
+        person.birthCity,
+        person.birthPlace,
+      ].where((value) => value.trim().isNotEmpty).join(' '),
+    );
+  }
+
+  String _memberSuggestionSubtitle(Person person) {
+    return [
+      _genderLabel(person.gender),
+      person.birthDate.length >= 4 ? person.birthDate.substring(0, 4) : '',
+      person.currentCity.isNotEmpty ? person.currentCity : person.birthPlace,
+      person.familyCode,
+    ].where((item) => item.trim().isNotEmpty).join(' · ');
+  }
+
+  String _genderLabel(String value) {
+    return switch (value.trim().toLowerCase()) {
+      'male' || 'homme' || 'masculin' => 'Homme',
+      'female' || 'femme' || 'féminin' || 'feminin' => 'Femme',
+      _ => value,
+    };
   }
 
   Widget _visibilitySelector({
@@ -2534,11 +2918,13 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         return;
       }
       if (saveResults.any((item) => item.isAuthorizationRequired)) {
+        debugPrint('Save flow: result=authorizationRequired mounted=$mounted');
         _hasUnsavedChanges = false;
         await _requestAuthorizationAndRetrySave(draft: draft);
         return;
       }
       if (saveResults.any((item) => item.isLocalPending)) {
+        debugPrint('Save flow: result=localPending mounted=$mounted');
         _hasUnsavedChanges = false;
         _showSaveSnackBar(
           color: Colors.orange.shade800,
@@ -2563,8 +2949,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       if (mounted) {
         final message = switch (error.message) {
           'duplicate_person' => l10n.duplicatePerson,
-          'forbidden' =>
-            'Votre code ne permet pas cette modification. Saisissez un code de modification valide ou contactez un administrateur.',
           'local_json_write_failed' =>
             'Sauvegarde locale impossible. Vérifiez l’espace disponible du navigateur puis réessayez.',
           'parent_not_found' =>
@@ -2572,11 +2956,21 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           'invalid_relationship' || 'invalid_relationship_cycle' =>
             'La relation familiale sélectionnée est incohérente. Vérifiez l’onglet Relations puis réessayez.',
           _ =>
-            'Enregistrement interrompu. Vos modifications sont conservées sur cet appareil.',
+            'Modifications sauvegardées localement. Synchronisation en attente.',
         };
+        if (error.message == 'forbidden') {
+          debugPrint('Save flow: result=forbidden authorizationRequired');
+          _hasUnsavedChanges = false;
+          await _requestAuthorizationAndRetrySave(draft: draft);
+          return;
+        }
         _showSaveSnackBar(
-          color: Colors.red,
-          icon: Icons.error,
+          color: error.message == 'local_json_write_failed'
+              ? Colors.red
+              : Colors.orange.shade800,
+          icon: error.message == 'local_json_write_failed'
+              ? Icons.error
+              : Icons.sync_problem_outlined,
           message: message,
           duration: const Duration(seconds: 5),
         );
@@ -2597,26 +2991,30 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
 
   Future<void> _requestAuthorizationAndRetrySave({required bool draft}) async {
     _showSaveSnackBar(
-      color: Colors.orange.shade800,
+      color: const Color(0xFF2F6FA3),
       icon: Icons.lock_outline,
-      message:
-          'Saisissez le code de modification pour autoriser l’enregistrement de ces changements.',
+      message: 'Autorisation requise pour synchroniser ces modifications.',
       duration: const Duration(seconds: 4),
     );
+    debugPrint('Save flow: dialogOpened mounted=$mounted');
     final unlocked = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => const ModificationCodeRequiredDialog(),
     );
     if (!mounted) return;
     if (unlocked != true) {
+      debugPrint('Save flow: authorizationCancelled');
       _showSaveSnackBar(
-        color: Colors.red,
+        color: Colors.orange.shade800,
         icon: Icons.lock_outline,
-        message: 'Code incorrect ou accès non autorisé.',
+        message:
+            'Autorisation non validée. La sauvegarde reste en attente sur cet appareil.',
         duration: const Duration(seconds: 5),
       );
       return;
     }
+    debugPrint('Save flow: authorizationGranted remoteSaving');
     setState(() => _isSaving = true);
     try {
       final synced = await ref
@@ -2773,6 +3171,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _phoneNumber,
       _whatsappNumber,
       _fatherId,
+      _fatherExistingDisplay,
       _fatherFirstName,
       _fatherLastName,
       _fatherBirthDate,
@@ -2782,6 +3181,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _fatherCity,
       _fatherBirthPlace,
       _motherId,
+      _motherExistingDisplay,
       _motherFirstName,
       _motherBirthLastName,
       _motherMaritalLastName,
@@ -2918,7 +3318,9 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       _notesVisible = person.privacy.notesVisible;
       _familyCode.text = person.familyCode;
       _fatherId.text = person.fatherId;
+      _fatherExistingDisplay.text = person.fatherId;
       _motherId.text = person.motherId;
+      _motherExistingDisplay.text = person.motherId;
       _fatherMode = person.fatherId.trim().isEmpty
           ? null
           : _ParentInputMode.existing;

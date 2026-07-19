@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,69 @@ import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import 'admin_contact_card.dart';
 import 'secure_code_text_field.dart';
+
+enum ModificationAuthorizationStep {
+  idle,
+  preparingFirebase,
+  verifyingCode,
+  restoringAuthentication,
+  checkingPermissions,
+  savingToFirestore,
+  synchronizing,
+  saved,
+  savedLocally,
+  failed,
+}
+
+extension ModificationAuthorizationStepUi on ModificationAuthorizationStep {
+  bool get isProcessing => switch (this) {
+    ModificationAuthorizationStep.preparingFirebase ||
+    ModificationAuthorizationStep.verifyingCode ||
+    ModificationAuthorizationStep.restoringAuthentication ||
+    ModificationAuthorizationStep.checkingPermissions ||
+    ModificationAuthorizationStep.savingToFirestore ||
+    ModificationAuthorizationStep.synchronizing => true,
+    _ => false,
+  };
+
+  String get buttonLabel => switch (this) {
+    ModificationAuthorizationStep.preparingFirebase =>
+      'Préparation de Firebase…',
+    ModificationAuthorizationStep.verifyingCode => 'Vérification du code…',
+    ModificationAuthorizationStep.restoringAuthentication =>
+      'Connexion sécurisée…',
+    ModificationAuthorizationStep.checkingPermissions =>
+      'Vérification des autorisations…',
+    ModificationAuthorizationStep.savingToFirestore => 'Enregistrement…',
+    ModificationAuthorizationStep.synchronizing => 'Synchronisation…',
+    ModificationAuthorizationStep.saved => 'Code validé',
+    ModificationAuthorizationStep.savedLocally => 'Sauvegardé localement',
+    ModificationAuthorizationStep.failed => 'Réessayer',
+    ModificationAuthorizationStep.idle => 'Vérifier et enregistrer',
+  };
+
+  String get statusLabel => switch (this) {
+    ModificationAuthorizationStep.preparingFirebase =>
+      'Préparation de la connexion sécurisée…',
+    ModificationAuthorizationStep.verifyingCode =>
+      'Vérification du code de modification…',
+    ModificationAuthorizationStep.restoringAuthentication =>
+      'Restauration de votre session…',
+    ModificationAuthorizationStep.checkingPermissions =>
+      'Vérification de vos autorisations…',
+    ModificationAuthorizationStep.savingToFirestore =>
+      'Enregistrement dans la base familiale…',
+    ModificationAuthorizationStep.synchronizing =>
+      'Synchronisation des modifications…',
+    ModificationAuthorizationStep.saved =>
+      'Code validé. Modifications enregistrées et synchronisées.',
+    ModificationAuthorizationStep.savedLocally =>
+      'Modifications sauvegardées sur cet appareil. Synchronisation en attente.',
+    ModificationAuthorizationStep.failed =>
+      'Code incorrect ou accès non autorisé.',
+    ModificationAuthorizationStep.idle => '',
+  };
+}
 
 class ModificationCodeRequiredDialog extends ConsumerStatefulWidget {
   const ModificationCodeRequiredDialog({super.key});
@@ -18,12 +83,26 @@ class ModificationCodeRequiredDialog extends ConsumerStatefulWidget {
 
 class _ModificationCodeRequiredDialogState
     extends ConsumerState<ModificationCodeRequiredDialog> {
+  static const _remoteTimeout = Duration(seconds: 20);
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   String? _error;
+  ModificationAuthorizationStep _step = ModificationAuthorizationStep.idle;
+  String _preparationStatus = 'Préparation…';
+  DateTime? _stepStartedAt;
+
+  bool get _isProcessing => _step.isProcessing;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_prepareFirebase());
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -52,10 +131,14 @@ class _ModificationCodeRequiredDialogState
               const SizedBox(height: 12),
               SecureCodeTextField(
                 controller: _controller,
+                focusNode: _focusNode,
                 label: l10n.enterModificationCode,
                 errorText: _error,
+                enabled: !_isProcessing,
                 onSubmitted: (_) => _unlock(),
               ),
+              const SizedBox(height: 10),
+              _statusMessage(),
             ],
           ),
         ),
@@ -63,28 +146,176 @@ class _ModificationCodeRequiredDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text(l10n.cancel),
+          child: Text(
+            _isProcessing ? 'Continuer en arrière-plan' : l10n.cancel,
+          ),
         ),
         FilledButton(
-          onPressed: _unlock,
-          child: const Text('Vérifier et enregistrer'),
+          onPressed: _isProcessing ? null : _unlock,
+          child: AnimatedSwitcher(
+            duration: _animationDuration(context),
+            child: _isProcessing
+                ? Row(
+                    key: ValueKey(_step),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Flexible(child: Text(_step.buttonLabel)),
+                    ],
+                  )
+                : Text(
+                    _step.buttonLabel,
+                    key: const ValueKey('idle-modification-code-button'),
+                  ),
+          ),
         ),
       ],
     );
   }
 
   Future<void> _unlock() async {
-    final ok = await ref
-        .read(authSessionProvider.notifier)
-        .unlockModification(_controller.text);
-    if (!mounted) return;
-    if (ok) {
+    if (_isProcessing) return;
+    final code = _controller.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _step = ModificationAuthorizationStep.failed;
+        _error = 'Saisissez le code de modification.';
+      });
+      _focusNode.requestFocus();
+      return;
+    }
+    _setStep(ModificationAuthorizationStep.preparingFirebase);
+    try {
+      await _prepareFirebase();
+      _setStep(ModificationAuthorizationStep.verifyingCode);
+      final ok = await ref
+          .read(authSessionProvider.notifier)
+          .unlockModification(code)
+          .timeout(_remoteTimeout);
+      if (!mounted) return;
+      if (!ok) {
+        setState(() {
+          _step = ModificationAuthorizationStep.failed;
+          _error = 'Code incorrect ou accès non autorisé.';
+        });
+        _focusNode.requestFocus();
+        return;
+      }
+      _setStep(ModificationAuthorizationStep.restoringAuthentication);
+      await ref
+          .read(authSessionProvider.notifier)
+          .restoreSession()
+          .timeout(const Duration(seconds: 8), onTimeout: () => true);
+      if (!mounted) return;
+      _setStep(ModificationAuthorizationStep.checkingPermissions);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      _setStep(ModificationAuthorizationStep.synchronizing);
+      await ref
+          .read(familyTreeProvider.notifier)
+          .syncPendingChanges(force: true)
+          .timeout(_remoteTimeout);
+      if (!mounted) return;
+      _setStep(ModificationAuthorizationStep.saved);
+      _controller.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Accès modification autorisé.')),
+        const SnackBar(
+          content: Text(
+            'Code validé. Modifications enregistrées et synchronisées.',
+          ),
+        ),
       );
-    } else {
-      setState(() => _error = 'Code incorrect ou accès non autorisé.');
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _step = ModificationAuthorizationStep.savedLocally;
+        _error =
+            'Firebase met plus de temps que prévu à répondre. Vos modifications sont sauvegardées sur cet appareil.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _step = ModificationAuthorizationStep.savedLocally;
+        _error =
+            'Modifications sauvegardées sur cet appareil. Synchronisation en attente.';
+      });
     }
   }
+
+  Future<void> _prepareFirebase() async {
+    if (mounted && !_isProcessing) {
+      setState(() => _preparationStatus = 'Préparation…');
+    }
+    try {
+      await ref
+          .read(familyTreeProvider.future)
+          .timeout(const Duration(seconds: 6));
+      if (!mounted || _isProcessing) return;
+      setState(() => _preparationStatus = 'Connexion prête');
+    } catch (_) {
+      if (!mounted || _isProcessing) return;
+      setState(() => _preparationStatus = 'Mode hors ligne');
+    }
+  }
+
+  Widget _statusMessage() {
+    final status = _step == ModificationAuthorizationStep.idle
+        ? _preparationStatus
+        : _step.statusLabel;
+    if (status.isEmpty) return const SizedBox.shrink();
+    final isProblem =
+        _step == ModificationAuthorizationStep.failed ||
+        _step == ModificationAuthorizationStep.savedLocally;
+    final color = isProblem
+        ? Theme.of(context).colorScheme.error
+        : const Color(0xFF52606D);
+    return Semantics(
+      liveRegion: true,
+      label: status,
+      child: AnimatedSwitcher(
+        duration: _animationDuration(context),
+        child: Text(
+          key: ValueKey(status),
+          _isProcessing
+              ? '$status\nVeuillez patienter, cette opération peut prendre quelques secondes.'
+              : status,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
+        ),
+      ),
+    );
+  }
+
+  void _setStep(ModificationAuthorizationStep step) {
+    final now = DateTime.now();
+    final previous = _step;
+    final previousStartedAt = _stepStartedAt;
+    if (previousStartedAt != null) {
+      final elapsed = now.difference(previousStartedAt);
+      debugPrint(
+        'Modification authorization step ${previous.name} completed in ${elapsed.inMilliseconds}ms',
+      );
+    }
+    debugPrint('Modification authorization step ${step.name} started');
+    if (!mounted) return;
+    setState(() {
+      _step = step;
+      _error = null;
+      _stepStartedAt = now;
+    });
+  }
+
+  Duration _animationDuration(BuildContext context) =>
+      MediaQuery.disableAnimationsOf(context)
+      ? Duration.zero
+      : const Duration(milliseconds: 200);
 }

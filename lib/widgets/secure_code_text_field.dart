@@ -11,6 +11,7 @@ class SecureCodeTextField extends StatefulWidget {
     this.errorText,
     this.enabled = true,
     this.autofocus = false,
+    this.focusNode,
     this.onSubmitted,
   });
 
@@ -20,6 +21,7 @@ class SecureCodeTextField extends StatefulWidget {
   final String? errorText;
   final bool enabled;
   final bool autofocus;
+  final FocusNode? focusNode;
   final ValueChanged<String>? onSubmitted;
 
   @override
@@ -35,6 +37,7 @@ class _SecureCodeTextFieldState extends State<SecureCodeTextField> {
     final tooltip = _obscureText ? l10n.showCode : l10n.hideCode;
     return TextField(
       controller: widget.controller,
+      focusNode: widget.focusNode,
       autofocus: widget.autofocus,
       enabled: widget.enabled,
       obscureText: _obscureText,
