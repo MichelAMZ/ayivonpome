@@ -69,6 +69,10 @@ service cloud.firestore {
       ) || request.resource.data.version == resource.data.version + 1;
     }
 
+    function preservesDeletedAt() {
+      return request.resource.data.deletedAt == resource.data.deletedAt;
+    }
+
     match /families/{familyId} {
       allow read: if isPublicFamily(familyId) || hasFamilyAccess(familyId);
       allow create, update: if isEditor(familyId);
@@ -84,6 +88,7 @@ service cloud.firestore {
           resource.data.familyId,
           request.resource.data.familyId
         ) &&
+        (preservesDeletedAt() || isAdmin(resource.data.familyId)) &&
         hasValidNextVersion();
       allow delete: if isAdmin(resource.data.familyId);
     }
@@ -96,7 +101,8 @@ service cloud.firestore {
         isSameTenantFamilyId(
           resource.data.familyId,
           request.resource.data.familyId
-        );
+        ) &&
+        (preservesDeletedAt() || isAdmin(resource.data.familyId));
       allow delete: if isAdmin(resource.data.familyId);
     }
 
@@ -128,20 +134,26 @@ service cloud.firestore {
       allow read: if isAdmin(resource.data.familyId);
       allow create: if isEditor(request.resource.data.familyId);
       allow update: if false;
-      allow delete: if isSuperAdmin() && hasFamilyAccess(resource.data.familyId);
+      allow delete: if isAdmin(resource.data.familyId);
     }
 
     match /admin_audit_logs/{logId} {
       allow read: if isAdmin(resource.data.familyId);
-      allow create: if isSuperAdmin() &&
+      allow create: if isAdmin(request.resource.data.familyId) &&
         hasFamilyAccess(request.resource.data.familyId) &&
         request.resource.data.actorUid == request.auth.uid &&
-        request.resource.data.action == 'activity_log_clear_started';
-      allow update: if isSuperAdmin() &&
+        request.resource.data.action in [
+          'activity_log_clear_started',
+          'activity_logs_delete_started'
+        ];
+      allow update: if isAdmin(resource.data.familyId) &&
         hasFamilyAccess(resource.data.familyId) &&
         request.resource.data.familyId == resource.data.familyId &&
         request.resource.data.actorUid == resource.data.actorUid &&
-        request.resource.data.action == 'activity_log_cleared';
+        request.resource.data.action in [
+          'activity_log_cleared',
+          'activity_logs_deleted'
+        ];
       allow delete: if false;
     }
 

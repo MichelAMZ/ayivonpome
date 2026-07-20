@@ -12,6 +12,7 @@ import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../widgets/contact_section.dart';
 import '../widgets/mini_map_card.dart';
+import '../widgets/member_deletion_dialog.dart';
 import '../widgets/modification_code_required_dialog.dart';
 import '../widgets/notify_person_button.dart';
 import 'person_detail_formatters.dart';
@@ -158,12 +159,8 @@ class _LoadedPersonDetail extends ConsumerWidget {
                 ),
               )
             : null,
-        onDelete: authenticated
-            ? () => _requestModificationThen(
-                context,
-                ref,
-                () => _delete(context, ref, person),
-              )
+        onDelete: auth.canSecurelyDeleteMember
+            ? () => _delete(context, ref, person)
             : null,
       ),
       body: ListView(
@@ -318,27 +315,21 @@ class _LoadedPersonDetail extends ConsumerWidget {
     WidgetRef ref,
     Person person,
   ) async {
-    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.confirmDelete),
-        content: Text(person.fullName),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.delete),
-          ),
-        ],
+      barrierDismissible: false,
+      builder: (context) => MemberDeletionDialog(
+        person: person,
+        data: data,
+        onDelete: () =>
+            ref.read(familyTreeProvider.notifier).deletePerson(person.id),
       ),
     );
     if (confirmed == true && context.mounted) {
-      await ref.read(familyTreeProvider.notifier).deletePerson(person.id);
-      if (context.mounted) Navigator.pop(context);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le membre a été supprimé.')),
+      );
     }
   }
 

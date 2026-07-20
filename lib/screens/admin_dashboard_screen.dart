@@ -27,6 +27,7 @@ import '../services/admin_access_service.dart';
 import '../services/activity_log_service.dart';
 import 'branding_settings_screen.dart';
 import '../widgets/admin_contact_card.dart';
+import '../widgets/activity_journal_panel.dart';
 import '../widgets/bug_report_button.dart';
 import '../widgets/bug_report_card.dart';
 import '../widgets/edit_application_title_dialog.dart';
@@ -61,6 +62,7 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   _AdminCenterSection _selectedSection = _AdminCenterSection.dashboard;
+  // ignore: unused_field
   bool _isClearingActivityLog = false;
   bool _isQuickSyncing = false;
   bool _adminInfoDismissed = false;
@@ -538,80 +540,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     AuthState auth,
     FamilyTreeData data,
   ) {
-    final service = ref.watch(activityLogServiceProvider);
-    final role = auth.session?.role ?? auth.firebaseRole ?? 'viewer';
-    final canClear = service.canClearActivityLog(role);
-    return [
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 560;
-          final title = Text(
-            '${l10n.activityLog} (${service.countEntries(data)})',
-            style: Theme.of(context).textTheme.titleLarge,
-          );
-          final clearButton = OutlinedButton.icon(
-            onPressed:
-                canClear && data.auditLog.isNotEmpty && !_isClearingActivityLog
-                ? () => _confirmClearActivityLog(context, auth)
-                : null,
-            icon: _isClearingActivityLog
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.delete_outline),
-            label: Text(
-              _isClearingActivityLog ? 'Suppression...' : 'Vider le journal',
-            ),
-          );
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                title,
-                const SizedBox(height: 8),
-                if (canClear) clearButton,
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: title),
-              if (canClear) clearButton,
-            ],
-          );
-        },
-      ),
-      const SizedBox(height: 8),
-      if (data.auditLog.isEmpty)
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.history_outlined),
-            title: Text('Le journal d’activité est vide.'),
-          ),
-        )
-      else
-        ...data.auditLog.reversed
-            .take(50)
-            .map(
-              (log) => Card(
-                child: ListTile(
-                  leading: const Icon(Icons.history_outlined),
-                  title: Text(log.action),
-                  subtitle: Text(
-                    [
-                      log.date,
-                      log.actorRole,
-                      log.description,
-                    ].where((value) => value.isNotEmpty).join('\n'),
-                  ),
-                ),
-              ),
-            ),
-    ];
+    return [ActivityJournalPanel(data: data, auth: auth)];
   }
 
+  // Kept for compatibility with older retention workflows.
+  // ignore: unused_element
   Future<void> _confirmClearActivityLog(
     BuildContext context,
     AuthState auth,

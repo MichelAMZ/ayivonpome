@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../models/audit_log.dart';
+import '../models/activity_log_deletion_result.dart';
 import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
@@ -18,6 +19,7 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
   Future<FamilyTreeData> loadFamilyTree() => _client.loadFamilyTree();
 
   Stream<FamilyTreeData> watchFamilyTree() => _client.watchFamilyTree();
+  Stream<List<AuditLog>> watchActivityLogs() => _client.watchActivityLogs();
 
   @override
   Future<void> saveFamilyTree(FamilyTreeData data) =>
@@ -70,6 +72,14 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
     retentionLabel: retentionLabel,
   );
 
+  Future<ActivityLogDeletionResult> deleteActivityLogsByIds({
+    required String familyId,
+    required List<String> activityIds,
+  }) => _client.deleteActivityLogsByIds(
+    familyId: familyId,
+    activityIds: activityIds,
+  );
+
   @override
   Future<void> upsertSyncIncident(SyncIncident incident) =>
       _client.upsertSyncIncident(incident);
@@ -97,8 +107,13 @@ abstract class RemoteDatabaseClient {
     required String actorRole,
     required String retentionLabel,
   });
+  Future<ActivityLogDeletionResult> deleteActivityLogsByIds({
+    required String familyId,
+    required List<String> activityIds,
+  });
   Future<void> upsertSyncIncident(SyncIncident incident);
   Stream<FamilyTreeData> watchFamilyTree();
+  Stream<List<AuditLog>> watchActivityLogs();
 }
 
 class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
@@ -132,6 +147,13 @@ class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
   }
 
   @override
+  Stream<List<AuditLog>> watchActivityLogs() => Stream.error(
+    const RemoteDatabaseUnavailableException(
+      'Remote database client is not configured yet.',
+    ),
+  );
+
+  @override
   Future<void> createMarriage(MarriageRelation relation) => _notConfigured();
 
   @override
@@ -156,6 +178,12 @@ class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
     required String actorUid,
     required String actorRole,
     required String retentionLabel,
+  }) => _notConfigured();
+
+  @override
+  Future<ActivityLogDeletionResult> deleteActivityLogsByIds({
+    required String familyId,
+    required List<String> activityIds,
   }) => _notConfigured();
 
   @override

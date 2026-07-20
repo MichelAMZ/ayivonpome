@@ -64,6 +64,8 @@ class SyncStatusBadge extends ConsumerWidget {
             'offline' => 'Hors ligne',
             'syncing' => 'Synchronisation en cours',
             'pending' => 'Synchronisation en attente',
+            'authorizationRequired' => 'Autorisation requise',
+            'error' => 'Synchronisation indisponible',
             _ =>
               totalOpenCount > 0 ? 'Synchronisation en attente' : 'Synchronisé',
           };
@@ -78,6 +80,8 @@ class SyncStatusBadge extends ConsumerWidget {
             'offline' => Icons.cloud_off_outlined,
             'syncing' => Icons.sync_outlined,
             'pending' => Icons.sync_outlined,
+            'authorizationRequired' => Icons.lock_outline,
+            'error' => Icons.error_outline,
             _ =>
               totalOpenCount > 0
                   ? Icons.sync_outlined
@@ -92,6 +96,8 @@ class SyncStatusBadge extends ConsumerWidget {
             'offline' => const Color(0xFF6D6F75),
             'syncing' => const Color(0xFF1565C0),
             'pending' => const Color(0xFF9A6A00),
+            'authorizationRequired' => const Color(0xFF9A6A00),
+            'error' => Colors.red,
             _ =>
               totalOpenCount > 0
                   ? const Color(0xFF9A6A00)

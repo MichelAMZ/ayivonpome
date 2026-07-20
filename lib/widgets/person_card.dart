@@ -15,6 +15,7 @@ import '../screens/divorce_dialog.dart';
 import '../screens/person_edit_screen.dart';
 import '../theme/app_colors.dart';
 import '../widgets/modification_code_required_dialog.dart';
+import '../widgets/member_deletion_dialog.dart';
 import '../widgets/notification_form.dart';
 import 'person_context_menu.dart';
 import 'person_origin_name_text.dart';
@@ -484,7 +485,7 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       items: personContextMenuItems(
         l10n,
         canModify: canRequestModify,
-        canDelete: auth.canModify && auth.isAdmin,
+        canDelete: auth.canSecurelyDeleteMember,
         hasMap: hasMap,
         hasContact: hasContact,
         canNotify: auth.isAdmin,
@@ -502,7 +503,7 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       case PersonContextAction.addHistoricalEvent:
         if (await _ensureModificationAccess()) _openEditor(widget.person);
       case PersonContextAction.deletePerson:
-        if (await _ensureModificationAccess()) await _deletePerson();
+        await _deletePerson();
       case PersonContextAction.addFather:
         await _applyRelationship(
           (service, data) =>
@@ -716,28 +717,21 @@ class _PersonCardState extends ConsumerState<PersonCard> {
   }
 
   Future<void> _deletePerson() async {
-    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.confirmDelete),
-        content: Text(widget.person.fullName),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.delete),
-          ),
-        ],
+      barrierDismissible: false,
+      builder: (context) => MemberDeletionDialog(
+        person: widget.person,
+        data: widget.data,
+        onDelete: () => ref
+            .read(familyTreeProvider.notifier)
+            .deletePerson(widget.person.id),
       ),
     );
-    if (confirmed == true) {
-      await ref
-          .read(familyTreeProvider.notifier)
-          .deletePerson(widget.person.id);
+    if (confirmed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le membre a été supprimé.')),
+      );
     }
   }
 

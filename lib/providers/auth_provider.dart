@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/session_metadata.dart';
@@ -53,6 +55,11 @@ class AuthState {
       session?.isAdmin == true ||
       firebaseRole == 'admin' ||
       firebaseRole == 'superAdmin';
+  bool get canSecurelyDeleteMember =>
+      restoreStatus == SessionRestoreStatus.authenticated &&
+      firebaseUid != null &&
+      firebaseUid!.isNotEmpty &&
+      (firebaseRole == 'admin' || firebaseRole == 'superAdmin');
 }
 
 final authSessionProvider = NotifierProvider<AuthController, AuthState>(
@@ -70,11 +77,12 @@ class AuthController extends Notifier<AuthState> {
     }
     final subscription = service.idTokenChanges().listen((user) {
       if (user == null || user.isAnonymous) {
-        if (state.restoreStatus == SessionRestoreStatus.initializing) {
-          state = const AuthState(
-            restoreStatus: SessionRestoreStatus.unauthenticated,
-          );
-        }
+        unawaited(
+          ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch(),
+        );
+        state = const AuthState(
+          restoreStatus: SessionRestoreStatus.unauthenticated,
+        );
         return;
       }
       Future.microtask(restoreSession);
@@ -87,6 +95,7 @@ class AuthController extends Notifier<AuthState> {
   Future<bool> restoreSession() async {
     final service = ref.read(firebaseAccessCodeAuthServiceProvider);
     if (service == null) {
+      await ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch();
       state = const AuthState(
         restoreStatus: SessionRestoreStatus.unauthenticated,
       );
@@ -94,6 +103,7 @@ class AuthController extends Notifier<AuthState> {
     }
     final currentUser = service.currentUser;
     if (currentUser == null || currentUser.isAnonymous) {
+      await ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch();
       state = const AuthState(
         restoreStatus: SessionRestoreStatus.unauthenticated,
       );
@@ -119,10 +129,16 @@ class AuthController extends Notifier<AuthState> {
       }
       _applyFirebaseSession(firebaseSession);
       await _saveSessionMetadata(firebaseSession);
+      await ref
+          .read(familyTreeProvider.notifier)
+          .startRemoteFamilyTreeWatch(
+            includeActivityLog: firebaseSession.isAdmin,
+          );
       await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
       return true;
     } catch (error) {
       if (_isConfirmedAuthorizationFailure(error)) {
+        await ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch();
         await ref.read(sessionStorageServiceProvider).clearSession();
         state = AuthState(
           restoreStatus: SessionRestoreStatus.unauthorized,
@@ -187,6 +203,11 @@ class AuthController extends Notifier<AuthState> {
     );
     _applyFirebaseSession(firebaseSession);
     await _saveSessionMetadata(firebaseSession);
+    await ref
+        .read(familyTreeProvider.notifier)
+        .startRemoteFamilyTreeWatch(
+          includeActivityLog: firebaseSession.isAdmin,
+        );
     await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
   }
 
@@ -217,6 +238,11 @@ class AuthController extends Notifier<AuthState> {
         }
         _applyFirebaseSession(firebaseSession);
         await _saveSessionMetadata(firebaseSession);
+        await ref
+            .read(familyTreeProvider.notifier)
+            .startRemoteFamilyTreeWatch(
+              includeActivityLog: firebaseSession.isAdmin,
+            );
         await ref
             .read(familyTreeProvider.notifier)
             .addAuditLog(
@@ -271,6 +297,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    await ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch();
     final service = ref.read(firebaseAdminAuthServiceProvider);
     if (service != null && state.firebaseUid != null) {
       await service.signOut();
@@ -292,6 +319,11 @@ class AuthController extends Notifier<AuthState> {
       if (requireEditor && !firebaseSession.isEditor) return null;
       _applyFirebaseSession(firebaseSession);
       await _saveSessionMetadata(firebaseSession);
+      await ref
+          .read(familyTreeProvider.notifier)
+          .startRemoteFamilyTreeWatch(
+            includeActivityLog: firebaseSession.isAdmin,
+          );
       return firebaseSession;
     } catch (_) {
       return null;

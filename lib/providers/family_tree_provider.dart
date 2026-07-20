@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/family_tree/domain/use_cases/link_existing_father.dart';
 import '../models/audit_log.dart';
+import '../models/activity_log_deletion_result.dart';
 import '../models/access_code.dart';
 import '../models/admin_access.dart';
 import '../models/app_settings.dart';
@@ -41,6 +43,8 @@ final familyTreeProvider =
 
 class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   StreamSubscription<FamilyTreeData>? _remoteFamilyTreeSubscription;
+  StreamSubscription<List<AuditLog>>? _remoteActivityLogSubscription;
+  Future<void> _remoteApplyChain = Future<void>.value();
 
   @override
   Future<FamilyTreeData> build() async {
@@ -48,10 +52,11 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     ref.onDispose(() {
       _remoteFamilyTreeSubscription?.cancel();
       _remoteFamilyTreeSubscription = null;
+      _remoteActivityLogSubscription?.cancel();
+      _remoteActivityLogSubscription = null;
     });
     clearTreeRuntimeState();
     final data = await _loadFreshData();
-    _startRemoteFamilyTreeWatch(data);
     resetFilters();
     fitAndCenterTreeOnStart();
     return data;
@@ -63,7 +68,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final data = await _loadFreshData(forceReloadSource: true);
-      _startRemoteFamilyTreeWatch(data);
       resetFilters();
       fitAndCenterTreeOnStart();
       return data;
@@ -243,41 +247,102 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return pruned;
   }
 
-  void _startRemoteFamilyTreeWatch(FamilyTreeData initialData) {
-    _remoteFamilyTreeSubscription?.cancel();
+  Future<void> startRemoteFamilyTreeWatch({
+    bool includeActivityLog = false,
+  }) async {
+    final initialData = await future;
+    await _remoteFamilyTreeSubscription?.cancel();
     _remoteFamilyTreeSubscription = ref
         .read(remoteDatabaseRepositoryProvider)
         .watchFamilyTree()
         .listen(
           (remoteData) {
-            _applyRemoteFamilyTreeSnapshot(remoteData, initialData);
+            _setRemoteSyncStatus('syncing');
+            _remoteApplyChain = _remoteApplyChain
+                .then(
+                  (_) =>
+                      _applyRemoteFamilyTreeSnapshot(remoteData, initialData),
+                )
+                .catchError((Object error, StackTrace stackTrace) {
+                  _setRemoteSyncStatus('error');
+                  debugPrint(
+                    'FIRESTORE WATCH apply error type=${error.runtimeType}',
+                  );
+                });
           },
           onError: (Object error, StackTrace stackTrace) {
-            debugPrint('FIRESTORE WATCH skipped: $error');
-            debugPrintStack(stackTrace: stackTrace);
+            final code = error is FirebaseException ? error.code : 'unknown';
+            final status = switch (code) {
+              'permission-denied' ||
+              'unauthenticated' => 'authorizationRequired',
+              'unavailable' ||
+              'deadline-exceeded' ||
+              'network-request-failed' => 'offline',
+              _ => 'error',
+            };
+            _setRemoteSyncStatus(status);
+            debugPrint('FIRESTORE WATCH error code=$code');
           },
         );
+    await _remoteActivityLogSubscription?.cancel();
+    _remoteActivityLogSubscription = null;
+    if (includeActivityLog) {
+      _remoteActivityLogSubscription = ref
+          .read(remoteDatabaseRepositoryProvider)
+          .watchActivityLogs()
+          .listen(
+            (logs) async {
+              final current = state.value;
+              if (current == null) return;
+              final next = current.copyWith(auditLog: logs);
+              await ref.read(localJsonRepositoryProvider).saveFamilyTree(next);
+              if (ref.mounted) state = AsyncData(next);
+            },
+            onError: (Object error) {
+              final code = error is FirebaseException ? error.code : 'unknown';
+              debugPrint('ACTIVITY WATCH error code=$code');
+            },
+          );
+    }
+  }
+
+  void _setRemoteSyncStatus(String status) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(
+      current.copyWith(
+        syncSettings: current.syncSettings.copyWith(syncStatus: status),
+        appSettings: current.appSettings.copyWith(
+          storageSettings: current.appSettings.storageSettings.copyWith(
+            syncStatus: status,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> stopRemoteFamilyTreeWatch() async {
+    await _remoteFamilyTreeSubscription?.cancel();
+    _remoteFamilyTreeSubscription = null;
+    await _remoteActivityLogSubscription?.cancel();
+    _remoteActivityLogSubscription = null;
   }
 
   Future<void> _applyRemoteFamilyTreeSnapshot(
     FamilyTreeData remoteData,
     FamilyTreeData fallbackData,
   ) async {
-    if (remoteData.people.isEmpty &&
-        remoteData.marriageRelations.isEmpty &&
-        remoteData.familyLinks.isEmpty) {
-      debugPrint('FIRESTORE WATCH empty snapshot ignored');
-      return;
-    }
-
     final current = state.value ?? fallbackData;
     final pendingQueue = current.pendingSyncQueue;
     final syncStatus = pendingQueue.isEmpty ? 'synced' : 'pending';
     var merged = current.copyWith(
       mainFamilyCode: remoteData.mainFamilyCode,
       people: _mergeRemotePeopleKeepingLocalChanges(current, remoteData),
-      marriageRelations: remoteData.marriageRelations,
-      familyLinks: remoteData.familyLinks,
+      marriageRelations: _mergeRemoteMarriagesKeepingLocalChanges(
+        current,
+        remoteData,
+      ),
+      familyLinks: _mergeRemoteLinksKeepingLocalChanges(current, remoteData),
       lastUpdatedAt: DateTime.now().toIso8601String(),
       syncSettings: current.syncSettings.copyWith(syncStatus: syncStatus),
       appSettings: current.appSettings.copyWith(
@@ -318,21 +383,74 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     for (final localPerson in current.people) {
       final remotePerson = remoteById[localPerson.id];
       if (pendingPersonIds.contains(localPerson.id) ||
-          remotePerson == null ||
-          _isLocalVersionNewer(localPerson.updatedAt, remotePerson.updatedAt)) {
+          (remotePerson != null &&
+              _isLocalPersonNewer(localPerson, remotePerson))) {
         mergedById[localPerson.id] = localPerson;
       }
     }
 
-    return [
-      for (final remotePerson in remoteData.people)
-        mergedById[remotePerson.id]!,
-      for (final localPerson in current.people)
-        if (!remoteById.containsKey(localPerson.id) &&
-            mergedById.containsKey(localPerson.id))
-          mergedById[localPerson.id]!,
-    ];
+    return mergedById.values.toList(growable: false);
   }
+
+  List<MarriageRelation> _mergeRemoteMarriagesKeepingLocalChanges(
+    FamilyTreeData current,
+    FamilyTreeData remoteData,
+  ) {
+    final pendingIds = _pendingEntityIds(current, 'marriage');
+    final remoteById = {
+      for (final relation in remoteData.marriageRelations)
+        relation.id: relation,
+    };
+    final merged = Map<String, MarriageRelation>.from(remoteById);
+    for (final local in current.marriageRelations) {
+      final remote = remoteById[local.id];
+      if (pendingIds.contains(local.id) ||
+          (remote != null &&
+              _isLocalRecordNewer(
+                local.version,
+                local.updatedAt,
+                remote.version,
+                remote.updatedAt,
+              ))) {
+        merged[local.id] = local;
+      }
+    }
+    return merged.values.toList(growable: false);
+  }
+
+  List<FamilyLink> _mergeRemoteLinksKeepingLocalChanges(
+    FamilyTreeData current,
+    FamilyTreeData remoteData,
+  ) {
+    final pendingIds = _pendingEntityIds(current, 'familyLink');
+    final remoteById = {
+      for (final link in remoteData.familyLinks) link.id: link,
+    };
+    final merged = Map<String, FamilyLink>.from(remoteById);
+    for (final local in current.familyLinks) {
+      final remote = remoteById[local.id];
+      if (pendingIds.contains(local.id) ||
+          (remote != null &&
+              _isLocalRecordNewer(
+                local.version,
+                local.updatedAt,
+                remote.version,
+                remote.updatedAt,
+              ))) {
+        merged[local.id] = local;
+      }
+    }
+    return merged.values.toList(growable: false);
+  }
+
+  Set<String> _pendingEntityIds(FamilyTreeData data, String entityType) => data
+      .pendingSyncQueue
+      .where(
+        (item) => item.entityType == entityType && _isOpenPendingSyncItem(item),
+      )
+      .map((item) => item.entityId)
+      .where((id) => id.trim().isNotEmpty)
+      .toSet();
 
   bool _isOpenPendingSyncItem(PendingSyncItem item) {
     const closedStatuses = {'completed', 'discarded', 'resolved', 'synced'};
@@ -345,6 +463,25 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     if (local == null) return false;
     if (remote == null) return true;
     return local.isAfter(remote);
+  }
+
+  bool _isLocalPersonNewer(Person local, Person remote) {
+    return _isLocalRecordNewer(
+      local.version,
+      local.updatedAt,
+      remote.version,
+      remote.updatedAt,
+    );
+  }
+
+  bool _isLocalRecordNewer(
+    int localVersion,
+    String localUpdatedAt,
+    int remoteVersion,
+    String remoteUpdatedAt,
+  ) {
+    if (localVersion != remoteVersion) return localVersion > remoteVersion;
+    return _isLocalVersionNewer(localUpdatedAt, remoteUpdatedAt);
   }
 
   Future<FamilyTreeData> save(
@@ -648,6 +785,41 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     await ref.read(localJsonRepositoryProvider).saveFamilyTree(result.data);
     state = AsyncData(result.data);
     return result.deletedCount;
+  }
+
+  Future<ActivityLogDeletionResult> deleteActivityLogsByIds({
+    required Set<String> activityIds,
+    required String actorRole,
+    required String actorUid,
+  }) async {
+    final service = ref.read(activityLogServiceProvider);
+    if (!service.canClearActivityLog(actorRole) || actorUid.trim().isEmpty) {
+      throw StateError('forbidden');
+    }
+    final data = await future;
+    final existingIds = data.auditLog.map((log) => log.id).toSet();
+    final requestedIds = activityIds
+        .where((id) => existingIds.contains(id))
+        .toList(growable: false);
+    final result = await ref
+        .read(remoteDatabaseRepositoryProvider)
+        .deleteActivityLogsByIds(
+          familyId: data.mainFamilyCode,
+          activityIds: requestedIds,
+        );
+    if (result.deletedCount > 0) {
+      final deletedIds = requestedIds.toSet().difference(
+        result.failedIds.toSet(),
+      );
+      final next = data.copyWith(
+        auditLog: data.auditLog
+            .where((log) => !deletedIds.contains(log.id))
+            .toList(growable: false),
+      );
+      await ref.read(localJsonRepositoryProvider).saveFamilyTree(next);
+      state = AsyncData(next);
+    }
+    return result;
   }
 
   Future<void> setLanguage(String languageCode, {bool manual = true}) async {
@@ -1081,16 +1253,75 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
 
   Future<void> deletePerson(String id) async {
     final data = await future;
+    final person = data.people.where((item) => item.id == id).firstOrNull;
+    if (person == null) throw StateError('person_not_found');
+    if (data.familyLeadership.currentLeaderPersonId == id) {
+      throw StateError('family_leader_replacement_required');
+    }
+
+    await ref.read(remoteDatabaseRepositoryProvider).deletePerson(id);
     await createBackup();
-    await save(
+    final cleanedPeople = data.people
+        .where((item) => item.id != id)
+        .map(
+          (item) => item.copyWith(
+            fatherId: item.fatherId == id ? '' : item.fatherId,
+            motherId: item.motherId == id ? '' : item.motherId,
+            spouseIds: item.spouseIds.where((value) => value != id).toList(),
+            childrenIds: item.childrenIds
+                .where((value) => value != id)
+                .toList(),
+            parents: item.parents.where((value) => value != id).toList(),
+            spouses: item.spouses.where((value) => value != id).toList(),
+            children: item.children.where((value) => value != id).toList(),
+          ),
+        )
+        .toList(growable: false);
+    final cleaned = rebuildRelationshipGraph(
       data.copyWith(
-        people: data.people.where((person) => person.id != id).toList(),
-        auditLog: [...data.auditLog, _log('delete_person', id, '')],
+        people: cleanedPeople,
+        marriageRelations: data.marriageRelations
+            .where((relation) => !relation.involves(id))
+            .toList(growable: false),
+        familyLinks: data.familyLinks
+            .where((link) => link.fromPersonId != id && link.toPersonId != id)
+            .toList(growable: false),
+        familyCouncil: data.familyCouncil.copyWith(
+          members: data.familyCouncil.members
+              .where((member) => member.personId != id)
+              .toList(growable: false),
+        ),
+        familyHonor: data.familyHonor.patriarchPersonId == id
+            ? data.familyHonor.copyWith(patriarchPersonId: '')
+            : data.familyHonor,
+        familyLeadership: data.familyLeadership.copyWith(
+          formerLeaderPersonId: data.familyLeadership.formerLeaderPersonId == id
+              ? ''
+              : null,
+          successorPersonId: data.familyLeadership.successorPersonId == id
+              ? ''
+              : null,
+        ),
+        pendingSyncQueue: data.pendingSyncQueue
+            .where(
+              (operation) =>
+                  !(operation.entityType == 'person' &&
+                      operation.entityId == id),
+            )
+            .toList(growable: false),
+        auditLog: [
+          ...data.auditLog,
+          _log(
+            'delete_person_confirmed',
+            id,
+            person.familyCode,
+            description: 'Suppression Firebase confirmée.',
+          ),
+        ],
       ),
-      syncOperation: ref
-          .read(syncServiceProvider)
-          .deletePersonOperation(personId: id, updatedBy: 'delete_person'),
     );
+    await ref.read(localJsonRepositoryProvider).saveFamilyTree(cleaned);
+    state = AsyncData(cleaned);
   }
 
   Future<void> upsertFamilyCode(FamilyCode familyCode) async {

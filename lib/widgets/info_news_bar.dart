@@ -67,46 +67,14 @@ class _InfoNewsBarState extends ConsumerState<InfoNewsBar> {
       });
     }
 
-    return MouseRegion(
-      onEnter: (_) => _paused = true,
-      onExit: (_) => _paused = false,
-      child: GestureDetector(
-        onLongPressStart: (_) => _paused = true,
-        onLongPressEnd: (_) => _paused = false,
-        child: Container(
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFF8E8),
-            border: Border(bottom: BorderSide(color: Color(0xFFE8D9B4))),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.info_outline,
-                color: Color(0xFF725516),
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MarqueeText(
-                  key: ValueKey(current.id),
-                  text: _label(current),
-                  paused: _paused,
-                ),
-              ),
-              if (hasPublishedNews)
-                IconButton(
-                  tooltip: 'Fermer',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () =>
-                      setState(() => _dismissedIds.add(current.id)),
-                  icon: const Icon(Icons.close, size: 18),
-                ),
-            ],
-          ),
-        ),
-      ),
+    return ResponsiveInfoMessageBar(
+      key: ValueKey(current.id),
+      message: _label(current),
+      showCloseButton: hasPublishedNews,
+      onClose: hasPublishedNews
+          ? () => setState(() => _dismissedIds.add(current.id))
+          : null,
+      onPauseChanged: (paused) => _paused = paused,
     );
   }
 
@@ -128,80 +96,95 @@ class _InfoNewsBarState extends ConsumerState<InfoNewsBar> {
   }
 }
 
-class _MarqueeText extends StatefulWidget {
-  const _MarqueeText({super.key, required this.text, required this.paused});
+class ResponsiveInfoMessageBar extends StatelessWidget {
+  const ResponsiveInfoMessageBar({
+    super.key,
+    required this.message,
+    this.showCloseButton = true,
+    this.onClose,
+    this.onPauseChanged,
+  });
 
-  final String text;
-  final bool paused;
-
-  @override
-  State<_MarqueeText> createState() => _MarqueeTextState();
-}
-
-class _MarqueeTextState extends State<_MarqueeText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 18),
-    )..repeat();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MarqueeText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.paused) {
-      _controller.stop();
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
-    }
-    if (oldWidget.text != widget.text) {
-      _controller
-        ..reset()
-        ..repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final String message;
+  final bool showCloseButton;
+  final VoidCallback? onClose;
+  final ValueChanged<bool>? onPauseChanged;
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: const Color(0xFF3B3322),
-      fontWeight: FontWeight.w700,
-      letterSpacing: 0,
-    );
-    return ClipRect(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final offset = width * (1 - 2 * _controller.value);
-              return Transform.translate(
-                offset: Offset(offset, 0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(widget.text, maxLines: 1, style: style),
-                    SizedBox(width: width),
-                    Text(widget.text, maxLines: 1, style: style),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        final horizontalPadding = compact ? 12.0 : 24.0;
+        final maxLines = compact ? 2 : 1;
+        return MouseRegion(
+          onEnter: (_) => onPauseChanged?.call(true),
+          onExit: (_) => onPauseChanged?.call(false),
+          child: GestureDetector(
+            onLongPressStart: (_) => onPauseChanged?.call(true),
+            onLongPressEnd: (_) => onPauseChanged?.call(false),
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: 48),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF8E8),
+                border: Border(bottom: BorderSide(color: Color(0xFFE8D9B4))),
+              ),
+              padding: EdgeInsetsDirectional.only(
+                start: horizontalPadding,
+                end: showCloseButton ? 2 : horizontalPadding,
+                top: 6,
+                bottom: 6,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Semantics(
+                    label: 'Information familiale',
+                    child: const Icon(
+                      Icons.info_outline,
+                      color: Color(0xFF725516),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Tooltip(
+                      message: message,
+                      child: Text(
+                        message,
+                        maxLines: maxLines,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.start,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF3B3322),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (showCloseButton) ...[
+                    const SizedBox(width: 4),
+                    Semantics(
+                      button: true,
+                      label: 'Fermer le message',
+                      child: IconButton(
+                        tooltip: 'Fermer le message',
+                        constraints: const BoxConstraints.tightFor(
+                          width: 44,
+                          height: 44,
+                        ),
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close, size: 20),
+                      ),
+                    ),
                   ],
-                ),
-              );
-            },
-          );
-        },
-      ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

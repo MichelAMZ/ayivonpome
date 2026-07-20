@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../models/audit_log.dart';
+import '../../models/activity_log_deletion_result.dart';
 import '../../models/family_link.dart';
 import '../../models/family_tree_data.dart';
 import '../../models/marriage_relation.dart';
@@ -105,6 +106,18 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
     return controller.stream;
   }
+
+  @override
+  Stream<List<AuditLog>> watchActivityLogs() => _activityLogs
+      .where('familyId', isEqualTo: _tenantFamilyId)
+      .orderBy('date', descending: true)
+      .limit(500)
+      .snapshots()
+      .map(
+        (snapshot) => snapshot.docs
+            .map((doc) => AuditLog.fromJson(_mapper.fromSnapshot(doc)))
+            .toList(growable: false),
+      );
 
   FamilyTreeData _treeFromSnapshots(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> people,
@@ -344,7 +357,160 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   }
 
   @override
-  Future<void> deletePerson(String personId) => _softDelete(_members, personId);
+  Future<void> deletePerson(String personId) async {
+    _validatePersonId(personId, 'supprimer');
+    final user = await _requireFirebaseAdminForFamily();
+    final memberDoc = _members.doc(personId);
+    final memberSnapshot = await memberDoc.get(
+      const GetOptions(source: Source.server),
+    );
+    final memberData = memberSnapshot.data();
+    if (!memberSnapshot.exists || memberData == null) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'not-found',
+        message: 'Le membre à supprimer est introuvable.',
+      );
+    }
+    if (_stringValue(memberData['familyId']) != _tenantFamilyId) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: 'Ce membre appartient à une autre famille.',
+      );
+    }
+
+    final membersSnapshot = await _members
+        .where('familyId', isEqualTo: _tenantFamilyId)
+        .get(const GetOptions(source: Source.server));
+    final relationshipsSnapshot = await _relationships
+        .where('familyId', isEqualTo: _tenantFamilyId)
+        .get(const GetOptions(source: Source.server));
+    final affectedMembers = membersSnapshot.docs
+        .where(
+          (doc) =>
+              doc.id != personId && _referencesPerson(doc.data(), personId),
+        )
+        .toList(growable: false);
+    final affectedRelationships = relationshipsSnapshot.docs
+        .where((doc) {
+          final data = doc.data();
+          return data['personId'] == personId ||
+              data['spouseId'] == personId ||
+              data['partner1Id'] == personId ||
+              data['partner2Id'] == personId;
+        })
+        .toList(growable: false);
+    if (affectedMembers.length + affectedRelationships.length > 450) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'resource-exhausted',
+        message:
+            'Trop de relations à nettoyer en une seule opération sécurisée.',
+      );
+    }
+
+    final batch = _firestore.batch();
+    for (final snapshot in affectedMembers) {
+      final data = snapshot.data();
+      batch.set(snapshot.reference, {
+        'fatherId': data['fatherId'] == personId ? '' : data['fatherId'],
+        'motherId': data['motherId'] == personId ? '' : data['motherId'],
+        'spouseIds': _withoutId(data['spouseIds'], personId),
+        'childrenIds': _withoutId(data['childrenIds'], personId),
+        'parents': _withoutId(data['parents'], personId),
+        'spouses': _withoutId(data['spouses'], personId),
+        'children': _withoutId(data['children'], personId),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'version': _safeVersion(data['version']) + 1,
+      }, SetOptions(merge: true));
+    }
+    final deletedAt = DateTime.now().toUtc().toIso8601String();
+    for (final snapshot in affectedRelationships) {
+      batch.set(snapshot.reference, {
+        'deletedAt': deletedAt,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    batch.set(memberDoc, {
+      'deletedAt': deletedAt,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'version': _safeVersion(memberData['version']) + 1,
+      'deletedBy': user.uid,
+    }, SetOptions(merge: true));
+    batch.set(_firestore.collection('activity_logs').doc(), {
+      'familyId': _tenantFamilyId,
+      'personId': personId,
+      'action': 'person_deleted',
+      'actorUid': user.uid,
+      'result': 'confirmed',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  Future<User> _requireFirebaseAdminForFamily() async {
+    if (Firebase.apps.isEmpty) {
+      throw FirebaseException(
+        plugin: 'firebase_core',
+        code: 'unavailable',
+        message: 'Firebase n’est pas initialisé.',
+      );
+    }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) {
+      throw FirebaseException(
+        plugin: 'firebase_auth',
+        code: 'unauthenticated',
+        message: 'Une session Firebase administrateur est requise.',
+      );
+    }
+    await user.getIdToken(true);
+    final roleSnapshot = await _firestore
+        .collection('user_roles')
+        .doc(user.uid)
+        .get(const GetOptions(source: Source.server));
+    final role = roleSnapshot.data();
+    final familyIds = (role?['familyIds'] as List? ?? const [])
+        .map((value) => '$value')
+        .toSet();
+    if (!roleSnapshot.exists ||
+        role?['active'] != true ||
+        !{'admin', 'superAdmin'}.contains(role?['role']) ||
+        !familyIds.contains(_tenantFamilyId)) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: 'Droits administrateur actifs requis pour cette famille.',
+      );
+    }
+    return user;
+  }
+
+  bool _referencesPerson(Map<String, dynamic> data, String personId) =>
+      data['fatherId'] == personId ||
+      data['motherId'] == personId ||
+      _withoutId(data['spouseIds'], personId).length !=
+          (data['spouseIds'] as List? ?? const []).length ||
+      _withoutId(data['childrenIds'], personId).length !=
+          (data['childrenIds'] as List? ?? const []).length ||
+      _withoutId(data['parents'], personId).length !=
+          (data['parents'] as List? ?? const []).length ||
+      _withoutId(data['spouses'], personId).length !=
+          (data['spouses'] as List? ?? const []).length ||
+      _withoutId(data['children'], personId).length !=
+          (data['children'] as List? ?? const []).length;
+
+  List<Object?> _withoutId(Object? value, String personId) =>
+      (value as List? ?? const [])
+          .where((item) => '$item' != personId)
+          .toList();
+
+  void _validatePersonId(String personId, String action) {
+    if (personId.trim().isEmpty) {
+      throw ArgumentError('Impossible de $action un membre sans identifiant.');
+    }
+  }
 
   @override
   Future<void> createMarriage(MarriageRelation relation) async {
@@ -422,11 +588,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     required String actorRole,
     required String retentionLabel,
   }) async {
-    final user = await _ensureFirebaseUser(
-      'deleteActivityLogs',
-      'activity_logs',
-    );
-    if (actorRole != 'superAdmin') {
+    final user = await _requireFirebaseAdminForFamily();
+    if (actorRole != 'admin' && actorRole != 'superAdmin') {
       throw StateError('Suppression du journal non autorisee.');
     }
     final targetFamilyId = familyId.trim().isEmpty ? _tenantFamilyId : familyId;
@@ -435,7 +598,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     await _adminAuditLogs.doc(auditId).set({
       'id': auditId,
       'familyId': targetFamilyId,
-      'actorUid': actorUid.trim().isEmpty ? user?.uid ?? '' : actorUid.trim(),
+      'actorUid': user.uid,
       'actorRole': actorRole,
       'action': 'activity_log_clear_started',
       'retentionLabel': retentionLabel,
@@ -473,6 +636,105 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       'completedAtClient': DateTime.now().toUtc().toIso8601String(),
     }, SetOptions(merge: true));
     return deletedCount;
+  }
+
+  @override
+  Future<ActivityLogDeletionResult> deleteActivityLogsByIds({
+    required String familyId,
+    required List<String> activityIds,
+  }) async {
+    final user = await _requireFirebaseAdminForFamily();
+    final targetFamilyId = familyId.trim().isEmpty ? _tenantFamilyId : familyId;
+    if (targetFamilyId != _tenantFamilyId) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: 'Famille non autorisée.',
+      );
+    }
+    final ids = activityIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (ids.isEmpty) {
+      return const ActivityLogDeletionResult(
+        requestedCount: 0,
+        deletedCount: 0,
+        failedIds: [],
+      );
+    }
+    if (ids.length > 2000) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'invalid-argument',
+        message: 'Trop d’activités demandées.',
+      );
+    }
+
+    final auditId = 'activityDelete${DateTime.now().microsecondsSinceEpoch}';
+    final auditRef = _adminAuditLogs.doc(auditId);
+    await auditRef.set({
+      'id': auditId,
+      'familyId': targetFamilyId,
+      'actorUid': user.uid,
+      'actorRole': 'admin',
+      'action': 'activity_logs_delete_started',
+      'requestedCount': ids.length,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    var deletedCount = 0;
+    final failedIds = <String>[];
+    String? errorCode;
+    for (var offset = 0; offset < ids.length; offset += 400) {
+      final end = (offset + 400).clamp(0, ids.length);
+      final chunk = ids.sublist(offset, end);
+      final snapshots = await Future.wait(
+        chunk.map(
+          (id) => _activityLogs
+              .doc(id)
+              .get(const GetOptions(source: Source.server)),
+        ),
+      );
+      final allowed = snapshots
+          .where((snapshot) {
+            final data = snapshot.data();
+            return snapshot.exists && data?['familyId'] == targetFamilyId;
+          })
+          .toList(growable: false);
+      failedIds.addAll(
+        snapshots
+            .where((snapshot) => !allowed.contains(snapshot))
+            .map((snapshot) => snapshot.id),
+      );
+      if (allowed.isEmpty) continue;
+      try {
+        final batch = _firestore.batch();
+        for (final snapshot in allowed) {
+          batch.delete(snapshot.reference);
+        }
+        await batch.commit();
+        deletedCount += allowed.length;
+      } on FirebaseException catch (error) {
+        errorCode ??= error.code;
+        failedIds.addAll(allowed.map((snapshot) => snapshot.id));
+      }
+    }
+
+    await auditRef.set({
+      'action': 'activity_logs_deleted',
+      'deletedCount': deletedCount,
+      'failedCount': failedIds.length,
+      'result': failedIds.isEmpty ? 'confirmed' : 'partial',
+      'completedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return ActivityLogDeletionResult(
+      requestedCount: ids.length,
+      deletedCount: deletedCount,
+      failedIds: failedIds.toSet().toList(growable: false),
+      errorCode: errorCode,
+    );
   }
 
   @override
