@@ -87,6 +87,31 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return synced;
   }
 
+  Future<MemberSaveResult> retryOperationsById(
+    Iterable<String> operationIds,
+  ) async {
+    final data = await future;
+    final ids = operationIds.toSet();
+    final operations = data.pendingSyncQueue
+        .where((item) => ids.contains(item.id))
+        .toList(growable: false);
+    if (operations.isEmpty) {
+      return MemberSaveResult(
+        localSaved: true,
+        remoteStatus: RemoteSaveStatus.confirmed,
+        operationIds: ids.toList(growable: false),
+      );
+    }
+    final attempt = await ref
+        .read(syncServiceProvider)
+        .attemptCurrentOperations(data, operations: operations);
+    if (_encode(attempt.data) != _encode(data)) {
+      await ref.read(localJsonRepositoryProvider).saveFamilyTree(attempt.data);
+      if (ref.mounted) state = AsyncData(attempt.data);
+    }
+    return attempt.result;
+  }
+
   Future<void> updateSyncOperationStatus(
     String operationId, {
     required String status,
@@ -326,6 +351,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     FamilyTreeData data, {
     PendingSyncItem? syncOperation,
     List<PendingSyncItem> syncOperations = const [],
+    bool syncInBackground = true,
   }) async {
     final generationSynced = ref
         .read(genealogyGenerationServiceProvider)
@@ -351,10 +377,29 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     debugPrint('FAMILY SAVE local JSON SUCCESS');
     state = AsyncData(locallySaved);
     debugPrint('FAMILY SAVE state updated from local JSON');
-    if (operations.isNotEmpty) {
+    if (syncInBackground && operations.isNotEmpty) {
       unawaited(_syncSavedDataInBackground(locallySaved, operations));
     }
     return locallySaved;
+  }
+
+  Future<MemberSaveResult> _saveMemberOperations(
+    FamilyTreeData data,
+    List<PendingSyncItem> operations,
+  ) async {
+    final locallySaved = await save(
+      data,
+      syncOperations: operations,
+      syncInBackground: false,
+    );
+    final attempt = await ref
+        .read(syncServiceProvider)
+        .attemptCurrentOperations(locallySaved, operations: operations);
+    if (_encode(attempt.data) != _encode(locallySaved)) {
+      await ref.read(localJsonRepositoryProvider).saveFamilyTree(attempt.data);
+      if (ref.mounted) state = AsyncData(attempt.data);
+    }
+    return attempt.result;
   }
 
   FamilyTreeData _queueLocalSyncOperations(
@@ -508,8 +553,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       'changedRelations=${changedRelationIds.join(',')} '
       'operations=${operations.length}',
     );
-    final saved = await save(prepared, syncOperations: operations);
-    return _memberSaveResult(saved, operations);
+    return _saveMemberOperations(prepared, operations);
   }
 
   Future<MemberSaveResult> linkExistingFather({
@@ -787,7 +831,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           action: existing == null ? 'create' : 'update',
           updatedBy: adminId,
         );
-    final saved = await save(
+    return _saveMemberOperations(
       updated.copyWith(
         auditLog: [
           ...updated.auditLog,
@@ -801,9 +845,8 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
-      syncOperation: operation,
+      [operation],
     );
-    return _memberSaveResult(saved, [operation]);
   }
 
   Future<MemberSaveResult> deleteMarriageUnion(
@@ -831,7 +874,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           action: 'update',
           updatedBy: adminId,
         );
-    final saved = await save(
+    return _saveMemberOperations(
       updated.copyWith(
         auditLog: [
           ...updated.auditLog,
@@ -845,9 +888,8 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
-      syncOperation: operation,
+      [operation],
     );
-    return _memberSaveResult(saved, [operation]);
   }
 
   Future<MemberSaveResult> upsertPerson(
@@ -905,8 +947,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           action: index == -1 ? 'create' : 'update',
           updatedBy: action,
         );
-    final saved = await save(nextData, syncOperation: operation);
-    return _memberSaveResult(saved, [operation]);
+    return _saveMemberOperations(nextData, [operation]);
   }
 
   Future<MemberSaveResult> upsertPersonWithParents(
@@ -1035,8 +1076,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       ),
     ];
 
-    final saved = await save(nextData, syncOperations: operations);
-    return _memberSaveResult(saved, operations);
+    return _saveMemberOperations(nextData, operations);
   }
 
   Future<void> deletePerson(String id) async {
@@ -2407,60 +2447,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     familyCode: familyCode,
     description: description.isEmpty ? action : description,
   );
-
-  MemberSaveResult _memberSaveResult(
-    FamilyTreeData data,
-    List<PendingSyncItem> operations,
-  ) {
-    if (operations.isEmpty) {
-      return const MemberSaveResult(
-        status: MemberSaveStatus.firestoreConfirmed,
-      );
-    }
-    final operationIds = operations.map((item) => item.id).toSet();
-    final queued = data.pendingSyncQueue
-        .where((item) => operationIds.contains(item.id))
-        .toList();
-    final authorizationErrors = queued.where(
-      (item) =>
-          item.lastErrorCode == 'permission-denied' ||
-          item.lastErrorCode == 'unauthenticated',
-    );
-    if (authorizationErrors.isNotEmpty) {
-      return MemberSaveResult(
-        status: MemberSaveStatus.authorizationRequired,
-        lastError: authorizationErrors
-            .map((item) => item.lastError)
-            .where((item) => item.trim().isNotEmpty)
-            .join('\n'),
-        lastErrorCode: authorizationErrors
-            .map((item) => item.lastErrorCode)
-            .where((item) => item.trim().isNotEmpty)
-            .join('\n'),
-      );
-    }
-    if (queued.any((item) => item.status == 'failed')) {
-      return MemberSaveResult(
-        status: MemberSaveStatus.failed,
-        lastError: queued
-            .map((item) => item.lastError)
-            .where((item) => item.trim().isNotEmpty)
-            .join('\n'),
-        lastErrorCode: queued
-            .map((item) => item.lastErrorCode)
-            .where((item) => item.trim().isNotEmpty)
-            .join('\n'),
-      );
-    }
-    if (queued.isNotEmpty || data.syncSettings.syncStatus == 'offline') {
-      return const MemberSaveResult(status: MemberSaveStatus.localPending);
-    }
-    final storage = data.appSettings.storageSettings;
-    if (!storage.remoteDatabaseEnabled || storage.mode == 'jsonOnly') {
-      return const MemberSaveResult(status: MemberSaveStatus.localPending);
-    }
-    return const MemberSaveResult(status: MemberSaveStatus.firestoreConfirmed);
-  }
 
   bool _personPayloadChanged(Person previous, Person next) =>
       !_samePayload(previous.toJson(), next.toJson());

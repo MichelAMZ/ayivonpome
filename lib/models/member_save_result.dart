@@ -1,25 +1,34 @@
-enum MemberSaveStatus {
-  firestoreConfirmed,
-  localPending,
-  authorizationRequired,
+enum RemoteSaveStatus {
+  confirmed,
+  permissionRequired,
+  unavailable,
+  timedOut,
   failed,
 }
 
 class MemberSaveResult {
   const MemberSaveResult({
-    required this.status,
+    required this.localSaved,
+    required this.remoteStatus,
+    this.operationIds = const [],
+    this.firebaseCode,
     this.lastError = '',
-    this.lastErrorCode = '',
   });
 
-  final MemberSaveStatus status;
+  final bool localSaved;
+  final RemoteSaveStatus remoteStatus;
+  final List<String> operationIds;
+  final String? firebaseCode;
   final String lastError;
-  final String lastErrorCode;
 
   bool get isFirestoreConfirmed =>
-      status == MemberSaveStatus.firestoreConfirmed;
-  bool get isLocalPending => status == MemberSaveStatus.localPending;
+      localSaved && remoteStatus == RemoteSaveStatus.confirmed;
+  bool get isLocalPending =>
+      localSaved &&
+      (remoteStatus == RemoteSaveStatus.unavailable ||
+          remoteStatus == RemoteSaveStatus.timedOut ||
+          remoteStatus == RemoteSaveStatus.failed);
   bool get isAuthorizationRequired =>
-      status == MemberSaveStatus.authorizationRequired;
-  bool get isFailed => status == MemberSaveStatus.failed;
+      localSaved && remoteStatus == RemoteSaveStatus.permissionRequired;
+  bool get isFailed => !localSaved;
 }

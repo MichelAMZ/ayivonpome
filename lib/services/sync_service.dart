@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +10,7 @@ import '../models/audit_log.dart';
 import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
+import '../models/member_save_result.dart';
 import '../models/person.dart';
 import '../models/sync_diagnostic.dart';
 import '../models/sync_incident.dart';
@@ -235,6 +237,100 @@ class SyncService {
         _runningSync = null;
       }
     });
+  }
+
+  Future<({FamilyTreeData data, MemberSaveResult result})>
+  attemptCurrentOperations(
+    FamilyTreeData data, {
+    required List<PendingSyncItem> operations,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final operationIds = operations
+        .map((item) => item.id)
+        .toList(growable: false);
+    if (operations.isEmpty) {
+      return (
+        data: data,
+        result: const MemberSaveResult(
+          localSaved: true,
+          remoteStatus: RemoteSaveStatus.confirmed,
+        ),
+      );
+    }
+    try {
+      final synced = await enqueueOrSyncMany(
+        data,
+        operations: operations,
+      ).timeout(timeout);
+      return (
+        data: synced,
+        result: resultForOperationIds(synced, operationIds),
+      );
+    } on TimeoutException {
+      return (
+        data: data,
+        result: MemberSaveResult(
+          localSaved: true,
+          remoteStatus: RemoteSaveStatus.timedOut,
+          operationIds: operationIds,
+          firebaseCode: 'deadline-exceeded',
+          lastError: 'La tentative Firestore a dépassé le délai imparti.',
+        ),
+      );
+    }
+  }
+
+  MemberSaveResult resultForOperationIds(
+    FamilyTreeData data,
+    Iterable<String> operationIds,
+  ) {
+    final ids = operationIds.toSet();
+    final requestedIds = ids.toList(growable: false);
+    final remaining = data.pendingSyncQueue
+        .where((item) => ids.contains(item.id))
+        .toList(growable: false);
+    if (remaining.isEmpty) {
+      return MemberSaveResult(
+        localSaved: true,
+        remoteStatus: RemoteSaveStatus.confirmed,
+        operationIds: requestedIds,
+      );
+    }
+    final codes = remaining
+        .map((item) => item.lastErrorCode.trim())
+        .where((code) => code.isNotEmpty)
+        .toList(growable: false);
+    final errors = remaining
+        .map((item) => item.lastError.trim())
+        .where((message) => message.isNotEmpty)
+        .join('\n');
+    final status =
+        codes.any(
+          (code) => code == 'permission-denied' || code == 'unauthenticated',
+        )
+        ? RemoteSaveStatus.permissionRequired
+        : codes.any(
+            (code) => code == 'deadline-exceeded' || code == 'local-timeout',
+          )
+        ? RemoteSaveStatus.timedOut
+        : codes.isEmpty ||
+              codes.any(
+                (code) =>
+                    code == 'unavailable' ||
+                    code == 'network' ||
+                    code == 'aborted' ||
+                    code == 'resource-exhausted' ||
+                    code == 'sync-error',
+              )
+        ? RemoteSaveStatus.unavailable
+        : RemoteSaveStatus.failed;
+    return MemberSaveResult(
+      localSaved: true,
+      remoteStatus: status,
+      operationIds: requestedIds,
+      firebaseCode: codes.isEmpty ? null : codes.first,
+      lastError: errors,
+    );
   }
 
   Future<FamilyTreeData> _syncPendingQueue(
@@ -552,8 +648,7 @@ class SyncService {
     }
 
     final user = FirebaseAuth.instance.currentUser;
-    debugPrint('AUTH UID: ${user?.uid}');
-    debugPrint('AUTH EMAIL: ${user?.email}');
+    debugPrint('AUTH UID: ${_maskIdentifier(user?.uid ?? '')}');
     debugPrint('AUTH ANONYMOUS: ${user?.isAnonymous}');
     if (user == null) return;
 
@@ -575,6 +670,11 @@ class SyncService {
       debugPrint('AUTH ROLE ERROR: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
+  }
+
+  String _maskIdentifier(String value) {
+    if (value.length <= 6) return value.isEmpty ? '<none>' : '***';
+    return '${value.substring(0, 3)}…${value.substring(value.length - 3)}';
   }
 
   void _logOperation(PendingSyncItem item, String familyId) {

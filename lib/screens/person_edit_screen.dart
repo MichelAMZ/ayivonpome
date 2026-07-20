@@ -3429,7 +3429,13 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       if (saveResults.any((item) => item.isAuthorizationRequired)) {
         debugPrint('Save flow: result=authorizationRequired mounted=$mounted');
         _hasUnsavedChanges = false;
-        await _requestAuthorizationAndRetrySave(draft: draft);
+        await _requestAuthorizationAndRetrySave(
+          draft: draft,
+          operationIds: saveResults
+              .expand((item) => item.operationIds)
+              .toSet()
+              .toList(growable: false),
+        );
         return;
       }
       if (saveResults.any((item) => item.isLocalPending)) {
@@ -3473,20 +3479,23 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             'Le parent sélectionné est introuvable dans l’arbre. Vérifiez l’onglet Relations ou sélectionnez à nouveau le parent.',
           'invalid_relationship' || 'invalid_relationship_cycle' =>
             'La relation familiale sélectionnée est incohérente. Vérifiez l’onglet Relations puis réessayez.',
+          'forbidden' =>
+            'Votre rôle applicatif ne permet pas cette modification.',
           _ =>
             'Modifications sauvegardées localement. Synchronisation en attente.',
         };
         if (error.message == 'forbidden') {
-          debugPrint('Save flow: result=forbidden authorizationRequired');
-          _hasUnsavedChanges = false;
-          await _requestAuthorizationAndRetrySave(draft: draft);
-          return;
+          debugPrint('Save flow: result=forbidden before local save');
         }
         _showSaveSnackBar(
-          color: error.message == 'local_json_write_failed'
+          color:
+              error.message == 'local_json_write_failed' ||
+                  error.message == 'forbidden'
               ? Colors.red
               : Colors.orange.shade800,
-          icon: error.message == 'local_json_write_failed'
+          icon:
+              error.message == 'local_json_write_failed' ||
+                  error.message == 'forbidden'
               ? Icons.error
               : Icons.sync_problem_outlined,
           message: message,
@@ -3507,7 +3516,10 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     }
   }
 
-  Future<void> _requestAuthorizationAndRetrySave({required bool draft}) async {
+  Future<void> _requestAuthorizationAndRetrySave({
+    required bool draft,
+    required List<String> operationIds,
+  }) async {
     _showSaveSnackBar(
       color: const Color(0xFF2F6FA3),
       icon: Icons.lock_outline,
@@ -3518,7 +3530,8 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     final unlocked = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const ModificationCodeRequiredDialog(),
+      builder: (context) =>
+          ModificationCodeRequiredDialog(operationIds: operationIds),
     );
     if (!mounted) return;
     if (unlocked != true) {
@@ -3530,50 +3543,21 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             'Autorisation non validée. La sauvegarde reste en attente sur cet appareil.',
         duration: const Duration(seconds: 5),
       );
+      if (!draft) Navigator.pop(context);
       return;
     }
-    debugPrint('Save flow: authorizationGranted remoteSaving');
-    setState(() => _isSaving = true);
-    try {
-      final synced = await ref
-          .read(familyTreeProvider.notifier)
-          .syncPendingChanges(force: true);
-      if (!mounted) return;
-      final stillNeedsAuthorization = synced.pendingSyncQueue.any(
-        (item) =>
-            item.lastErrorCode == 'permission-denied' ||
-            item.lastErrorCode == 'unauthenticated',
-      );
-      if (stillNeedsAuthorization) {
-        _showSaveSnackBar(
-          color: Colors.red,
-          icon: Icons.lock_outline,
-          message: 'Code incorrect ou accès non autorisé.',
-          duration: const Duration(seconds: 5),
-        );
-        return;
-      }
-      _showSaveSnackBar(
-        color: Colors.green,
-        icon: Icons.check_circle,
-        message: 'Code validé. Les modifications ont été enregistrées.',
-        duration: const Duration(seconds: 3),
-      );
-      if (draft) {
-        setState(() => _lastDraftSavedAt = DateTime.now());
-        return;
-      }
-      Navigator.pop(context);
-    } catch (_) {
-      if (!mounted) return;
-      _showSaveSnackBar(
-        color: Colors.orange.shade800,
-        icon: Icons.sync_problem_outlined,
-        message:
-            'Modifications enregistrées sur cet appareil. Elles seront synchronisées automatiquement dès que Firestore sera disponible.',
-        duration: const Duration(seconds: 5),
-      );
+    debugPrint('Save flow: authorizationGranted remoteConfirmed');
+    _showSaveSnackBar(
+      color: Colors.green,
+      icon: Icons.check_circle,
+      message: 'Code validé. Les modifications ont été enregistrées.',
+      duration: const Duration(seconds: 3),
+    );
+    if (draft) {
+      setState(() => _lastDraftSavedAt = DateTime.now());
+      return;
     }
+    Navigator.pop(context);
   }
 
   bool _allRequiredFieldsComplete() =>

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/member_save_result.dart';
 import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
@@ -74,7 +75,12 @@ extension ModificationAuthorizationStepUi on ModificationAuthorizationStep {
 }
 
 class ModificationCodeRequiredDialog extends ConsumerStatefulWidget {
-  const ModificationCodeRequiredDialog({super.key});
+  const ModificationCodeRequiredDialog({
+    this.operationIds = const [],
+    super.key,
+  });
+
+  final List<String> operationIds;
 
   @override
   ConsumerState<ModificationCodeRequiredDialog> createState() =>
@@ -210,19 +216,39 @@ class _ModificationCodeRequiredDialogState
         return;
       }
       _setStep(ModificationAuthorizationStep.restoringAuthentication);
-      await ref
+      final restored = await ref
           .read(authSessionProvider.notifier)
           .restoreSession()
-          .timeout(const Duration(seconds: 8), onTimeout: () => true);
+          .timeout(const Duration(seconds: 8));
       if (!mounted) return;
+      if (!restored) {
+        setState(() {
+          _step = ModificationAuthorizationStep.failed;
+          _error = 'Session Firebase non restaurée ou accès non autorisé.';
+        });
+        return;
+      }
       _setStep(ModificationAuthorizationStep.checkingPermissions);
       await Future<void>.delayed(const Duration(milliseconds: 120));
       _setStep(ModificationAuthorizationStep.synchronizing);
-      await ref
+      final result = await ref
           .read(familyTreeProvider.notifier)
-          .syncPendingChanges(force: true)
+          .retryOperationsById(widget.operationIds)
           .timeout(_remoteTimeout);
       if (!mounted) return;
+      if (!result.isFirestoreConfirmed) {
+        if (result.remoteStatus == RemoteSaveStatus.permissionRequired) {
+          setState(() {
+            _step = ModificationAuthorizationStep.failed;
+            _error = 'Code incorrect ou accès Firebase non autorisé.';
+          });
+        } else {
+          await _finishAsLocalPending(
+            'Modifications sauvegardées sur cet appareil. Synchronisation en attente.',
+          );
+        }
+        return;
+      }
       _setStep(ModificationAuthorizationStep.saved);
       _controller.clear();
       await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -236,20 +262,24 @@ class _ModificationCodeRequiredDialogState
         ),
       );
     } on TimeoutException {
-      if (!mounted) return;
-      setState(() {
-        _step = ModificationAuthorizationStep.savedLocally;
-        _error =
-            'Firebase met plus de temps que prévu à répondre. Vos modifications sont sauvegardées sur cet appareil.';
-      });
+      await _finishAsLocalPending(
+        'Firebase met plus de temps que prévu à répondre. Vos modifications sont sauvegardées sur cet appareil.',
+      );
     } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _step = ModificationAuthorizationStep.savedLocally;
-        _error =
-            'Modifications sauvegardées sur cet appareil. Synchronisation en attente.';
-      });
+      await _finishAsLocalPending(
+        'Modifications sauvegardées sur cet appareil. Synchronisation en attente.',
+      );
     }
+  }
+
+  Future<void> _finishAsLocalPending(String message) async {
+    if (!mounted) return;
+    setState(() {
+      _step = ModificationAuthorizationStep.savedLocally;
+      _error = message;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (mounted) Navigator.pop(context, false);
   }
 
   Future<void> _prepareFirebase() async {

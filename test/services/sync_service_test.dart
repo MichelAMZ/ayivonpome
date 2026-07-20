@@ -1,9 +1,11 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:ayivonpome/models/audit_log.dart';
 import 'package:ayivonpome/models/family_link.dart';
 import 'package:ayivonpome/models/family_tree_data.dart';
 import 'package:ayivonpome/models/marriage_relation.dart';
+import 'package:ayivonpome/models/member_save_result.dart';
 import 'package:ayivonpome/models/person.dart';
 import 'package:ayivonpome/models/sync_incident.dart';
 import 'package:ayivonpome/models/sync_state.dart';
@@ -14,6 +16,86 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'current operation is confirmed independently from older queue items',
+    () async {
+      final repository = _FakeFamilyRepository();
+      final service = SyncService(
+        connectivity: const _OnlineConnectivityService(),
+        remoteRepository: repository,
+      );
+      const person = Person(id: 'person-123', firstName: 'Kossi');
+      final current = service.personOperation(
+        person: person,
+        action: 'update',
+        updatedBy: 'test',
+      );
+      const unrelated = PendingSyncItem(
+        id: 'older-operation',
+        entityType: 'person',
+        entityId: 'another-person',
+        action: 'update',
+        status: 'needsResolution',
+      );
+
+      final attempt = await service.attemptCurrentOperations(
+        _tree(people: const [person], pendingSyncQueue: [unrelated, current]),
+        operations: [current],
+      );
+
+      expect(attempt.result.isFirestoreConfirmed, isTrue);
+      expect(attempt.result.operationIds, [current.id]);
+      expect(attempt.data.pendingSyncQueue.single.id, unrelated.id);
+    },
+  );
+
+  test('permission-denied is returned as permissionRequired', () async {
+    final repository = _FakeFamilyRepository(shouldDenyCreates: true);
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: repository,
+    );
+    const person = Person(id: 'person-123', firstName: 'Kossi');
+    final operation = service.personOperation(
+      person: person,
+      action: 'create',
+      updatedBy: 'test',
+    );
+
+    final attempt = await service.attemptCurrentOperations(
+      _tree(people: const [person], pendingSyncQueue: [operation]),
+      operations: [operation],
+    );
+
+    expect(attempt.result.remoteStatus, RemoteSaveStatus.permissionRequired);
+    expect(attempt.result.firebaseCode, 'permission-denied');
+    expect(attempt.data.pendingSyncQueue, isNotEmpty);
+  });
+
+  test('a timed out current operation remains pending', () async {
+    final repository = _FakeFamilyRepository(hangUpdates: true);
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: repository,
+    );
+    const person = Person(id: 'person-123', firstName: 'Kossi');
+    final operation = service.personOperation(
+      person: person,
+      action: 'update',
+      updatedBy: 'test',
+    );
+    final data = _tree(people: const [person], pendingSyncQueue: [operation]);
+
+    final attempt = await service.attemptCurrentOperations(
+      data,
+      operations: [operation],
+      timeout: const Duration(milliseconds: 10),
+    );
+
+    expect(attempt.result.remoteStatus, RemoteSaveStatus.timedOut);
+    expect(attempt.data.pendingSyncQueue.single.id, operation.id);
+  });
+
   test(
     'replaces pending update for same person after repeated failure',
     () async {
@@ -235,15 +317,18 @@ class _FakeFamilyRepository implements FamilyRepository {
   _FakeFamilyRepository({
     this.shouldFailUpdates = false,
     this.shouldDenyCreates = false,
+    this.hangUpdates = false,
   });
 
   final bool shouldFailUpdates;
   final bool shouldDenyCreates;
+  final bool hangUpdates;
   final createdPeople = <Person>[];
   final updatedPeople = <Person>[];
 
   @override
   Future<void> updatePerson(Person person) async {
+    if (hangUpdates) await Completer<void>().future;
     if (shouldFailUpdates) {
       throw StateError('remote update failed');
     }

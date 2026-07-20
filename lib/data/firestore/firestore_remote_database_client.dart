@@ -565,9 +565,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       );
     }
 
-    _debugAuthMessage('AUTH UID = ${user.uid}');
+    _debugAuthMessage('AUTH UID = ${_maskIdentifier(user.uid)}');
     _debugAuthMessage('AUTH ANONYMOUS = ${user.isAnonymous}');
-    _debugAuthMessage('AUTH EMAIL = ${user.email}');
     _debugAuthMessage('FAMILY ID = $_tenantFamilyId');
     if (personId.isNotEmpty) _debugAuthMessage('PERSON ID = $personId');
     _debugAuthMessage('FIRESTORE OPERATION = $operation');
@@ -584,7 +583,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     try {
       final role = await _firestore.collection('user_roles').doc(uid).get();
       final data = role.data();
-      debugPrint('AUTH ROLE DOC = user_roles/$uid');
+      debugPrint('AUTH ROLE DOC UID = ${_maskIdentifier(uid)}');
       debugPrint('AUTH ROLE EXISTS = ${role.exists}');
       debugPrint('AUTH ROLE = ${data?['role']}');
       debugPrint('AUTH ROLE ACTIVE = ${data?['active']}');
@@ -645,7 +644,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       debugPrint('path: $documentPath');
       debugPrint('familyId: $_tenantFamilyId');
       debugPrint('personId: $personId');
-      debugPrint('data: $data');
+      debugPrint('fieldCount: ${data.length}');
+      debugPrint('fields: ${data.keys.toList()..sort()}');
     }
   }
 
@@ -653,6 +653,11 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     if (kDebugMode) {
       debugPrint('FIRESTORE $operation SUCCESS: $documentPath');
     }
+  }
+
+  String _maskIdentifier(String value) {
+    if (value.length <= 6) return '***';
+    return '${value.substring(0, 3)}…${value.substring(value.length - 3)}';
   }
 
   Future<FirestoreUpdateDiagnostic> _buildMemberUpdateDiagnostic({
@@ -769,7 +774,13 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   void _debugFirestoreUpdateDiagnostic(FirestoreUpdateDiagnostic diagnostic) {
     if (!kDebugMode) return;
     debugPrint('FIRESTORE UPDATE DIAGNOSTIC');
-    debugPrint(diagnostic.toReport());
+    debugPrint('operation: ${diagnostic.operation}');
+    debugPrint('path: ${diagnostic.documentPath}');
+    debugPrint('uid: ${_maskIdentifier(diagnostic.uid)}');
+    debugPrint('role: ${diagnostic.role}');
+    debugPrint('roleActive: ${diagnostic.roleActive}');
+    debugPrint('existingExists: ${diagnostic.existingExists}');
+    debugPrint('changedFields: ${diagnostic.diff.keys.toList()..sort()}');
   }
 
   String _stringValue(Object? value) {
