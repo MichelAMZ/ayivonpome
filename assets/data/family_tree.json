@@ -1,7 +1,7 @@
 {
   "appVersion": "1.0.0",
-  "dataVersion": "2026-06-30-001",
-  "lastUpdatedAt": "2026-06-30T00:00:00.000",
+  "dataVersion": "2026-07-20-001",
+  "lastUpdatedAt": "2026-07-20T12:00:00.000Z",
   "syncSettings": {
     "storageMode": "jsonAndDatabase",
     "databaseEnabled": true,
@@ -123,59 +123,35 @@
     "enabled": true,
     "requireCodeRotationReminder": true
   },
+  "familyLeadership": {
+    "currentLeaderPersonId": "ayivon--ayivon"
+  },
   "people": [
-    {
-      "id": "p001",
-      "firstName": "Ama",
-      "lastName": "Ayivon",
-      "gender": "F",
-      "birthDate": "1954-04-20",
-      "birthPlace": "Lome",
-      "publicMapLocation": "Lome, Togo",
-      "familyCode": "AYIVON",
-      "spouseIds": ["p002"],
-      "childrenIds": ["p003"],
-      "spouses": ["p002"],
-      "children": ["p003"]
-    },
-    {
-      "id": "p002",
-      "firstName": "Kossi",
-      "lastName": "Ayivon",
-      "gender": "M",
-      "birthDate": "1950-01-15",
-      "birthPlace": "Kpalime",
-      "familyCode": "AYIVON",
-      "spouseIds": ["p001"],
-      "childrenIds": ["p003"],
-      "spouses": ["p001"],
-      "children": ["p003"]
-    },
-    {
-      "id": "p003",
-      "firstName": "Mawuli",
-      "lastName": "Ayivon",
-      "gender": "M",
-      "birthDate": "1982-11-03",
-      "birthPlace": "Accra",
-      "familyCode": "AYIVON",
-      "fatherId": "p002",
-      "motherId": "p001",
-      "parents": ["p001", "p002"]
-    }
+    {"id":"ayivon--ayivon","firstName":"AYIVON","familyCode":"AYIVON","familyId":"ayivon","generation":1,"childrenIds":["ayivon--akakpo","ayivon--amekoudzi","ayivon--nouwodou","ayivon--dziwonou","ayivon--amouzou"],"children":["ayivon--akakpo","ayivon--amekoudzi","ayivon--nouwodou","ayivon--dziwonou","ayivon--amouzou"]},
+    {"id":"ayivon--akakpo","firstName":"AKAKPO","familyCode":"AYIVON","familyId":"ayivon","generation":2,"parents":["ayivon--ayivon"],"childrenIds":["ayivon--kuenyehia","ayivon--kokou","ayivon--ayao","ayivon--mensah","ayivon--kossivi","ayivon--semebio","ayivon--kossi"],"children":["ayivon--kuenyehia","ayivon--kokou","ayivon--ayao","ayivon--mensah","ayivon--kossivi","ayivon--semebio","ayivon--kossi"]},
+    {"id":"ayivon--amekoudzi","firstName":"AMEKOUDZI","familyCode":"AYIVON","familyId":"ayivon","generation":2,"parents":["ayivon--ayivon"],"childrenIds":["ayivon--emanuel_afangbedzi","ayivon--moxe"],"children":["ayivon--emanuel_afangbedzi","ayivon--moxe"]},
+    {"id":"ayivon--nouwodou","firstName":"NOUWODOU","familyCode":"AYIVON","familyId":"ayivon","generation":2,"parents":["ayivon--ayivon"],"childrenIds":["ayivon--edo","ayivon--dotse","ayivon--akoussou","ayivon--afanalle","ayivon--kokoyena","ayivon--da_kodzo_kebi"],"children":["ayivon--edo","ayivon--dotse","ayivon--akoussou","ayivon--afanalle","ayivon--kokoyena","ayivon--da_kodzo_kebi"]},
+    {"id":"ayivon--dziwonou","firstName":"DZIWONOU","familyCode":"AYIVON","familyId":"ayivon","generation":2,"parents":["ayivon--ayivon"],"childrenIds":["ayivon--galenkui"],"children":["ayivon--galenkui"]},
+    {"id":"ayivon--amouzou","firstName":"AMOUZOU","familyCode":"AYIVON","familyId":"ayivon","generation":2,"parents":["ayivon--ayivon"],"childrenIds":["ayivon--dzidonou"],"children":["ayivon--dzidonou"]},
+    {"id":"ayivon--kuenyehia","firstName":"KUENYEHIA","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--akakpo"]},
+    {"id":"ayivon--kokou","firstName":"KOKOU","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--akakpo"]},
+    {"id":"ayivon--ayao","firstName":"AYAO","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--akakpo"]},
+    {"id":"ayivon--mensah","firstName":"MENSAH","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--akakpo"]},
+    {"id":"ayivon--kossivi","firstName":"KOSSIVI","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--akakpo"]},
+    {"id":"ayivon--semebio","firstName":"SEMEBIO","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--akakpo"]},
+    {"id":"ayivon--kossi","firstName":"KOSSI","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--akakpo"]},
+    {"id":"ayivon--emanuel_afangbedzi","firstName":"EMANUEL AFANGBEDZI","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--amekoudzi"]},
+    {"id":"ayivon--moxe","firstName":"MOXE","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--amekoudzi"]},
+    {"id":"ayivon--edo","firstName":"EDO","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--nouwodou"]},
+    {"id":"ayivon--dotse","firstName":"DOTSE","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--nouwodou"]},
+    {"id":"ayivon--akoussou","firstName":"AKOUSSOU","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--nouwodou"]},
+    {"id":"ayivon--afanalle","firstName":"AFANALLE","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--nouwodou"]},
+    {"id":"ayivon--kokoyena","firstName":"KOKOYENA","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--nouwodou"]},
+    {"id":"ayivon--da_kodzo_kebi","firstName":"DA KODZO KEBI","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--nouwodou"]},
+    {"id":"ayivon--galenkui","firstName":"GALENKUI","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--dziwonou"]},
+    {"id":"ayivon--dzidonou","firstName":"DZIDONOU","familyCode":"AYIVON","familyId":"ayivon","generation":3,"parents":["ayivon--amouzou"]}
   ],
-  "marriageRelations": [
-    {
-      "id": "marriage001",
-      "personId": "p001",
-      "spouseId": "p002",
-      "marriageType": "customary",
-      "status": "active",
-      "marriageDate": "1979-08-12",
-      "marriagePlace": "Lome",
-      "order": 1
-    }
-  ],
+  "marriageRelations": [],
   "familyLinks": [],
   "notifications": [],
   "changeNotifications": [],

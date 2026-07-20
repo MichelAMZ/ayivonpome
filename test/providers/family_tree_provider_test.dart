@@ -147,6 +147,42 @@ void main() {
   );
 
   test(
+    'an initial empty remote snapshot keeps the bundled local tree',
+    () async {
+      final storage = _MemoryJsonStorageService();
+      final remote = _WatchRemoteClient();
+      final container = ProviderContainer(
+        overrides: [
+          familyTreeProvider.overrideWith(_RealtimeTestController.new),
+          jsonStorageServiceProvider.overrideWithValue(storage),
+          localJsonRepositoryProvider.overrideWithValue(
+            JsonFamilyRepository(storage),
+          ),
+          remoteDatabaseRepositoryProvider.overrideWithValue(
+            DatabaseFamilyRepository(client: remote),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await remote.close();
+      });
+      await container.read(familyTreeProvider.future);
+      await container
+          .read(familyTreeProvider.notifier)
+          .startRemoteFamilyTreeWatch();
+
+      remote.emit(const FamilyTreeData());
+      await _flushRemoteWatch();
+
+      final data = container.read(familyTreeProvider).value!;
+      expect(data.people, hasLength(1));
+      expect(data.people.single.id, 'p001');
+      expect(data.syncSettings.syncStatus, 'synced');
+    },
+  );
+
+  test(
     'an older remote version cannot overwrite a pending local member',
     () async {
       final storage = _MemoryJsonStorageService();
