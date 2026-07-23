@@ -4,12 +4,11 @@ import 'package:ayivonpome/services/super_admin_recovery_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('validates the enabled Super Admin recovery code', () {
+  test('never validates a local Super Admin recovery code', () {
     const service = SuperAdminRecoveryService();
     const data = FamilyTreeData();
 
-    expect(service.validate(data, ' Aziangbédévi2026! '), isTrue);
-    expect(service.validate(data, 'ayivonvi2026'), isFalse);
+    expect(service.validate(data, 'TEST_ONLY_VALUE'), isFalse);
   });
 
   test('rejects the recovery code when recovery is disabled', () {
@@ -18,6 +17,6 @@ void main() {
       superAdminRecovery: SuperAdminRecovery(enabled: false),
     );
 
-    expect(service.validate(data, 'Aziangbédévi2026!'), isFalse);
+    expect(service.validate(data, 'TEST_ONLY_VALUE'), isFalse);
   });
 }

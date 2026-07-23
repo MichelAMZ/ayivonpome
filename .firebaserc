@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "ayivon-aziangbede"
+    "default": "ayivon-aziangbede",
+    "production": "ayivon-aziangbede",
+    "emulator": "demo-ayivon-staging"
   }
 }

@@ -27,23 +27,36 @@ class LinkedFamiliesScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           if (data.familyCodes.isEmpty)
-            Center(child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(l10n.emptyState),
-            ))
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(l10n.emptyState),
+              ),
+            )
           else
             ...data.familyCodes.map(
               (family) => Card(
                 child: ListTile(
                   leading: const Icon(Icons.groups),
                   title: Text(family.familyName),
-                  subtitle: Text('${family.code} · ${_label(l10n, family.role)}'),
+                  subtitle: Text(
+                    '${family.code} · ${_label(l10n, family.role)}',
+                  ),
                   trailing: auth.isAdmin
                       ? SegmentedButton<String>(
                           segments: [
-                            ButtonSegment(value: 'pending', label: Text(l10n.pending)),
-                            ButtonSegment(value: 'accepted', label: Text(l10n.accepted)),
-                            ButtonSegment(value: 'refused', label: Text(l10n.refused)),
+                            ButtonSegment(
+                              value: 'pending',
+                              label: Text(l10n.pending),
+                            ),
+                            ButtonSegment(
+                              value: 'accepted',
+                              label: Text(l10n.accepted),
+                            ),
+                            ButtonSegment(
+                              value: 'refused',
+                              label: Text(l10n.refused),
+                            ),
                           ],
                           selected: {family.status},
                           onSelectionChanged: (value) => ref
@@ -100,7 +113,9 @@ class LinkedFamiliesScreen extends ConsumerWidget {
             ),
             FilledButton(
               onPressed: () async {
-                await ref.read(familyTreeProvider.notifier).upsertFamilyCode(
+                await ref
+                    .read(familyTreeProvider.notifier)
+                    .upsertFamilyCode(
                       FamilyCode(
                         code: code.text.trim().toUpperCase(),
                         familyName: name.text.trim(),
@@ -121,12 +136,12 @@ class LinkedFamiliesScreen extends ConsumerWidget {
   }
 
   String _label(AppLocalizations l10n, String value) => switch (value) {
-        'owner' => l10n.owner,
-        'editor' => l10n.editor,
-        'viewer' => l10n.viewer,
-        'accepted' => l10n.accepted,
-        'refused' => l10n.refused,
-        'pending' => l10n.pending,
-        _ => value,
-      };
+    'owner' => l10n.owner,
+    'editor' => l10n.editor,
+    'viewer' => l10n.viewer,
+    'accepted' => l10n.accepted,
+    'refused' => l10n.refused,
+    'pending' => l10n.pending,
+    _ => value,
+  };
 }

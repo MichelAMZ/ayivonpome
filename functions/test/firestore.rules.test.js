@@ -12,7 +12,7 @@ let environment;
 
 test.before(async () => {
   environment = await initializeTestEnvironment({
-    projectId: "ayivon-delete-rules-test",
+    projectId: "demo-ayivon-staging",
     firestore: {
       rules: fs.readFileSync(
         path.join(__dirname, "..", "..", "firestore.rules"),

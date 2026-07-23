@@ -17,7 +17,7 @@ class PublicModeConfig {
       );
 
   Map<String, dynamic> toJson() => {
-        'enabled': enabled,
-        'visibleFields': visibleFields,
-      };
+    'enabled': enabled,
+    'visibleFields': visibleFields,
+  };
 }

@@ -1,11 +1,11 @@
 class AdminAccess {
   const AdminAccess({
-    this.currentAdminCode = 'ayivonvi2026',
-    this.lastChangedAt = '2026-06-26T00:00:00',
-    this.nextChangeDueAt = '2026-09-26T00:00:00',
+    this.currentAdminCode = '',
+    this.lastChangedAt = '',
+    this.nextChangeDueAt = '',
     this.rotationMonths = 3,
-    this.enabled = true,
-    this.requireCodeRotationReminder = true,
+    this.enabled = false,
+    this.requireCodeRotationReminder = false,
     this.codeHistory = const [],
   });
 
@@ -18,30 +18,21 @@ class AdminAccess {
   final List<AdminCodeHistory> codeHistory;
 
   factory AdminAccess.fromJson(Map<String, dynamic> json) => AdminAccess(
-    currentAdminCode: json['currentAdminCode'] as String? ?? 'ayivonvi2026',
-    lastChangedAt: json['lastChangedAt'] as String? ?? '2026-06-26T00:00:00',
-    nextChangeDueAt:
-        json['nextChangeDueAt'] as String? ?? '2026-09-26T00:00:00',
+    currentAdminCode: '',
+    lastChangedAt: json['lastChangedAt'] as String? ?? '',
+    nextChangeDueAt: json['nextChangeDueAt'] as String? ?? '',
     rotationMonths: json['rotationMonths'] as int? ?? 3,
-    enabled: json['enabled'] as bool? ?? true,
-    requireCodeRotationReminder:
-        json['requireCodeRotationReminder'] as bool? ?? true,
-    codeHistory: (json['codeHistory'] as List? ?? const [])
-        .whereType<Map>()
-        .map(
-          (item) => AdminCodeHistory.fromJson(Map<String, dynamic>.from(item)),
-        )
-        .toList(),
+    enabled: false,
+    requireCodeRotationReminder: false,
+    codeHistory: const [],
   );
 
   Map<String, dynamic> toJson() => {
-    'currentAdminCode': currentAdminCode,
     'lastChangedAt': lastChangedAt,
     'nextChangeDueAt': nextChangeDueAt,
     'rotationMonths': rotationMonths,
     'enabled': enabled,
     'requireCodeRotationReminder': requireCodeRotationReminder,
-    'codeHistory': codeHistory.map((item) => item.toJson()).toList(),
   };
 
   AdminAccess copyWith({

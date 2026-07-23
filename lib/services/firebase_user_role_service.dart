@@ -57,22 +57,9 @@ class FirebaseUserRoleService {
       );
     }
 
-    final doc = _firestore.collection('user_roles').doc(normalizedUid);
-    final snapshot = await doc.get();
-    final existingData = snapshot.data();
-    final createdAt = snapshot.exists
-        ? existingData == null
-              ? FieldValue.serverTimestamp()
-              : existingData['createdAt'] ?? FieldValue.serverTimestamp()
-        : FieldValue.serverTimestamp();
-    await doc.set({
-      'email': normalizedEmail,
-      'role': normalizedRole,
-      'familyIds': [_familyId],
-      'active': active,
-      'createdAt': createdAt,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    throw const FirebaseUserRoleException(
+      'La gestion des rôles doit être effectuée par le service serveur.',
+    );
   }
 
   Future<void> setActive(String uid, bool active) async {
@@ -85,11 +72,9 @@ class FirebaseUserRoleService {
         'Le Super Admin connecté ne peut pas désactiver son propre rôle.',
       );
     }
-    await _firestore.collection('user_roles').doc(normalizedUid).set({
-      'active': active,
-      'updatedAt': FieldValue.serverTimestamp(),
-      if (!active) 'revokedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    throw const FirebaseUserRoleException(
+      'La gestion des rôles doit être effectuée par le service serveur.',
+    );
   }
 
   Future<void> revokeSession(String uid) {
@@ -97,26 +82,9 @@ class FirebaseUserRoleService {
   }
 
   Future<void> revokeAllOtherAccessCodeSessions() async {
-    final current = currentUid;
-    final snapshot = await _firestore
-        .collection('user_roles')
-        .where('familyIds', arrayContains: _familyId)
-        .get();
-    final batch = _firestore.batch();
-    var hasUpdates = false;
-    for (final doc in snapshot.docs) {
-      if (doc.id == current) continue;
-      if (doc.data()['active'] != true) continue;
-      batch.set(doc.reference, {
-        'active': false,
-        'revokedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      hasUpdates = true;
-    }
-    if (hasUpdates) {
-      await batch.commit();
-    }
+    throw const FirebaseUserRoleException(
+      'La révocation globale doit être effectuée par le service serveur.',
+    );
   }
 
   Future<void> deleteRole(String uid) async {
@@ -129,7 +97,9 @@ class FirebaseUserRoleService {
         'Le Super Admin connecté ne peut pas supprimer son propre rôle.',
       );
     }
-    await _firestore.collection('user_roles').doc(normalizedUid).delete();
+    throw const FirebaseUserRoleException(
+      'La suppression d’un rôle doit être effectuée par le service serveur.',
+    );
   }
 
   String? _normalizeRole(String role) {

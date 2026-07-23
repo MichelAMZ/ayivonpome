@@ -32,21 +32,25 @@ class AdminContactCard extends ConsumerWidget {
               tooltip: l10n.sendEmail,
               onPressed: admin.email.isEmpty
                   ? null
-                  : () => ref.read(communicationServiceProvider).sendEmail(
-                        email: admin.email,
-                        subject: l10n.modificationCode,
-                        body: l10n.adminContactMessage,
-                      ),
+                  : () => ref
+                        .read(communicationServiceProvider)
+                        .sendEmail(
+                          email: admin.email,
+                          subject: l10n.modificationCode,
+                          body: l10n.adminContactMessage,
+                        ),
               icon: const Icon(Icons.email_outlined),
             ),
             IconButton(
               tooltip: l10n.openWhatsapp,
               onPressed: admin.whatsappNumber.isEmpty
                   ? null
-                  : () => ref.read(communicationServiceProvider).openWhatsApp(
-                        phoneNumber: admin.whatsappNumber,
-                        message: l10n.adminContactMessage,
-                      ),
+                  : () => ref
+                        .read(communicationServiceProvider)
+                        .openWhatsApp(
+                          phoneNumber: admin.whatsappNumber,
+                          message: l10n.adminContactMessage,
+                        ),
               icon: const Icon(Icons.chat_outlined),
             ),
           ],

@@ -2,178 +2,402 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isPublicFamily(familyId) {
-      return familyId == 'ayivon';
-    }
-
-    function isLegacyAyivonFamily(familyId) {
-      return familyId == 'family-ayivon';
-    }
-
-    function normalizedFamilyId(familyId) {
-      return isLegacyAyivonFamily(familyId) ? 'ayivon' : familyId;
-    }
-
-    function isSameTenantFamilyId(previousFamilyId, nextFamilyId) {
-      return nextFamilyId == previousFamilyId ||
-        (isLegacyAyivonFamily(previousFamilyId) && nextFamilyId == 'ayivon');
+    function roleDocument() {
+      return get(/databases/$(database)/documents/user_roles/$(request.auth.uid));
     }
 
     function hasRoleDocument() {
-      return isAuthenticated() &&
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/user_roles/$(request.auth.uid));
     }
 
     function currentRole() {
-      return get(
-        /databases/$(database)/documents/user_roles/$(request.auth.uid)
-      ).data;
+      return roleDocument().data.role;
+    }
+
+    function currentFamilyIds() {
+      return roleDocument().data.familyIds;
     }
 
     function isActiveUser() {
-      return hasRoleDocument() && currentRole().active == true;
-    }
-
-    function hasFamilyAccess(familyId) {
-      return isActiveUser() &&
-        currentRole().familyIds is list &&
-        currentRole().familyIds.hasAny([normalizedFamilyId(familyId)]);
-    }
-
-    function hasAnyRole(roles) {
-      return isActiveUser() && currentRole().role in roles;
-    }
-
-    function isEditor(familyId) {
-      return hasFamilyAccess(familyId) &&
-        hasAnyRole(['editor', 'admin', 'superAdmin']);
-    }
-
-    function isAdmin(familyId) {
-      return hasFamilyAccess(familyId) &&
-        hasAnyRole(['admin', 'superAdmin']);
+      return hasRoleDocument() &&
+        roleDocument().data.active == true &&
+        roleDocument().data.uid == request.auth.uid &&
+        roleDocument().data.role in ['member', 'editor', 'admin', 'superAdmin'] &&
+        roleDocument().data.familyIds is list;
     }
 
     function isSuperAdmin() {
-      return hasAnyRole(['superAdmin']);
+      return isActiveUser() && currentRole() == 'superAdmin';
     }
 
-    function hasValidNextVersion() {
-      return (
-        !('version' in resource.data) &&
-        request.resource.data.version == 1
-      ) || request.resource.data.version == resource.data.version + 1;
+    function belongsToFamily(familyId) {
+      return isActiveUser() && currentFamilyIds().hasAny([familyId]);
     }
 
-    function preservesDeletedAt() {
-      return request.resource.data.deletedAt == resource.data.deletedAt;
+    function isFamilyMember(familyId) {
+      return belongsToFamily(familyId) &&
+        currentRole() in ['member', 'editor', 'admin'];
+    }
+
+    function isFamilyEditor(familyId) {
+      return belongsToFamily(familyId) &&
+        currentRole() in ['editor', 'admin'];
+    }
+
+    function isFamilyAdmin(familyId) {
+      return belongsToFamily(familyId) && currentRole() == 'admin';
+    }
+
+    function isOwner(ownerUid) {
+      return isSignedIn() && ownerUid != null && ownerUid == request.auth.uid;
+    }
+
+    function isSameUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function canAdministerFamily(familyId) {
+      return isSuperAdmin() || isFamilyAdmin(familyId);
+    }
+
+    function isValidString(value, maximumLength) {
+      return value is string && value.size() <= maximumLength;
+    }
+
+    function isNullableString(value, maximumLength) {
+      return value == null || isValidString(value, maximumLength);
+    }
+
+    function isValidStringList(value, maximumItems) {
+      return value is list && value.size() <= maximumItems;
+    }
+
+    function isValidTimestamp(value) {
+      return value is timestamp;
+    }
+
+    function familyKeysAreValid() {
+      return request.resource.data.keys().hasOnly([
+        'id', 'name', 'active', 'schemaVersion', 'version', 'createdAt',
+        'updatedAt', 'createdBy', 'updatedBy', 'description', 'isPublic'
+      ]) &&
+        request.resource.data.keys().hasAll([
+          'id', 'name', 'active', 'schemaVersion', 'updatedAt'
+        ]);
+    }
+
+    function validFamilyDocument(familyId) {
+      return familyKeysAreValid() &&
+        request.resource.data.id == familyId &&
+        isValidString(request.resource.data.name, 200) &&
+        request.resource.data.active is bool &&
+        request.resource.data.schemaVersion is int &&
+        request.resource.data.schemaVersion >= 1 &&
+        request.resource.data.updatedAt == request.time;
+    }
+
+    function publicMemberKeysAreValid() {
+      return request.resource.data.keys().hasOnly([
+        'id', 'familyId', 'firstName', 'lastName', 'gender', 'fatherId',
+        'motherId', 'spouseIds', 'childrenIds', 'parents', 'spouses',
+        'children', 'birthYear', 'birthCity', 'isDeceased', 'photoUrl',
+        'generation', 'displayOrder', 'isPatriarch', 'publicBiography',
+        'createdAt', 'updatedAt', 'schemaVersion', 'deletedAt'
+      ]) &&
+        request.resource.data.keys().hasAll([
+          'id', 'familyId', 'firstName', 'lastName', 'gender', 'fatherId',
+          'motherId', 'spouseIds', 'childrenIds', 'parents', 'spouses',
+          'children', 'birthCity', 'isDeceased', 'generation', 'updatedAt',
+          'schemaVersion', 'deletedAt'
+        ]);
+    }
+
+    function validPublicMember(familyId, memberId) {
+      return publicMemberKeysAreValid() &&
+        request.resource.data.id == memberId &&
+        request.resource.data.familyId == familyId &&
+        request.resource.data.schemaVersion == 2 &&
+        isValidString(request.resource.data.firstName, 120) &&
+        isValidString(request.resource.data.lastName, 120) &&
+        isValidString(request.resource.data.gender, 30) &&
+        isValidString(request.resource.data.fatherId, 128) &&
+        isValidString(request.resource.data.motherId, 128) &&
+        isValidStringList(request.resource.data.spouseIds, 50) &&
+        isValidStringList(request.resource.data.childrenIds, 200) &&
+        isValidStringList(request.resource.data.parents, 10) &&
+        isValidStringList(request.resource.data.spouses, 50) &&
+        isValidStringList(request.resource.data.children, 200) &&
+        isValidString(request.resource.data.birthCity, 160) &&
+        request.resource.data.isDeceased is bool &&
+        request.resource.data.generation is int &&
+        request.resource.data.generation >= 0 &&
+        isValidString(request.resource.data.deletedAt, 64) &&
+        request.resource.data.updatedAt == request.time &&
+        (!('birthYear' in request.resource.data) ||
+          request.resource.data.birthYear is int) &&
+        (!('photoUrl' in request.resource.data) ||
+          isNullableString(request.resource.data.photoUrl, 2048)) &&
+        (!('createdAt' in request.resource.data) ||
+          isValidTimestamp(request.resource.data.createdAt));
+    }
+
+    function validPublicMemberUpdate(familyId, memberId) {
+      return validPublicMember(familyId, memberId) &&
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.id == resource.data.id &&
+        (!('createdAt' in resource.data) ||
+          request.resource.data.createdAt == resource.data.createdAt);
+    }
+
+    function privateMemberKeysAreValid() {
+      return request.resource.data.keys().hasOnly([
+        'memberId', 'familyId', 'ownerUid', 'fullBirthDate', 'birthLastName',
+        'originalLastName', 'birthPlace', 'birthCountry', 'deathDate',
+        'deathPlace', 'burialPlace', 'publicMapLocation', 'currentAddress',
+        'currentCity', 'currentRegion', 'currentCountry', 'latitude',
+        'longitude', 'importantPlaces', 'email', 'phone', 'whatsapp',
+        'allowContact', 'emailVisibility', 'phoneVisibility',
+        'whatsappVisibility', 'visibilitySettings', 'originFamilyId',
+        'linkedTreeEnabled', 'familyCode', 'marriageType', 'history',
+        'privateNotes', 'isTemporaryProfile', 'profileNeedsCompletion',
+        'version', 'schemaVersion', 'createdAt', 'updatedAt', 'createdBy',
+        'updatedBy', 'deletedAt'
+      ]) &&
+        request.resource.data.keys().hasAll([
+          'memberId', 'familyId', 'schemaVersion', 'updatedAt'
+        ]);
+    }
+
+    function validPrivateMember(familyId, memberId) {
+      return privateMemberKeysAreValid() &&
+        request.resource.data.memberId == memberId &&
+        request.resource.data.familyId == familyId &&
+        request.resource.data.schemaVersion == 2 &&
+        request.resource.data.updatedAt == request.time &&
+        (!('ownerUid' in request.resource.data) ||
+          request.resource.data.ownerUid == null ||
+          isValidString(request.resource.data.ownerUid, 128)) &&
+        (!('fullBirthDate' in request.resource.data) ||
+          isValidString(request.resource.data.fullBirthDate, 32)) &&
+        (!('email' in request.resource.data) ||
+          isValidString(request.resource.data.email, 320)) &&
+        (!('phone' in request.resource.data) ||
+          isValidString(request.resource.data.phone, 64)) &&
+        (!('whatsapp' in request.resource.data) ||
+          isValidString(request.resource.data.whatsapp, 64)) &&
+        (!('privateNotes' in request.resource.data) ||
+          isValidString(request.resource.data.privateNotes, 10000)) &&
+        (!('createdAt' in request.resource.data) ||
+          isValidTimestamp(request.resource.data.createdAt));
+    }
+
+    function ownerUidIsImmutable() {
+      return (!('ownerUid' in resource.data) &&
+          !('ownerUid' in request.resource.data)) ||
+        (('ownerUid' in resource.data) &&
+          ('ownerUid' in request.resource.data) &&
+          request.resource.data.ownerUid == resource.data.ownerUid);
+    }
+
+    function validPrivateMemberUpdate(familyId, memberId) {
+      return validPrivateMember(familyId, memberId) &&
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.memberId == resource.data.memberId &&
+        ownerUidIsImmutable() &&
+        (!('createdAt' in resource.data) ||
+          request.resource.data.createdAt == resource.data.createdAt);
+    }
+
+    function ownerChangesOnlyPersonalFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'fullBirthDate', 'birthLastName', 'originalLastName', 'birthPlace',
+        'birthCountry', 'deathDate', 'deathPlace', 'burialPlace',
+        'publicMapLocation', 'currentAddress', 'currentCity', 'currentRegion',
+        'currentCountry', 'latitude', 'longitude', 'importantPlaces', 'email',
+        'phone', 'whatsapp', 'allowContact', 'emailVisibility',
+        'phoneVisibility', 'whatsappVisibility', 'visibilitySettings',
+        'history', 'privateNotes', 'updatedAt', 'version'
+      ]);
+    }
+
+    function validTenantCreate() {
+      return request.resource.data.familyId is string &&
+        (isSuperAdmin() || isFamilyEditor(request.resource.data.familyId));
+    }
+
+    function validTenantUpdate() {
+      return request.resource.data.familyId == resource.data.familyId &&
+        (isSuperAdmin() || isFamilyEditor(resource.data.familyId));
     }
 
     match /families/{familyId} {
-      allow read: if isPublicFamily(familyId) || hasFamilyAccess(familyId);
-      allow create, update: if isEditor(familyId);
+      allow read: if resource.data.isPublic == true ||
+        belongsToFamily(familyId) || isSuperAdmin();
+      allow create: if canAdministerFamily(familyId) &&
+        validFamilyDocument(familyId);
+      allow update: if canAdministerFamily(familyId) &&
+        validFamilyDocument(familyId) &&
+        request.resource.data.id == resource.data.id &&
+        (!('createdAt' in resource.data) ||
+          request.resource.data.createdAt == resource.data.createdAt) &&
+        (!('createdBy' in resource.data) ||
+          request.resource.data.createdBy == resource.data.createdBy);
       allow delete: if isSuperAdmin();
+
+      match /members_public/{memberId} {
+        allow read: if true;
+        allow create: if canAdministerFamily(familyId) &&
+          validPublicMember(familyId, memberId);
+        allow update: if canAdministerFamily(familyId) &&
+          validPublicMemberUpdate(familyId, memberId);
+        allow delete: if canAdministerFamily(familyId);
+      }
+
+      match /members_private/{memberId} {
+        allow read: if isActiveUser() &&
+          (isSuperAdmin() || isFamilyAdmin(familyId) ||
+            (belongsToFamily(familyId) && isOwner(resource.data.ownerUid)));
+        allow create: if canAdministerFamily(familyId) &&
+          validPrivateMember(familyId, memberId) &&
+          (!('ownerUid' in request.resource.data) ||
+            request.resource.data.ownerUid == null);
+        allow update: if validPrivateMemberUpdate(familyId, memberId) &&
+          (canAdministerFamily(familyId) ||
+            (belongsToFamily(familyId) &&
+              isOwner(resource.data.ownerUid) &&
+              ownerChangesOnlyPersonalFields()));
+        allow delete: if canAdministerFamily(familyId);
+      }
     }
 
     match /members/{memberId} {
-      allow read: if isPublicFamily(resource.data.familyId) ||
-        hasFamilyAccess(resource.data.familyId);
-      allow create: if isEditor(request.resource.data.familyId);
-      allow update: if isEditor(resource.data.familyId) &&
-        isSameTenantFamilyId(
-          resource.data.familyId,
-          request.resource.data.familyId
-        ) &&
-        (preservesDeletedAt() || isAdmin(resource.data.familyId)) &&
-        hasValidNextVersion();
-      allow delete: if isAdmin(resource.data.familyId);
+      allow read: if isSuperAdmin() ||
+        (resource.data.familyId is string &&
+          isFamilyAdmin(resource.data.familyId));
+      allow create, update, delete: if false;
+    }
+
+    match /user_roles/{uid} {
+      allow read: if isSameUser(uid) || isSuperAdmin() ||
+        (isActiveUser() && currentRole() == 'admin' &&
+          resource.data.familyIds is list &&
+          resource.data.familyIds.hasAny(currentFamilyIds()));
+      allow create, update, delete: if false;
+    }
+
+    // Transition: only the Admin SDK creates or mutates server operations.
+    // Final member writes remain temporarily available below for legacy
+    // emulator comparison; firestore.rules.target removes that compatibility.
+    match /operation_queue/{operationId} {
+      allow read: if isActiveUser() &&
+        (resource.data.createdBy == request.auth.uid ||
+          isSuperAdmin() ||
+          (resource.data.familyId is string &&
+            isFamilyAdmin(resource.data.familyId)));
+      allow create, update, delete: if false;
+    }
+
+    match /operation_idempotency/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /operation_payloads/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /operation_resource_state/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /operation_dead_letters/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /system_health_checks/{documentId} {
+      allow read, write: if false;
     }
 
     match /relationships/{relationshipId} {
-      allow read: if isPublicFamily(resource.data.familyId) ||
-        hasFamilyAccess(resource.data.familyId);
-      allow create: if isEditor(request.resource.data.familyId);
-      allow update: if isEditor(resource.data.familyId) &&
-        isSameTenantFamilyId(
-          resource.data.familyId,
-          request.resource.data.familyId
-        ) &&
-        (preservesDeletedAt() || isAdmin(resource.data.familyId));
-      allow delete: if isAdmin(resource.data.familyId);
+      allow read: if resource.data.familyId == 'ayivon' ||
+        belongsToFamily(resource.data.familyId) || isSuperAdmin();
+      allow create: if validTenantCreate();
+      allow update: if validTenantUpdate();
+      allow delete: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
     }
 
     match /family_tree_links/{linkId} {
-      allow read: if isPublicFamily(resource.data.familyId) ||
-        hasFamilyAccess(resource.data.familyId);
-      allow create: if isEditor(request.resource.data.familyId);
-      allow update: if isEditor(resource.data.familyId) &&
-        isSameTenantFamilyId(
-          resource.data.familyId,
-          request.resource.data.familyId
-        );
-      allow delete: if isAdmin(resource.data.familyId);
+      allow read: if resource.data.familyId == 'ayivon' ||
+        belongsToFamily(resource.data.familyId) || isSuperAdmin();
+      allow create: if validTenantCreate();
+      allow update: if validTenantUpdate();
+      allow delete: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
     }
 
     match /notifications/{notificationId} {
-      allow read: if isPublicFamily(resource.data.familyId) ||
-        hasFamilyAccess(resource.data.familyId);
-      allow create: if isEditor(request.resource.data.familyId);
-      allow update: if isEditor(resource.data.familyId) &&
-        isSameTenantFamilyId(
-          resource.data.familyId,
-          request.resource.data.familyId
-        );
-      allow delete: if isAdmin(resource.data.familyId);
+      allow read: if belongsToFamily(resource.data.familyId) || isSuperAdmin();
+      allow create: if validTenantCreate();
+      allow update: if validTenantUpdate();
+      allow delete: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if belongsToFamily(resource.data.familyId) || isSuperAdmin();
+      allow create: if validTenantCreate();
+      allow update: if validTenantUpdate();
+      allow delete: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
     }
 
     match /activity_logs/{logId} {
-      allow read: if isAdmin(resource.data.familyId);
-      allow create: if isEditor(request.resource.data.familyId);
+      allow read: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
+      allow create: if validTenantCreate() &&
+        request.resource.data.keys().hasAll(['familyId']);
       allow update: if false;
-      allow delete: if isAdmin(resource.data.familyId);
+      allow delete: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
     }
 
     match /admin_audit_logs/{logId} {
-      allow read: if isAdmin(resource.data.familyId);
-      allow create: if isAdmin(request.resource.data.familyId) &&
-        hasFamilyAccess(request.resource.data.familyId) &&
-        request.resource.data.actorUid == request.auth.uid &&
-        request.resource.data.action in [
-          'activity_log_clear_started',
-          'activity_logs_delete_started'
-        ];
-      allow update: if isAdmin(resource.data.familyId) &&
-        hasFamilyAccess(resource.data.familyId) &&
+      allow read: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
+      allow create: if isSignedIn() &&
+        canAdministerFamily(request.resource.data.familyId) &&
+        request.resource.data.actorUid == request.auth.uid;
+      allow update: if isSignedIn() &&
+        canAdministerFamily(resource.data.familyId) &&
         request.resource.data.familyId == resource.data.familyId &&
-        request.resource.data.actorUid == resource.data.actorUid &&
-        request.resource.data.action in [
-          'activity_log_cleared',
-          'activity_logs_deleted'
-        ];
+        request.resource.data.actorUid == resource.data.actorUid;
       allow delete: if false;
     }
 
     match /sync_incidents/{incidentId} {
-      allow read: if isAdmin(resource.data.familyId);
-      allow create: if isAuthenticated() &&
-        request.resource.data.familyId == 'ayivon' &&
+      allow read: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
+      allow create: if isActiveUser() &&
+        belongsToFamily(request.resource.data.familyId) &&
         request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin(resource.data.familyId);
+      allow update: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
       allow delete: if isSuperAdmin();
     }
 
     match /diagnostic_ping/{pingId} {
-      allow read, delete: if isAdmin('ayivon') &&
-        request.auth.uid == pingId;
-      allow create: if isAdmin(request.resource.data.familyId) &&
-        request.auth.uid == pingId &&
+      allow read, delete: if isSameUser(pingId) && isFamilyAdmin('ayivon');
+      allow create: if isSameUser(pingId) &&
+        isFamilyAdmin(request.resource.data.familyId) &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.type == 'firestoreDiagnostic';
       allow update: if false;
+    }
+
+    match /settings/{settingId} {
+      allow read: if isSuperAdmin() ||
+        (resource.data.familyId is string &&
+          isFamilyAdmin(resource.data.familyId));
+      allow create, update: if isSuperAdmin() ||
+        (request.resource.data.familyId is string &&
+          isFamilyAdmin(request.resource.data.familyId));
+      allow delete: if isSuperAdmin();
     }
 
     match /access_code_configs/{document=**} {
@@ -182,17 +406,6 @@ service cloud.firestore {
 
     match /access_code_audit_logs/{document=**} {
       allow read, write: if false;
-    }
-
-    match /settings/{settingId} {
-      allow read: if settingId == 'admin_notifications' && isAdmin('ayivon');
-      allow write: if settingId == 'admin_notifications' && isSuperAdmin();
-    }
-
-    match /user_roles/{userId} {
-      allow read: if isAuthenticated() &&
-        (request.auth.uid == userId || isSuperAdmin());
-      allow create, update, delete: if isSuperAdmin();
     }
 
     match /{document=**} {

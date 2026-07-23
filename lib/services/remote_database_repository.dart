@@ -21,6 +21,9 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
   Stream<FamilyTreeData> watchFamilyTree() => _client.watchFamilyTree();
   Stream<List<AuditLog>> watchActivityLogs() => _client.watchActivityLogs();
 
+  Future<Person> loadPersonDetails(Person publicPerson) =>
+      _client.loadPersonDetails(publicPerson);
+
   @override
   Future<void> saveFamilyTree(FamilyTreeData data) =>
       _client.saveFamilyTree(data);
@@ -88,6 +91,7 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
 typedef DatabaseFamilyRepository = RemoteDatabaseFamilyRepository;
 
 abstract class RemoteDatabaseClient {
+  Future<Person> loadPersonDetails(Person publicPerson) async => publicPerson;
   Future<void> savePerson(Person person);
   Future<void> saveFamilyTree(FamilyTreeData data);
   Future<void> createPerson(Person person);
@@ -118,6 +122,9 @@ abstract class RemoteDatabaseClient {
 
 class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
   const UnconfiguredRemoteDatabaseClient();
+
+  @override
+  Future<Person> loadPersonDetails(Person publicPerson) async => publicPerson;
 
   @override
   Future<void> savePerson(Person person) => _notConfigured();

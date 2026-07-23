@@ -48,8 +48,8 @@ class LocationTile extends ConsumerWidget {
                     onPressed: address.trim().isEmpty
                         ? null
                         : () => Clipboard.setData(
-                              ClipboardData(text: address.trim()),
-                            ),
+                            ClipboardData(text: address.trim()),
+                          ),
                   ),
                 ],
               )
@@ -65,21 +65,26 @@ class LocationTile extends ConsumerWidget {
     if (address.trim().isEmpty && coordinates.isEmpty) {
       return '-';
     }
-    return [address.trim(), coordinates].where((item) => item.isNotEmpty).join('\n');
+    return [
+      address.trim(),
+      coordinates,
+    ].where((item) => item.isNotEmpty).join('\n');
   }
 
   Future<void> _open(BuildContext context, WidgetRef ref) async {
     try {
-      await ref.read(mapServiceProvider).openInGoogleMaps(
+      await ref
+          .read(mapServiceProvider)
+          .openInGoogleMaps(
             address: address,
             latitude: latitude,
             longitude: longitude,
           );
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }

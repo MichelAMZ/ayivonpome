@@ -30,6 +30,7 @@ import '../models/modification_code.dart';
 import '../models/person.dart';
 import '../models/sync_state.dart';
 import '../services/activity_log_service.dart';
+import '../services/local_security_cleanup_migration.dart';
 import '../services/parent_auto_creation_service.dart';
 import 'app_providers.dart';
 import 'genealogy_statistics_provider.dart';
@@ -197,6 +198,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     bool forceReloadSource = false,
   }) async {
     final storage = ref.read(jsonStorageServiceProvider);
+    await LocalSecurityCleanupMigration(storage).run();
     final storedRaw = await storage.readRaw();
     final sourceRaw = await _readBundledFamilyJson();
     final raw = _selectNewestJson(storedRaw, sourceRaw);

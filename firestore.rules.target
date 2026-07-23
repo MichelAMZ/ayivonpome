@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roleDocument() {
+      return get(/databases/$(database)/documents/user_roles/$(request.auth.uid));
+    }
+
+    function activeUser() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/user_roles/$(request.auth.uid)) &&
+        roleDocument().data.active == true;
+    }
+
+    function superAdmin() {
+      return activeUser() && roleDocument().data.role == 'superAdmin';
+    }
+
+    function familyAdmin(familyId) {
+      return activeUser() &&
+        roleDocument().data.role == 'admin' &&
+        roleDocument().data.familyIds is list &&
+        roleDocument().data.familyIds.hasAny([familyId]);
+    }
+
+    function belongsToFamily(familyId) {
+      return activeUser() &&
+        roleDocument().data.familyIds is list &&
+        roleDocument().data.familyIds.hasAny([familyId]);
+    }
+
+    match /families/{familyId} {
+      allow read: if resource.data.isPublic == true ||
+        belongsToFamily(familyId) || superAdmin();
+      allow write: if false;
+
+      match /members_public/{memberId} {
+        allow read: if true;
+        allow write: if false;
+      }
+
+      match /members_private/{memberId} {
+        allow read: if activeUser() &&
+          (superAdmin() || familyAdmin(familyId) ||
+            (belongsToFamily(familyId) &&
+              resource.data.ownerUid == request.auth.uid));
+        allow write: if false;
+      }
+    }
+
+    match /operation_queue/{operationId} {
+      allow read: if activeUser() &&
+        (resource.data.createdBy == request.auth.uid ||
+          superAdmin() || familyAdmin(resource.data.familyId));
+      allow write: if false;
+    }
+
+    match /relationships/{relationshipId} {
+      allow read: if resource.data.familyId == 'ayivon' ||
+        belongsToFamily(resource.data.familyId) || superAdmin();
+      allow write: if false;
+    }
+
+    match /family_tree_links/{linkId} {
+      allow read: if resource.data.familyId == 'ayivon' ||
+        belongsToFamily(resource.data.familyId) || superAdmin();
+      allow write: if false;
+    }
+
+    match /user_roles/{uid} {
+      allow read: if signedIn() &&
+        (request.auth.uid == uid || superAdmin() ||
+          familyAdmin(resource.data.familyIds[0]));
+      allow write: if false;
+    }
+
+    match /operation_idempotency/{id} {
+      allow read, write: if false;
+    }
+
+    match /operation_payloads/{id} {
+      allow read, write: if false;
+    }
+    match /operation_resource_state/{id} {
+      allow read, write: if false;
+    }
+    match /operation_dead_letters/{id} {
+      allow read, write: if false;
+    }
+    match /system_health_checks/{id} {
+      allow read, write: if false;
+    }
+    match /members/{id} {
+      allow read, write: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

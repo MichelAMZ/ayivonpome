@@ -16,8 +16,7 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
     final auth = ref.watch(authSessionProvider);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.familyLinks)),
-      floatingActionButton:
-          auth.isAuthenticated && data.people.length >= 2
+      floatingActionButton: auth.isAuthenticated && data.people.length >= 2
           ? FloatingActionButton.extended(
               onPressed: () => _showLinkDialog(context, ref),
               icon: const Icon(Icons.add_link),
@@ -28,10 +27,12 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           if (data.familyLinks.isEmpty)
-            Center(child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(l10n.emptyState),
-            ))
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(l10n.emptyState),
+              ),
+            )
           else
             ...data.familyLinks.map(
               (link) => Card(
@@ -82,7 +83,9 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
     var from = data.people.first.id;
     var to = data.people.skip(1).first.id;
     var type = 'marriage';
-    final code = TextEditingController(text: data.familyCodes.firstOrNull?.code ?? '');
+    final code = TextEditingController(
+      text: data.familyCodes.firstOrNull?.code ?? '',
+    );
     final note = TextEditingController();
     await showDialog<void>(
       context: context,
@@ -102,22 +105,23 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
                 DropdownButtonFormField<String>(
                   initialValue: type,
                   decoration: InputDecoration(labelText: l10n.relationshipType),
-                  items: [
-                    'marriage',
-                    'parent',
-                    'child',
-                    'adoption',
-                    'alliance',
-                    'commonAncestor',
-                    'other',
-                  ]
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(_relationship(l10n, value)),
-                        ),
-                      )
-                      .toList(),
+                  items:
+                      [
+                            'marriage',
+                            'parent',
+                            'child',
+                            'adoption',
+                            'alliance',
+                            'commonAncestor',
+                            'other',
+                          ]
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(_relationship(l10n, value)),
+                            ),
+                          )
+                          .toList(),
                   onChanged: (value) => setState(() => type = value ?? type),
                 ),
                 TextField(
@@ -138,7 +142,9 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
             ),
             FilledButton(
               onPressed: () async {
-                await ref.read(familyTreeProvider.notifier).upsertFamilyLink(
+                await ref
+                    .read(familyTreeProvider.notifier)
+                    .upsertFamilyLink(
                       FamilyLink(
                         id: 'link${DateTime.now().microsecondsSinceEpoch}',
                         fromPersonId: from,
@@ -171,7 +177,10 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
       decoration: InputDecoration(labelText: label),
       items: data.people
           .map<DropdownMenuItem<String>>(
-            (person) => DropdownMenuItem(value: person.id, child: Text(person.fullName)),
+            (person) => DropdownMenuItem(
+              value: person.id,
+              child: Text(person.fullName),
+            ),
           )
           .toList(),
       onChanged: onChanged,
@@ -188,18 +197,18 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
   }
 
   String _status(AppLocalizations l10n, String value) => switch (value) {
-        'accepted' => l10n.accepted,
-        'refused' => l10n.refused,
-        _ => l10n.pending,
-      };
+    'accepted' => l10n.accepted,
+    'refused' => l10n.refused,
+    _ => l10n.pending,
+  };
 
   String _relationship(AppLocalizations l10n, String value) => switch (value) {
-        'marriage' => l10n.marriage,
-        'parent' => l10n.parent,
-        'child' => l10n.child,
-        'adoption' => l10n.adoption,
-        'alliance' => l10n.alliance,
-        'commonAncestor' => l10n.commonAncestor,
-        _ => l10n.other,
-      };
+    'marriage' => l10n.marriage,
+    'parent' => l10n.parent,
+    'child' => l10n.child,
+    'adoption' => l10n.adoption,
+    'alliance' => l10n.alliance,
+    'commonAncestor' => l10n.commonAncestor,
+    _ => l10n.other,
+  };
 }

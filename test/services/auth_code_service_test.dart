@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final service = AuthCodeService();
 
-  test('uses accepted family code role instead of elevating main code', () {
+  test('does not derive a UI role from an accepted family code', () {
     const data = FamilyTreeData(
       mainFamilyCode: 'ayivon',
       familyCodes: [
@@ -21,20 +21,15 @@ void main() {
 
     final session = service.verifyCode(data, ' AYIVON ');
 
-    expect(session, isNotNull);
-    expect(session!.familyCode, 'ayivon');
-    expect(session.role, 'owner');
-    expect(session.isSuperAdmin, isFalse);
+    expect(session, isNull);
   });
 
-  test('falls back to viewer for main code when no family code exists', () {
+  test('does not treat the main family identifier as authentication', () {
     const data = FamilyTreeData(mainFamilyCode: 'ayivon');
 
     final session = service.verifyCode(data, 'ayivon');
 
-    expect(session, isNotNull);
-    expect(session!.role, 'viewer');
-    expect(session.isSuperAdmin, isFalse);
+    expect(session, isNull);
   });
 
   test('rejects inactive or unknown family codes', () {

@@ -20,26 +20,26 @@ class HistoryEvent {
   final String image;
 
   factory HistoryEvent.fromJson(Map<String, dynamic> json) => HistoryEvent(
-        id: json['id'] as String? ?? '',
-        date: json['date'] as String? ?? '',
-        title: json['title'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-        place: json['place'] as String? ?? '',
-        latitude: (json['latitude'] as num?)?.toDouble(),
-        longitude: (json['longitude'] as num?)?.toDouble(),
-        image: json['image'] as String? ?? '',
-      );
+    id: json['id'] as String? ?? '',
+    date: json['date'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    place: json['place'] as String? ?? '',
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
+    image: json['image'] as String? ?? '',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'date': date,
-        'title': title,
-        'description': description,
-        'place': place,
-        'latitude': latitude,
-        'longitude': longitude,
-        'image': image,
-      };
+    'id': id,
+    'date': date,
+    'title': title,
+    'description': description,
+    'place': place,
+    'latitude': latitude,
+    'longitude': longitude,
+    'image': image,
+  };
 
   HistoryEvent copyWith({
     String? id,

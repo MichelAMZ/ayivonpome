@@ -1,4 +1,3 @@
-import 'package:ayivonpome/models/access_code.dart';
 import 'package:ayivonpome/models/admin_access.dart';
 import 'package:ayivonpome/models/family_tree_data.dart';
 import 'package:ayivonpome/services/admin_access_service.dart';
@@ -7,38 +6,42 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const service = AdminAccessService();
 
-  test('validates current admin code and active admin KPI access codes', () {
+  test('never grants admin access from locally stored codes', () {
     const data = FamilyTreeData(
-      adminAccess: AdminAccess(currentAdminCode: 'customAdmin2026'),
-      accessCodes: [
-        AccessCode(
-          id: 'code002',
-          code: 'ayivonvi2026',
-          label: 'Code Admin KPI',
-          type: 'adminKpi',
-          role: 'admin',
-        ),
-      ],
+      adminAccess: AdminAccess(currentAdminCode: 'TEST_ONLY_VALUE'),
     );
 
-    expect(service.validate(data, 'customAdmin2026'), isTrue);
-    expect(service.validate(data, 'ayivonvi2026'), isTrue);
-    expect(service.validate(data, 'bad-code'), isFalse);
+    expect(service.validate(data, 'TEST_ONLY_VALUE'), isFalse);
+    expect(service.validate(data, 'INVALID_TEST_CODE'), isFalse);
   });
 
   test('rejects admin codes when persisted access is disabled', () {
     const data = FamilyTreeData(
       adminAccess: AdminAccess(
-        currentAdminCode: 'oldPersistedCode',
+        currentAdminCode: 'TEST_ONLY_VALUE',
         enabled: false,
       ),
     );
 
-    expect(service.validate(data, 'ayivonvi2026'), isFalse);
-    expect(service.validate(data, 'oldPersistedCode'), isFalse);
+    expect(service.validate(data, 'TEST_ONLY_VALUE'), isFalse);
   });
 
   test('normalizes whitespace in admin codes', () {
-    expect(AdminAccessService.normalizeCode(' ayivonvi 2026\n'), 'AYIVONVI2026');
+    expect(
+      AdminAccessService.normalizeCode(' TEST ONLY VALUE\n'),
+      'TESTONLYVALUE',
+    );
+  });
+
+  test('local code rotation is disabled', () {
+    expect(
+      () => service.changeCode(
+        data: const FamilyTreeData(),
+        oldCode: 'TEST_ONLY_VALUE',
+        newCode: 'PLACEHOLDER_NOT_A_SECRET',
+        changedByAdminId: 'test',
+      ),
+      throwsStateError,
+    );
   });
 }

@@ -20,22 +20,22 @@ class AdminUser {
   bool get isSuperAdmin => role == 'superAdmin';
 
   factory AdminUser.fromJson(Map<String, dynamic> json) => AdminUser(
-        id: json['id'] as String? ?? '',
-        fullName: json['fullName'] as String? ?? '',
-        role: json['role'] as String? ?? 'admin',
-        email: json['email'] as String? ?? '',
-        phoneNumber: json['phoneNumber'] as String? ?? '',
-        whatsappNumber: json['whatsappNumber'] as String? ?? '',
-        active: json['active'] as bool? ?? true,
-      );
+    id: json['id'] as String? ?? '',
+    fullName: json['fullName'] as String? ?? '',
+    role: json['role'] as String? ?? 'admin',
+    email: json['email'] as String? ?? '',
+    phoneNumber: json['phoneNumber'] as String? ?? '',
+    whatsappNumber: json['whatsappNumber'] as String? ?? '',
+    active: json['active'] as bool? ?? true,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'fullName': fullName,
-        'role': role,
-        'email': email,
-        'phoneNumber': phoneNumber,
-        'whatsappNumber': whatsappNumber,
-        'active': active,
-      };
+    'id': id,
+    'fullName': fullName,
+    'role': role,
+    'email': email,
+    'phoneNumber': phoneNumber,
+    'whatsappNumber': whatsappNumber,
+    'active': active,
+  };
 }

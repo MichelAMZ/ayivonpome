@@ -38,17 +38,17 @@ class FamilyNotification {
       );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'personId': personId,
-        'targetPersonId': targetPersonId,
-        'type': type,
-        'channel': channel,
-        'title': title,
-        'message': message,
-        'scheduledDate': scheduledDate,
-        'status': status,
-        'createdAt': createdAt,
-      };
+    'id': id,
+    'personId': personId,
+    'targetPersonId': targetPersonId,
+    'type': type,
+    'channel': channel,
+    'title': title,
+    'message': message,
+    'scheduledDate': scheduledDate,
+    'status': status,
+    'createdAt': createdAt,
+  };
 
   FamilyNotification copyWith({
     String? id,

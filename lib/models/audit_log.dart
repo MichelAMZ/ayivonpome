@@ -20,24 +20,24 @@ class AuditLog {
   final String description;
 
   factory AuditLog.fromJson(Map<String, dynamic> json) => AuditLog(
-        id: json['id'] as String? ?? '',
-        date: json['date'] as String? ?? '',
-        action: json['action'] as String? ?? '',
-        actorRole: json['actorRole'] as String? ?? '',
-        adminId: json['adminId'] as String? ?? '',
-        personId: json['personId'] as String? ?? '',
-        familyCode: json['familyCode'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-      );
+    id: json['id'] as String? ?? '',
+    date: json['date'] as String? ?? '',
+    action: json['action'] as String? ?? '',
+    actorRole: json['actorRole'] as String? ?? '',
+    adminId: json['adminId'] as String? ?? '',
+    personId: json['personId'] as String? ?? '',
+    familyCode: json['familyCode'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'date': date,
-        'action': action,
-        'actorRole': actorRole,
-        'adminId': adminId,
-        'personId': personId,
-        'familyCode': familyCode,
-        'description': description,
-      };
+    'id': id,
+    'date': date,
+    'action': action,
+    'actorRole': actorRole,
+    'adminId': adminId,
+    'personId': personId,
+    'familyCode': familyCode,
+    'description': description,
+  };
 }

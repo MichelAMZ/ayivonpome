@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'l10n/app_localizations.dart';
+import 'config/app_environment.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/family_tree_provider.dart';
 import 'providers/locale_provider.dart';
@@ -46,6 +47,14 @@ class FamilyTreeApp extends ConsumerWidget {
           ),
         ),
       ),
+      builder: (context, child) => AppEnvironment.fromEnvironment().isStaging
+          ? Banner(
+              message: 'PRÉPRODUCTION',
+              location: BannerLocation.topEnd,
+              color: const Color(0xFFC62828),
+              child: child ?? const SizedBox.shrink(),
+            )
+          : child ?? const SizedBox.shrink(),
       home: data.when(
         loading: () => const _LoadingScreen(),
         error: (error, stackTrace) => _ErrorScreen(error: error),

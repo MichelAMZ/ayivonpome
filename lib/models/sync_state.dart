@@ -80,6 +80,17 @@ class PendingSyncItem {
     this.appVersion = '',
     this.platform = '',
     this.locationPrecision = 'unavailable',
+    this.localOperationId = '',
+    this.idempotencyKey = '',
+    this.serverOperationId = '',
+    this.submissionStatus = 'pendingSubmission',
+    this.serverStatus = '',
+    this.submittedAt = '',
+    this.lastServerCheckAt = '',
+    this.baseVersion = 0,
+    this.resultVersion,
+    this.conflictedAt = '',
+    this.resolvedFromOperationId = '',
   });
 
   final String id;
@@ -108,6 +119,17 @@ class PendingSyncItem {
   final String appVersion;
   final String platform;
   final String locationPrecision;
+  final String localOperationId;
+  final String idempotencyKey;
+  final String serverOperationId;
+  final String submissionStatus;
+  final String serverStatus;
+  final String submittedAt;
+  final String lastServerCheckAt;
+  final int baseVersion;
+  final int? resultVersion;
+  final String conflictedAt;
+  final String resolvedFromOperationId;
 
   factory PendingSyncItem.fromJson(
     Map<String, dynamic> json,
@@ -141,6 +163,19 @@ class PendingSyncItem {
     appVersion: json['appVersion'] as String? ?? '',
     platform: json['platform'] as String? ?? '',
     locationPrecision: json['locationPrecision'] as String? ?? 'unavailable',
+    localOperationId:
+        json['localOperationId'] as String? ?? json['id'] as String? ?? '',
+    idempotencyKey: json['idempotencyKey'] as String? ?? '',
+    serverOperationId: json['serverOperationId'] as String? ?? '',
+    submissionStatus:
+        json['submissionStatus'] as String? ?? 'pendingSubmission',
+    serverStatus: json['serverStatus'] as String? ?? '',
+    submittedAt: json['submittedAt'] as String? ?? '',
+    lastServerCheckAt: json['lastServerCheckAt'] as String? ?? '',
+    baseVersion: (json['baseVersion'] as num?)?.toInt() ?? 0,
+    resultVersion: (json['resultVersion'] as num?)?.toInt(),
+    conflictedAt: json['conflictedAt'] as String? ?? '',
+    resolvedFromOperationId: json['resolvedFromOperationId'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -173,6 +208,18 @@ class PendingSyncItem {
     if (platform.isNotEmpty) 'platform': platform,
     if (locationPrecision != 'unavailable')
       'locationPrecision': locationPrecision,
+    'localOperationId': localOperationId.isEmpty ? id : localOperationId,
+    if (idempotencyKey.isNotEmpty) 'idempotencyKey': idempotencyKey,
+    if (serverOperationId.isNotEmpty) 'serverOperationId': serverOperationId,
+    'submissionStatus': submissionStatus,
+    if (serverStatus.isNotEmpty) 'serverStatus': serverStatus,
+    if (submittedAt.isNotEmpty) 'submittedAt': submittedAt,
+    if (lastServerCheckAt.isNotEmpty) 'lastServerCheckAt': lastServerCheckAt,
+    'baseVersion': baseVersion,
+    if (resultVersion != null) 'resultVersion': resultVersion,
+    if (conflictedAt.isNotEmpty) 'conflictedAt': conflictedAt,
+    if (resolvedFromOperationId.isNotEmpty)
+      'resolvedFromOperationId': resolvedFromOperationId,
   };
 
   PendingSyncItem copyWith({
@@ -202,6 +249,17 @@ class PendingSyncItem {
     String? appVersion,
     String? platform,
     String? locationPrecision,
+    String? localOperationId,
+    String? idempotencyKey,
+    String? serverOperationId,
+    String? submissionStatus,
+    String? serverStatus,
+    String? submittedAt,
+    String? lastServerCheckAt,
+    int? baseVersion,
+    int? resultVersion,
+    String? conflictedAt,
+    String? resolvedFromOperationId,
   }) {
     return PendingSyncItem(
       id: id ?? this.id,
@@ -231,6 +289,18 @@ class PendingSyncItem {
       appVersion: appVersion ?? this.appVersion,
       platform: platform ?? this.platform,
       locationPrecision: locationPrecision ?? this.locationPrecision,
+      localOperationId: localOperationId ?? this.localOperationId,
+      idempotencyKey: idempotencyKey ?? this.idempotencyKey,
+      serverOperationId: serverOperationId ?? this.serverOperationId,
+      submissionStatus: submissionStatus ?? this.submissionStatus,
+      serverStatus: serverStatus ?? this.serverStatus,
+      submittedAt: submittedAt ?? this.submittedAt,
+      lastServerCheckAt: lastServerCheckAt ?? this.lastServerCheckAt,
+      baseVersion: baseVersion ?? this.baseVersion,
+      resultVersion: resultVersion ?? this.resultVersion,
+      conflictedAt: conflictedAt ?? this.conflictedAt,
+      resolvedFromOperationId:
+          resolvedFromOperationId ?? this.resolvedFromOperationId,
     );
   }
 }

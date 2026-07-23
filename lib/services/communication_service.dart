@@ -10,10 +10,7 @@ class CommunicationService {
     return Uri(
       scheme: 'mailto',
       path: email.trim(),
-      queryParameters: {
-        'subject': subject,
-        'body': body,
-      },
+      queryParameters: {'subject': subject, 'body': body},
     );
   }
 
@@ -22,7 +19,8 @@ class CommunicationService {
     return Uri.https('wa.me', '/$normalized', {'text': message});
   }
 
-  Uri phoneUri(String phoneNumber) => Uri(scheme: 'tel', path: phoneNumber.trim());
+  Uri phoneUri(String phoneNumber) =>
+      Uri(scheme: 'tel', path: phoneNumber.trim());
 
   Future<void> sendEmail({
     required String email,

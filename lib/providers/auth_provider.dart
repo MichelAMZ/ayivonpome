@@ -44,17 +44,18 @@ class AuthState {
   bool get isAuthenticated => mode == AuthMode.authenticated && session != null;
   bool get isInitializing => restoreStatus == SessionRestoreStatus.initializing;
   bool get hasFirebaseWriteAccess =>
-      firebaseRole == 'editor' ||
-      firebaseRole == 'admin' ||
-      firebaseRole == 'superAdmin';
-  bool get canModify =>
-      (isAuthenticated && hasModificationAccess) || hasFirebaseWriteAccess;
+      restoreStatus == SessionRestoreStatus.authenticated &&
+      firebaseUid != null &&
+      firebaseUid!.isNotEmpty &&
+      (firebaseRole == 'editor' ||
+          firebaseRole == 'admin' ||
+          firebaseRole == 'superAdmin');
+  bool get canModify => hasFirebaseWriteAccess;
   bool get isSuperAdmin =>
-      session?.isSuperAdmin == true || firebaseRole == 'superAdmin';
+      hasFirebaseWriteAccess && firebaseRole == 'superAdmin';
   bool get isAdmin =>
-      session?.isAdmin == true ||
-      firebaseRole == 'admin' ||
-      firebaseRole == 'superAdmin';
+      hasFirebaseWriteAccess &&
+      (firebaseRole == 'admin' || firebaseRole == 'superAdmin');
   bool get canSecurelyDeleteMember =>
       restoreStatus == SessionRestoreStatus.authenticated &&
       firebaseUid != null &&
@@ -172,19 +173,7 @@ class AuthController extends Notifier<AuthState> {
       return true;
     }
 
-    final data = await ref.read(familyTreeProvider.future);
-    final service = ref.read(authCodeServiceProvider);
-    final session = service.verifyCode(data, code);
-    if (session == null) {
-      return false;
-    }
-    state = AuthState(
-      mode: AuthMode.authenticated,
-      restoreStatus: SessionRestoreStatus.authenticated,
-      session: session,
-    );
-    await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
-    return true;
+    return false;
   }
 
   Future<void> loginFirebaseAdmin({
@@ -264,36 +253,14 @@ class AuthController extends Notifier<AuthState> {
       }
     }
 
-    final data = await ref.read(familyTreeProvider.future);
-    final match = ref
-        .read(modificationCodeServiceProvider)
-        .validate(data, trimmedCode);
     await ref
         .read(familyTreeProvider.notifier)
         .addAuditLog(
-          match == null
-              ? 'modification_code_refused'
-              : 'modification_code_accepted',
-          description: match == null
-              ? 'Code de modification incorrect.'
-              : 'Code de modification accepté.',
+          'modification_code_refused',
+          description: 'Authentification Firebase requise.',
           actorRole: state.session?.role ?? 'viewer',
         );
-    if (match == null) return false;
-    await ref
-        .read(familyTreeProvider.notifier)
-        .markModificationCodeUsed(match.code);
-    state = AuthState(
-      mode: AuthMode.authenticated,
-      restoreStatus: SessionRestoreStatus.authenticated,
-      session: state.session,
-      hasModificationAccess: true,
-      firebaseUid: state.firebaseUid,
-      firebaseEmail: state.firebaseEmail,
-      firebaseRole: state.firebaseRole,
-      firebaseAuthMethod: state.firebaseAuthMethod,
-    );
-    return true;
+    return false;
   }
 
   Future<void> logout() async {

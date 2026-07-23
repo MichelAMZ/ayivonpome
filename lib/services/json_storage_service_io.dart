@@ -9,7 +9,7 @@ JsonStorageService createJsonStorageService({String? storageDirectory}) =>
 
 class IoJsonStorageService implements JsonStorageService {
   IoJsonStorageService({String? storageDirectory})
-      : _storageDirectory = storageDirectory;
+    : _storageDirectory = storageDirectory;
 
   final String? _storageDirectory;
 

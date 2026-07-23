@@ -28,8 +28,17 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   final String _familyId;
   final FirestoreDocumentMapper _mapper;
 
-  CollectionReference<Map<String, dynamic>> get _members =>
+  CollectionReference<Map<String, dynamic>> get _legacyMembers =>
       _firestore.collection('members');
+
+  DocumentReference<Map<String, dynamic>> get _familyDocument =>
+      _firestore.collection('families').doc(_tenantFamilyId);
+
+  CollectionReference<Map<String, dynamic>> get _membersPublic =>
+      _familyDocument.collection('members_public');
+
+  CollectionReference<Map<String, dynamic>> get _membersPrivate =>
+      _familyDocument.collection('members_private');
 
   CollectionReference<Map<String, dynamic>> get _families =>
       _firestore.collection('families');
@@ -51,17 +60,26 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
   @override
   Future<FamilyTreeData> loadFamilyTree() async {
-    final people = await _activeByFamily(_members).get();
+    final publicPeople = await _activeMembers(_membersPublic).get();
+    final legacyPeople = publicPeople.docs.isEmpty
+        ? await _activeByFamily(_legacyMembers).get()
+        : null;
     final relationships = await _activeByFamily(_relationships).get();
     final links = await _activeByFamily(_familyLinks).get();
 
-    return _treeFromSnapshots(people.docs, relationships.docs, links.docs);
+    return _treeFromSnapshots(
+      publicPeople.docs.isNotEmpty ? publicPeople.docs : legacyPeople!.docs,
+      relationships.docs,
+      links.docs,
+      legacyPeople: publicPeople.docs.isEmpty,
+    );
   }
 
   @override
   Stream<FamilyTreeData> watchFamilyTree() {
     final controller = StreamController<FamilyTreeData>();
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? people;
+    List<QueryDocumentSnapshot<Map<String, dynamic>>>? legacyPeople;
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? relationships;
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? links;
     final subscriptions =
@@ -78,7 +96,12 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         return;
       }
       controller.add(
-        _treeFromSnapshots(currentPeople, currentRelationships, currentLinks),
+        _treeFromSnapshots(
+          currentPeople.isNotEmpty ? currentPeople : (legacyPeople ?? const []),
+          currentRelationships,
+          currentLinks,
+          legacyPeople: currentPeople.isEmpty,
+        ),
       );
     }
 
@@ -94,7 +117,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       );
     }
 
-    listen(_activeByFamily(_members), (docs) => people = docs);
+    listen(_activeMembers(_membersPublic), (docs) => people = docs);
+    listen(_activeByFamily(_legacyMembers), (docs) => legacyPeople = docs);
     listen(_activeByFamily(_relationships), (docs) => relationships = docs);
     listen(_activeByFamily(_familyLinks), (docs) => links = docs);
 
@@ -119,15 +143,46 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
             .toList(growable: false),
       );
 
+  @override
+  Future<Person> loadPersonDetails(Person publicPerson) async {
+    final memberId = publicPerson.id.trim();
+    _validatePersonId(memberId, 'charger');
+    final snapshot = await _membersPrivate.doc(memberId).get();
+    final data = snapshot.data();
+    if (!snapshot.exists || data == null) return publicPerson;
+    if (_stringValue(data['familyId']) != _tenantFamilyId ||
+        _stringValue(data['memberId']) != memberId) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'failed-precondition',
+        message: 'La fiche privée ne correspond pas au membre demandé.',
+      );
+    }
+    return _mapper.enrichWithPrivateData(publicPerson, data);
+  }
+
   FamilyTreeData _treeFromSnapshots(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> people,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> relationships,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> links,
-  ) {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> links, {
+    required bool legacyPeople,
+  }) {
     return FamilyTreeData(
       mainFamilyCode: _familyId,
       people: people
-          .map((doc) => Person.fromJson(_mapper.fromSnapshot(doc)))
+          .map(
+            (doc) => Person.fromJson(
+              legacyPeople
+                  ? _mapper.legacyPublicPersonFromData(
+                      _mapper.fromSnapshot(doc),
+                      documentId: doc.id,
+                    )
+                  : _mapper.publicPersonFromData(
+                      _mapper.fromSnapshot(doc),
+                      documentId: doc.id,
+                    ),
+            ),
+          )
           .toList(),
       marriageRelations: relationships
           .map((doc) => MarriageRelation.fromJson(_mapper.fromSnapshot(doc)))
@@ -140,7 +195,11 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
   @override
   Future<void> saveFamilyTree(FamilyTreeData data) async {
-    await _ensureFirebaseUser('saveFamilyTree', 'families/$_familyId');
+    final user = await _ensureFirebaseUser(
+      'saveFamilyTree',
+      'families/$_familyId',
+    );
+    await _ensureFamilyDocument(user);
     final batch = _firestore.batch();
     batch.set(_firestore.collection('families').doc(_familyId), {
       'id': _familyId,
@@ -150,12 +209,13 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
     for (final person in data.people) {
       batch.set(
-        _members.doc(person.id),
-        _mapper.toFirestore(
-          person.toJson(),
-          id: person.id,
-          familyId: _tenantFamilyId,
-        ),
+        _membersPublic.doc(person.id),
+        _mapper.toMemberPublic(person, familyId: _tenantFamilyId),
+        SetOptions(merge: true),
+      );
+      batch.set(
+        _membersPrivate.doc(person.id),
+        _mapper.toMemberPrivate(person, familyId: _tenantFamilyId),
         SetOptions(merge: true),
       );
     }
@@ -188,7 +248,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> createPerson(Person person) async {
     _validatePersonWrite(person, 'creer');
     final personId = person.id.trim();
-    final doc = _members.doc(personId);
+    final doc = _membersPublic.doc(personId);
+    final privateDoc = _membersPrivate.doc(personId);
     final now = DateTime.now().toUtc().toIso8601String();
     FirestoreUpdateDiagnostic? diagnostic;
     try {
@@ -200,26 +261,13 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       await _ensureFamilyDocument(user);
       final snapshot = await doc.get();
       final remoteData = snapshot.data();
-      final data = snapshot.exists
-          ? _mapper.toFirestore(
-              person
-                  .copyWith(
-                    createdAt: person.createdAt.isEmpty
-                        ? now
-                        : person.createdAt,
-                    updatedAt: now,
-                    version: _safeVersion(remoteData?['version']) + 1,
-                  )
-                  .toJson(),
-              id: personId,
-              familyId: _tenantFamilyId,
-            )
-          : _mapper.toPersonCreateData(
-              person.copyWith(version: 1, deletedAt: '').toJson(),
-              id: personId,
-              familyId: _tenantFamilyId,
-              uid: user?.uid ?? '',
-            );
+      final prepared = person.copyWith(
+        createdAt: person.createdAt.isEmpty ? now : person.createdAt,
+        updatedAt: now,
+        version: snapshot.exists ? _safeVersion(remoteData?['version']) + 1 : 1,
+        deletedAt: '',
+      );
+      final data = _mapper.toMemberPublic(prepared, familyId: _tenantFamilyId);
       if (snapshot.exists) {
         diagnostic = await _buildMemberUpdateDiagnostic(
           doc: doc,
@@ -246,7 +294,18 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         personId: personId,
         data: data,
       );
-      await doc.set(data, SetOptions(merge: true));
+      final batch = _firestore.batch();
+      batch.set(doc, data, SetOptions(merge: true));
+      batch.set(
+        privateDoc,
+        _mapper.toMemberPrivate(
+          prepared,
+          familyId: _tenantFamilyId,
+          actorUid: user?.uid,
+        ),
+        SetOptions(merge: true),
+      );
+      await batch.commit();
       _debugFirestoreWriteSuccess('createPerson', doc.path);
     } on FirebaseException catch (error, stackTrace) {
       _debugFirestoreSaveFailure('createPerson', doc.path, error, stackTrace);
@@ -295,7 +354,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> updatePerson(Person person) async {
     _validatePersonWrite(person, 'enregistrer');
     final personId = person.id.trim();
-    final doc = _members.doc(personId);
+    final doc = _membersPublic.doc(personId);
+    final privateDoc = _membersPrivate.doc(personId);
     final now = DateTime.now().toUtc().toIso8601String();
     FirestoreUpdateDiagnostic? diagnostic;
     try {
@@ -309,11 +369,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       final nextVersion = snapshot.exists
           ? _safeVersion(remoteData?['version']) + 1
           : 1;
-      final data = _mapper.toFirestore(
-        person.copyWith(updatedAt: now, version: nextVersion).toJson(),
-        id: personId,
-        familyId: _tenantFamilyId,
-      );
+      final prepared = person.copyWith(updatedAt: now, version: nextVersion);
+      final data = _mapper.toMemberPublic(prepared, familyId: _tenantFamilyId);
       diagnostic = await _buildMemberUpdateDiagnostic(
         doc: doc,
         data: data,
@@ -328,7 +385,18 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         personId: personId,
         data: data,
       );
-      await doc.set(data, SetOptions(merge: true));
+      final batch = _firestore.batch();
+      batch.set(doc, data, SetOptions(merge: true));
+      batch.set(
+        privateDoc,
+        _mapper.toMemberPrivate(
+          prepared,
+          familyId: _tenantFamilyId,
+          actorUid: user?.uid,
+        ),
+        SetOptions(merge: true),
+      );
+      await batch.commit();
       _debugFirestoreWriteSuccess('updatePerson', doc.path);
     } on FirebaseException catch (error, stackTrace) {
       _debugFirestoreSaveFailure('updatePerson', doc.path, error, stackTrace);
@@ -360,7 +428,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Future<void> deletePerson(String personId) async {
     _validatePersonId(personId, 'supprimer');
     final user = await _requireFirebaseAdminForFamily();
-    final memberDoc = _members.doc(personId);
+    final memberDoc = _membersPublic.doc(personId);
+    final privateMemberDoc = _membersPrivate.doc(personId);
     final memberSnapshot = await memberDoc.get(
       const GetOptions(source: Source.server),
     );
@@ -380,9 +449,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       );
     }
 
-    final membersSnapshot = await _members
-        .where('familyId', isEqualTo: _tenantFamilyId)
-        .get(const GetOptions(source: Source.server));
+    final membersSnapshot = await _membersPublic.get(
+      const GetOptions(source: Source.server),
+    );
     final relationshipsSnapshot = await _relationships
         .where('familyId', isEqualTo: _tenantFamilyId)
         .get(const GetOptions(source: Source.server));
@@ -437,6 +506,14 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       'updatedAt': FieldValue.serverTimestamp(),
       'version': _safeVersion(memberData['version']) + 1,
       'deletedBy': user.uid,
+    }, SetOptions(merge: true));
+    batch.set(privateMemberDoc, {
+      'memberId': personId,
+      'familyId': _tenantFamilyId,
+      'deletedAt': deletedAt,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+      'schemaVersion': FirestoreDocumentMapper.memberSchemaVersion,
     }, SetOptions(merge: true));
     batch.set(_firestore.collection('activity_logs').doc(), {
       'familyId': _tenantFamilyId,
@@ -784,13 +861,17 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         .where('deletedAt', isEqualTo: '');
   }
 
+  Query<Map<String, dynamic>> _activeMembers(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) => collection.where('deletedAt', isEqualTo: '');
+
   Future<void> _softDelete(
     CollectionReference<Map<String, dynamic>> collection,
     String id,
   ) async {
     final doc = collection.doc(id);
     await _ensureFirebaseUser('softDelete', doc.path, personId: id);
-    if (collection.path == _members.path) {
+    if (collection.path == _membersPublic.path) {
       final snapshot = await doc.get();
       final remoteVersion = _safeVersion(snapshot.data()?['version']);
       await doc.set({

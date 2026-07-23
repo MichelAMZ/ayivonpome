@@ -26,7 +26,9 @@ class MiniMapCard extends ConsumerWidget {
     }
     return Card(
       child: InkWell(
-        onTap: () => ref.read(mapServiceProvider).openInGoogleMaps(
+        onTap: () => ref
+            .read(mapServiceProvider)
+            .openInGoogleMaps(
               address: address,
               latitude: latitude,
               longitude: longitude,
@@ -43,15 +45,15 @@ class MiniMapCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              const Positioned.fill(
-                child: Icon(Icons.map_outlined, size: 72),
-              ),
+              const Positioned.fill(child: Icon(Icons.map_outlined, size: 72)),
               Positioned(
                 left: 16,
                 right: 16,
                 bottom: 14,
                 child: FilledButton.icon(
-                  onPressed: () => ref.read(mapServiceProvider).openInGoogleMaps(
+                  onPressed: () => ref
+                      .read(mapServiceProvider)
+                      .openInGoogleMaps(
                         address: address,
                         latitude: latitude,
                         longitude: longitude,

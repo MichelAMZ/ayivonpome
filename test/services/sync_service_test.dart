@@ -16,6 +16,29 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('pending create can resolve its person from the local tree', () async {
+    final repository = _FakeFamilyRepository();
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: repository,
+    );
+    const person = Person(id: 'ayivon--ayivon', firstName: 'AYIVON');
+    const operation = PendingSyncItem(
+      id: 'initial-tree-ayivon',
+      entityType: 'person',
+      entityId: 'ayivon--ayivon',
+      action: 'create',
+    );
+
+    final result = await service.syncPendingQueue(
+      _tree(people: const [person], pendingSyncQueue: const [operation]),
+      force: true,
+    );
+
+    expect(result.pendingSyncQueue, isEmpty);
+    expect(repository.createdPeople, [person]);
+  });
+
   test(
     'current operation is confirmed independently from older queue items',
     () async {

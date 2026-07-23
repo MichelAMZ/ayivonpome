@@ -23,7 +23,8 @@ class ContactSection extends ConsumerWidget {
     final email = _visible(person.email, person.emailVisibility);
     final phone = _visible(person.phoneNumber, person.phoneVisibility);
     final whatsapp = _visible(person.whatsappNumber, person.whatsappVisibility);
-    final hasRawContact = person.email.trim().isNotEmpty ||
+    final hasRawContact =
+        person.email.trim().isNotEmpty ||
         person.phoneNumber.trim().isNotEmpty ||
         person.whatsappNumber.trim().isNotEmpty;
     final hasAny = email.isNotEmpty || phone.isNotEmpty || whatsapp.isNotEmpty;
@@ -48,7 +49,10 @@ class ContactSection extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.communication, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              l10n.communication,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 10,
@@ -62,7 +66,9 @@ class ContactSection extends ConsumerWidget {
                       context,
                       l10n.sendEmail,
                       email,
-                      () => ref.read(communicationServiceProvider).sendEmail(
+                      () => ref
+                          .read(communicationServiceProvider)
+                          .sendEmail(
                             email: email,
                             subject: l10n.familyEmailSubject,
                             body: l10n.familyEmailBody,
@@ -77,7 +83,9 @@ class ContactSection extends ConsumerWidget {
                       context,
                       l10n.openWhatsapp,
                       whatsapp,
-                      () => ref.read(communicationServiceProvider).openWhatsApp(
+                      () => ref
+                          .read(communicationServiceProvider)
+                          .openWhatsApp(
                             phoneNumber: whatsapp,
                             message: l10n.familyWhatsappMessage,
                           ),
@@ -91,7 +99,9 @@ class ContactSection extends ConsumerWidget {
                       context,
                       l10n.call,
                       phone,
-                      () => ref.read(communicationServiceProvider).makePhoneCall(phone),
+                      () => ref
+                          .read(communicationServiceProvider)
+                          .makePhoneCall(phone),
                     ),
                   ),
                 if (email.isNotEmpty)
@@ -99,7 +109,9 @@ class ContactSection extends ConsumerWidget {
                     icon: Icons.copy_outlined,
                     label: l10n.copyEmail,
                     onPressed: () async {
-                      await ref.read(communicationServiceProvider).copyEmail(email);
+                      await ref
+                          .read(communicationServiceProvider)
+                          .copyEmail(email);
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(l10n.emailCopied)),
@@ -171,9 +183,9 @@ class ContactSection extends ConsumerWidget {
       await action();
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }

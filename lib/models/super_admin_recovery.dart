@@ -1,10 +1,10 @@
 class SuperAdminRecovery {
   const SuperAdminRecovery({
-    this.enabled = true,
-    this.recoveryCode = 'Aziangbédévi2026!',
+    this.enabled = false,
+    this.recoveryCode = '',
     this.lastUsedAt = '',
     this.lastResetAt = '',
-    this.allowResetAllCodes = true,
+    this.allowResetAllCodes = false,
   });
 
   final bool enabled;
@@ -15,16 +15,15 @@ class SuperAdminRecovery {
 
   factory SuperAdminRecovery.fromJson(Map<String, dynamic> json) =>
       SuperAdminRecovery(
-        enabled: json['enabled'] as bool? ?? true,
-        recoveryCode: json['recoveryCode'] as String? ?? 'Aziangbédévi2026!',
+        enabled: false,
+        recoveryCode: '',
         lastUsedAt: json['lastUsedAt'] as String? ?? '',
         lastResetAt: json['lastResetAt'] as String? ?? '',
-        allowResetAllCodes: json['allowResetAllCodes'] as bool? ?? true,
+        allowResetAllCodes: false,
       );
 
   Map<String, dynamic> toJson() => {
     'enabled': enabled,
-    'recoveryCode': recoveryCode,
     'lastUsedAt': lastUsedAt,
     'lastResetAt': lastResetAt,
     'allowResetAllCodes': allowResetAllCodes,

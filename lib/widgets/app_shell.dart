@@ -23,7 +23,6 @@ import '../screens/modification_history_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/tree_screen.dart';
-import '../services/admin_access_service.dart';
 import 'change_notification_popup.dart';
 import 'bug_report_button.dart';
 import 'family_announcement_popup.dart';
@@ -598,10 +597,9 @@ class _AppShellState extends ConsumerState<AppShell>
     final destination = destinations[value];
     final isAdminKpi =
         destination.label == AppLocalizations.of(context).adminDashboard;
-    if (authenticated && isAdminKpi && !_adminKpiUnlocked) {
-      final ok = await _showAdminAccessDialog(context);
-      if (!ok) return;
-      if (!mounted) return;
+    if (isAdminKpi && !_adminKpiUnlocked) {
+      final allowed = await _showAdminAccessDialog(context);
+      if (!allowed || !mounted) return;
       _adminKpiUnlocked = true;
       debugPrint('Navigating to AdminDashboardScreen');
     }
@@ -609,117 +607,7 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   Future<bool> _showAdminAccessDialog(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    debugPrint('Admin dialog opened');
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => _CodeEntryDialog(
-        title: l10n.enterAdminCode,
-        label: l10n.adminAccessCode,
-        invalidMessage: l10n.invalidAdminCode,
-        cancelLabel: l10n.cancel,
-        submitLabel: l10n.enter,
-        forgotCodeLabel: l10n.forgotCode,
-        onForgotCode: () => _showSuperAdminRecoveryDialog(dialogContext),
-        debugAdminFlow: true,
-        onValidate: (code) async => _validateAdminCode(code),
-      ),
-    );
-    if (result == true) {
-      debugPrint('Opening AdminDashboardScreen');
-      _showAdminRotationReminderIfNeeded();
-    }
-    return result == true;
-  }
-
-  Future<void> _showSuperAdminRecoveryDialog(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    await ref
-        .read(familyTreeProvider.notifier)
-        .addAuditLog(
-          'super_admin_recovery_opened',
-          actorRole: 'superAdminRecovery',
-        );
-    if (!context.mounted) return;
-    final recoveryCode = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => _SuperAdminRecoveryCodeDialog(
-        onValidate: (code) async {
-          final data = ref.read(familyTreeProvider).value;
-          if (data == null) return false;
-          final ok = ref
-              .read(superAdminRecoveryServiceProvider)
-              .validate(data, code);
-          await ref
-              .read(familyTreeProvider.notifier)
-              .addAuditLog(
-                ok
-                    ? 'super_admin_recovery_success'
-                    : 'super_admin_recovery_failed',
-                actorRole: 'superAdminRecovery',
-              );
-          return ok;
-        },
-      ),
-    );
-    if (recoveryCode == null || !context.mounted) return;
-    final didReset = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => _SuperAdminResetCodesDialog(
-        recoveryCode: recoveryCode,
-        onReset:
-            ({
-              required recoveryCode,
-              required familyAccessCode,
-              required adminKpiCode,
-              required modificationCode,
-              required generateAll,
-            }) async {
-              return ref
-                  .read(familyTreeProvider.notifier)
-                  .resetCodesWithSuperAdminRecovery(
-                    recoveryCode: recoveryCode,
-                    familyAccessCode: familyAccessCode,
-                    adminKpiCode: adminKpiCode,
-                    modificationCode: modificationCode,
-                    generateAll: generateAll,
-                  );
-            },
-      ),
-    );
-    if (didReset != true || !context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(l10n.codesResetSuccess)));
-  }
-
-  bool _validateAdminCode(String code) {
-    debugPrint('Admin code entered');
-    final data = ref.read(familyTreeProvider).value;
-    if (data == null) return false;
-    final valid = ref.read(adminAccessServiceProvider).validate(data, code);
-    if (valid) debugPrint('Admin code valid');
-    return valid;
-  }
-
-  void _showAdminRotationReminderIfNeeded() {
-    final data = ref.read(familyTreeProvider).value;
-    final auth = ref.read(authSessionProvider);
-    if (data == null ||
-        !auth.isSuperAdmin ||
-        !data.adminAccess.requireCodeRotationReminder) {
-      return;
-    }
-    final status = ref.read(adminAccessServiceProvider).rotationStatus(data);
-    if (status != AdminCodeRotationStatus.late) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(AppLocalizations.of(context).adminCodeRotationDue),
-      ),
-    );
+    return ref.read(authSessionProvider).isAdmin;
   }
 
   ButtonStyle _accessButtonStyle(BuildContext context) {
@@ -1520,9 +1408,6 @@ class _CodeEntryDialog extends StatefulWidget {
     required this.cancelLabel,
     required this.submitLabel,
     required this.onValidate,
-    this.forgotCodeLabel,
-    this.onForgotCode,
-    this.debugAdminFlow = false,
   });
 
   final String title;
@@ -1531,9 +1416,6 @@ class _CodeEntryDialog extends StatefulWidget {
   final String cancelLabel;
   final String submitLabel;
   final Future<bool> Function(String code) onValidate;
-  final String? forgotCodeLabel;
-  final VoidCallback? onForgotCode;
-  final bool debugAdminFlow;
 
   @override
   State<_CodeEntryDialog> createState() => _CodeEntryDialogState();
@@ -1582,11 +1464,6 @@ class _CodeEntryDialogState extends State<_CodeEntryDialog> {
         },
       ),
       actions: [
-        if (widget.forgotCodeLabel != null && widget.onForgotCode != null)
-          TextButton(
-            onPressed: _submitting ? null : widget.onForgotCode,
-            child: Text(widget.forgotCodeLabel!),
-          ),
         TextButton(
           onPressed: _submitting ? null : () => Navigator.pop(context, false),
           child: Text(widget.cancelLabel),
@@ -1609,9 +1486,6 @@ class _CodeEntryDialogState extends State<_CodeEntryDialog> {
       final ok = await widget.onValidate(_controller.text);
       if (!mounted) return;
       if (ok) {
-        if (widget.debugAdminFlow) {
-          debugPrint('Closing admin dialog');
-        }
         Navigator.pop(context, true);
         return;
       }
@@ -1619,11 +1493,7 @@ class _CodeEntryDialogState extends State<_CodeEntryDialog> {
         _submitting = false;
         _error = widget.invalidMessage;
       });
-    } catch (e, stackTrace) {
-      if (widget.debugAdminFlow) {
-        debugPrint('Admin code error: $e');
-        debugPrintStack(stackTrace: stackTrace);
-      }
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _submitting = false;

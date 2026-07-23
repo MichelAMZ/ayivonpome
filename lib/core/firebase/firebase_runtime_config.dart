@@ -1,14 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 
+import '../../config/app_environment.dart';
+import '../../firebase_options_prod.dart';
+import '../../firebase_options_staging.dart';
+
 class FirebaseRuntimeConfig {
-  static const FirebaseOptions defaultOptions = FirebaseOptions(
-    apiKey: 'AIzaSyCTtBe2RhML26Fs0nd-cZ5aS_U6sorBH4I',
-    appId: '1:487156596777:web:8d1043776dcfb6e6b75c38',
-    messagingSenderId: '487156596777',
-    projectId: 'ayivon-aziangbede',
-    authDomain: 'ayivon-aziangbede.firebaseapp.com',
-    storageBucket: 'ayivon-aziangbede.firebasestorage.app',
-  );
+  static const FirebaseOptions defaultOptions = firebaseOptionsProd;
 
   const FirebaseRuntimeConfig({
     required this.enabled,
@@ -18,6 +15,7 @@ class FirebaseRuntimeConfig {
   });
 
   factory FirebaseRuntimeConfig.fromEnvironment() {
+    final environment = AppEnvironment.fromEnvironment();
     const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
     const appId = String.fromEnvironment('FIREBASE_APP_ID');
     const messagingSenderId = String.fromEnvironment(
@@ -42,7 +40,9 @@ class FirebaseRuntimeConfig {
         defaultValue: 'ayivon',
       ),
       trustedDevice: const bool.fromEnvironment('FIREBASE_TRUSTED_DEVICE'),
-      options: hasInlineOptions
+      options: environment.isStaging
+          ? firebaseOptionsStagingFromEnvironment()
+          : hasInlineOptions
           ? const FirebaseOptions(
               apiKey: apiKey,
               appId: appId,
@@ -59,4 +59,8 @@ class FirebaseRuntimeConfig {
   final String familyId;
   final bool trustedDevice;
   final FirebaseOptions? options;
+
+  static const bool serverOperationQueueEnabled = bool.fromEnvironment(
+    'SERVER_OPERATION_QUEUE_ENABLED',
+  );
 }

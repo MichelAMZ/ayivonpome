@@ -184,16 +184,8 @@ class FamilyTreeData {
               FamilyTreeReference.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList(),
-    accessCodes: (json['accessCodes'] as List? ?? const [])
-        .whereType<Map>()
-        .map((item) => AccessCode.fromJson(Map<String, dynamic>.from(item)))
-        .toList(),
-    modificationCodes: (json['modificationCodes'] as List? ?? const [])
-        .whereType<Map>()
-        .map(
-          (item) => ModificationCode.fromJson(Map<String, dynamic>.from(item)),
-        )
-        .toList(),
+    accessCodes: const [],
+    modificationCodes: const [],
     admins: (json['admins'] as List? ?? const [])
         .whereType<Map>()
         .map((item) => AdminUser.fromJson(Map<String, dynamic>.from(item)))
@@ -351,50 +343,8 @@ class FamilyTreeData {
         enabled: true,
       ),
     ],
-    accessCodes: const [
-      AccessCode(
-        id: 'code001',
-        code: 'ayivon',
-        label: 'Code accès famille principale',
-        type: 'familyAccess',
-        role: 'viewer',
-        familyCode: 'AYIVON',
-        createdByAdminId: 'admin001',
-        createdByName: 'Admin Principal',
-        createdAt: '2026-06-26T10:00:00',
-      ),
-      AccessCode(
-        id: 'code002',
-        code: 'ayivonvi2026',
-        label: 'Code Admin KPI',
-        type: 'adminKpi',
-        role: 'admin',
-        familyCode: 'AYIVON',
-        createdByAdminId: 'superAdmin001',
-        createdByName: 'Super Admin',
-        createdAt: '2026-06-26T10:00:00',
-        expiresAt: '2026-09-26T10:00:00',
-        notes: 'Code à renouveler tous les 3 mois',
-      ),
-      AccessCode(
-        id: 'code003',
-        code: 'EDIT-AYIVON-2026',
-        label: 'Code modification famille Ayivon',
-        type: 'modification',
-        role: 'editor',
-        familyCode: 'AYIVON',
-        createdByAdminId: 'admin001',
-        createdByName: 'Admin Principal',
-        createdAt: '2026-06-26T10:00:00',
-      ),
-    ],
-    modificationCodes: const [
-      ModificationCode(
-        code: 'EDIT-AYIVON-2026',
-        label: 'Code modification famille Ayivon',
-        createdByAdminId: 'admin001',
-      ),
-    ],
+    accessCodes: const [],
+    modificationCodes: const [],
     admins: const [
       AdminUser(
         id: 'admin001',
@@ -406,21 +356,7 @@ class FamilyTreeData {
       ),
       AdminUser(id: 'admin002', fullName: 'Admin Famille', role: 'admin'),
     ],
-    adminAccess: const AdminAccess(
-      currentAdminCode: 'ayivonvi2026',
-      lastChangedAt: '2026-06-26T00:00:00',
-      nextChangeDueAt: '2026-09-26T00:00:00',
-      rotationMonths: 3,
-      enabled: true,
-      requireCodeRotationReminder: true,
-      codeHistory: [
-        AdminCodeHistory(
-          code: 'ayivonvi2026',
-          createdAt: '2026-06-26T00:00:00',
-          changedByAdminId: 'superAdmin001',
-        ),
-      ],
-    ),
+    adminAccess: const AdminAccess(),
     people: const [
       Person(
         id: 'p001',
@@ -638,10 +574,6 @@ class FamilyTreeData {
     'familyCodes': familyCodes.map((item) => item.toJson()).toList(),
     'families': families.map((item) => item.toJson()).toList(),
     'familyTreeLinks': familyTreeLinks.map((item) => item.toJson()).toList(),
-    'accessCodes': accessCodes.map((item) => item.toJson()).toList(),
-    'modificationCodes': modificationCodes
-        .map((item) => item.toJson())
-        .toList(),
     'admins': admins.map((item) => item.toJson()).toList(),
     'adminAccess': adminAccess.toJson(),
     'superAdminRecovery': superAdminRecovery.toJson(),

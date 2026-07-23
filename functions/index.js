@@ -2,12 +2,48 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const admin = require("firebase-admin");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
+const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 
 const db = admin.firestore();
+const operationQueue = require("./operation_queue");
 const allowedRoles = new Set(["viewer", "editor", "admin"]);
 const manageableRoles = new Set(["admin", "superAdmin"]);
+
+exports.submitFamilyOperation = onCall(operationQueue.submitFamilyOperation);
+exports.cancelFamilyOperation = onCall(operationQueue.cancelFamilyOperation);
+exports.retryFamilyOperation = onCall(operationQueue.retryFamilyOperation);
+exports.processFamilyOperation = onDocumentCreated(
+    "operation_queue/{operationId}",
+    async (event) => operationQueue.processOperation(event.params.operationId),
+);
+exports.recoverFamilyOperations = onSchedule(
+    "every 5 minutes",
+    operationQueue.recoverOperations,
+);
+exports.testFirestoreWrite = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Connexion Firebase requise.");
+  }
+  const familyId = normalizeFamilyId(request.data && request.data.familyId);
+  if (!familyId) {
+    throw new HttpsError("invalid-argument", "Famille invalide.");
+  }
+  const role = await db.collection("user_roles").doc(request.auth.uid).get();
+  if (!role.exists || role.data().active !== true) {
+    throw new HttpsError("permission-denied", "Rôle actif requis.");
+  }
+  const ref = db.collection("system_health_checks").doc();
+  await ref.create({
+    familyId,
+    createdBy: request.auth.uid,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await ref.delete();
+  return {ok: true};
+});
 
 exports.authenticateWithAccessCode = onCall(async (request) => {
   const familyId = normalizeFamilyId(request.data && request.data.familyId);

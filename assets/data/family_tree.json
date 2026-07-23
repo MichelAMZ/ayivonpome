@@ -1,7 +1,7 @@
 {
   "appVersion": "1.0.0",
-  "dataVersion": "2026-07-20-001",
-  "lastUpdatedAt": "2026-07-20T12:00:00.000Z",
+  "dataVersion": "2026-07-20-002",
+  "lastUpdatedAt": "2026-07-20T12:01:00.000Z",
   "syncSettings": {
     "storageMode": "jsonAndDatabase",
     "databaseEnabled": true,
@@ -10,7 +10,31 @@
     "lastSyncAt": "",
     "syncStatus": "idle"
   },
-  "pendingSyncQueue": [],
+  "pendingSyncQueue": [
+    {"id":"initial-tree-ayivon","entityType":"person","entityId":"ayivon--ayivon","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-akakpo","entityType":"person","entityId":"ayivon--akakpo","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-amekoudzi","entityType":"person","entityId":"ayivon--amekoudzi","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-nouwodou","entityType":"person","entityId":"ayivon--nouwodou","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-dziwonou","entityType":"person","entityId":"ayivon--dziwonou","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-amouzou","entityType":"person","entityId":"ayivon--amouzou","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-kuenyehia","entityType":"person","entityId":"ayivon--kuenyehia","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-kokou","entityType":"person","entityId":"ayivon--kokou","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-ayao","entityType":"person","entityId":"ayivon--ayao","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-mensah","entityType":"person","entityId":"ayivon--mensah","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-kossivi","entityType":"person","entityId":"ayivon--kossivi","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-semebio","entityType":"person","entityId":"ayivon--semebio","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-kossi","entityType":"person","entityId":"ayivon--kossi","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-emanuel-afangbedzi","entityType":"person","entityId":"ayivon--emanuel_afangbedzi","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-moxe","entityType":"person","entityId":"ayivon--moxe","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-edo","entityType":"person","entityId":"ayivon--edo","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-dotse","entityType":"person","entityId":"ayivon--dotse","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-akoussou","entityType":"person","entityId":"ayivon--akoussou","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-afanalle","entityType":"person","entityId":"ayivon--afanalle","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-kokoyena","entityType":"person","entityId":"ayivon--kokoyena","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-da-kodzo-kebi","entityType":"person","entityId":"ayivon--da_kodzo_kebi","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-galenkui","entityType":"person","entityId":"ayivon--galenkui","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"},
+    {"id":"initial-tree-dzidonou","entityType":"person","entityId":"ayivon--dzidonou","action":"create","status":"pending","createdAt":"2026-07-20T12:00:00.000Z","updatedAt":"2026-07-20T12:00:00.000Z"}
+  ],
   "appSettings": {
     "applicationTitle": "Famille AYIVON",
     "applicationSubtitle": "La grande famille unie",
@@ -63,48 +87,8 @@
       "status": "accepted"
     }
   ],
-  "accessCodes": [
-    {
-      "id": "code001",
-      "code": "ayivon",
-      "label": "Code accès famille principale",
-      "type": "familyAccess",
-      "role": "viewer",
-      "familyCode": "AYIVON",
-      "createdByAdminId": "admin001",
-      "createdByName": "Admin Principal",
-      "createdAt": "2026-06-26T10:00:00"
-    },
-    {
-      "id": "code002",
-      "code": "ayivonvi2026",
-      "label": "Code Admin KPI",
-      "type": "adminKpi",
-      "role": "admin",
-      "familyCode": "AYIVON",
-      "createdByAdminId": "superAdmin001",
-      "createdByName": "Super Admin",
-      "createdAt": "2026-06-26T10:00:00"
-    },
-    {
-      "id": "code003",
-      "code": "EDIT-AYIVON-2026",
-      "label": "Code modification famille Ayivon",
-      "type": "modification",
-      "role": "editor",
-      "familyCode": "AYIVON",
-      "createdByAdminId": "admin001",
-      "createdByName": "Admin Principal",
-      "createdAt": "2026-06-26T10:00:00"
-    }
-  ],
-  "modificationCodes": [
-    {
-      "code": "EDIT-AYIVON-2026",
-      "label": "Code modification famille Ayivon",
-      "createdByAdminId": "admin001"
-    }
-  ],
+  "accessCodes": [],
+  "modificationCodes": [],
   "admins": [
     {
       "id": "admin001",
@@ -116,12 +100,9 @@
     }
   ],
   "adminAccess": {
-    "currentAdminCode": "ayivonvi2026",
-    "lastChangedAt": "2026-06-26T00:00:00",
-    "nextChangeDueAt": "2026-09-26T00:00:00",
     "rotationMonths": 3,
-    "enabled": true,
-    "requireCodeRotationReminder": true
+    "enabled": false,
+    "requireCodeRotationReminder": false
   },
   "familyLeadership": {
     "currentLeaderPersonId": "ayivon--ayivon"

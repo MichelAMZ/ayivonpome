@@ -15,9 +15,12 @@ import '../models/person.dart';
 import '../models/sync_diagnostic.dart';
 import '../models/sync_incident.dart';
 import '../models/sync_state.dart';
+import '../models/server_operation.dart';
+import '../data/firestore/firestore_document_mapper.dart';
 import 'connectivity_service.dart';
 import 'family_repository.dart';
 import 'incident_reporter.dart';
+import 'server_operation_service.dart';
 
 class SyncService {
   SyncService({
@@ -26,10 +29,14 @@ class SyncService {
     IncidentReporter? incidentReporter,
     DateTime Function()? nowProvider,
     Random? random,
+    ServerOperationService? serverOperationService,
+    bool serverOperationQueueEnabled = false,
   }) : _connectivity = connectivity,
        _remoteRepository = remoteRepository,
        _nowProvider = nowProvider,
        _random = random ?? Random(),
+       _serverOperationService = serverOperationService,
+       _serverOperationQueueEnabled = serverOperationQueueEnabled,
        _incidentReporter =
            incidentReporter ?? IncidentReporter(remoteRepository);
 
@@ -38,6 +45,9 @@ class SyncService {
   final IncidentReporter _incidentReporter;
   final DateTime Function()? _nowProvider;
   final Random _random;
+  final ServerOperationService? _serverOperationService;
+  final bool _serverOperationQueueEnabled;
+  static const int maxLocalAttempts = 8;
   Future<FamilyTreeData>? _runningSync;
 
   Future<FamilyTreeData> enqueueOrSync(
@@ -61,6 +71,9 @@ class SyncService {
     if (!storage.offlineQueueEnabled) {
       return _markStatus(data, 'idle');
     }
+    if (_serverOperationQueueEnabled && _serverOperationService != null) {
+      return _submitOperations(data, operations);
+    }
     final online = await _connectivity.isOnline;
     if (!online) {
       return _enqueueAll(
@@ -79,7 +92,7 @@ class SyncService {
         _logOperation(operation, data.mainFamilyCode);
         try {
           debugPrint('SYNC SEND START operationId=${operation.id}');
-          await _send(operation);
+          await _send(operation, data);
           debugPrint('SYNC SEND SUCCESS operationId=${operation.id}');
           succeeded.add(operation);
           audit.add(
@@ -346,6 +359,10 @@ class SyncService {
     final online = await _connectivity.isOnline;
     if (!online) return _markStatus(data, 'offline');
 
+    if (_serverOperationQueueEnabled && _serverOperationService != null) {
+      return _syncServerOperations(data, force: force);
+    }
+
     var working = _markStatus(data, 'syncing');
     await _logSyncStart(working, working.pendingSyncQueue.length);
     final remaining = <PendingSyncItem>[];
@@ -372,7 +389,7 @@ class SyncService {
       _logOperation(item, working.mainFamilyCode);
       try {
         debugPrint('SYNC QUEUE SEND START operationId=${item.id}');
-        await _send(item);
+        await _send(item, working);
         debugPrint('SYNC QUEUE SEND SUCCESS operationId=${item.id}');
         audit.add(_log('sync_queue_item_sent', item.entityId, item.entityType));
       } on FirebaseException catch (error, stackTrace) {
@@ -461,6 +478,229 @@ class SyncService {
     return working;
   }
 
+  Future<FamilyTreeData> _submitOperations(
+    FamilyTreeData data,
+    List<PendingSyncItem> operations,
+  ) async {
+    if (!await _connectivity.isOnline) {
+      return _enqueueAll(
+        data,
+        operations.map(_withStableServerIdentity).toList(),
+        status: 'offline',
+        operationStatus: 'pendingSubmission',
+      );
+    }
+    final updated = <PendingSyncItem>[];
+    for (final original in operations) {
+      var item = _withStableServerIdentity(original);
+      if (item.serverOperationId.isNotEmpty) {
+        updated.add(item);
+        continue;
+      }
+      if (item.retryCount >= maxLocalAttempts) {
+        updated.add(
+          item.copyWith(
+            status: 'failed',
+            submissionStatus: 'failed',
+            requiresUserAction: true,
+            lastErrorCode: 'max-attempts-exceeded',
+          ),
+        );
+        continue;
+      }
+      try {
+        final request = _serverRequest(item, data);
+        final submission = await _serverOperationService!.submitOperation(
+          localOperationId: item.localOperationId,
+          idempotencyKey: item.idempotencyKey,
+          familyId: data.mainFamilyCode,
+          type: request.type,
+          resourceId: item.entityId,
+          baseVersion: request.baseVersion,
+          payload: request.payload,
+        );
+        final now = _now().toIso8601String();
+        updated.add(
+          item.copyWith(
+            status: 'submittedToServer',
+            submissionStatus: 'submittedToServer',
+            serverOperationId: submission.operationId,
+            serverStatus: submission.status.name,
+            submittedAt: now,
+            lastServerCheckAt: now,
+            lastError: '',
+            lastErrorCode: '',
+          ),
+        );
+      } on ServerOperationException catch (error) {
+        final definitive = !error.isRetryable;
+        updated.add(
+          item.copyWith(
+            retryCount: item.retryCount + 1,
+            status: definitive ? 'needsResolution' : 'retryScheduled',
+            submissionStatus: definitive
+                ? 'needsResolution'
+                : 'pendingSubmission',
+            requiresUserAction: definitive,
+            lastErrorCode: error.code,
+            lastError: error.message,
+            nextAttemptAt: definitive
+                ? ''
+                : _now()
+                      .add(_retryDelay(item.retryCount + 1))
+                      .toIso8601String(),
+          ),
+        );
+      }
+    }
+    return _enqueueAll(
+      data,
+      updated,
+      status: 'pending',
+      operationStatus: 'pendingSubmission',
+    );
+  }
+
+  Future<FamilyTreeData> _syncServerOperations(
+    FamilyTreeData data, {
+    required bool force,
+  }) async {
+    final remaining = <PendingSyncItem>[];
+    for (final original in data.pendingSyncQueue) {
+      final item = _withStableServerIdentity(original);
+      if (item.serverOperationId.isEmpty) {
+        if (item.requiresUserAction || item.status == 'needsResolution') {
+          remaining.add(item);
+          continue;
+        }
+        final submitted = await _submitOperations(
+          data.copyWith(pendingSyncQueue: remaining),
+          [item],
+        );
+        remaining
+          ..clear()
+          ..addAll(submitted.pendingSyncQueue);
+        continue;
+      }
+      try {
+        final server = await _serverOperationService!.getOperation(
+          item.serverOperationId,
+        );
+        if (server.status == ServerOperationStatus.completed) continue;
+        final requiresAction =
+            server.status == ServerOperationStatus.conflict ||
+            server.status == ServerOperationStatus.rejected ||
+            server.status == ServerOperationStatus.failed;
+        remaining.add(
+          item.copyWith(
+            status: server.status == ServerOperationStatus.processing
+                ? 'serverProcessing'
+                : server.status.name,
+            submissionStatus: server.status == ServerOperationStatus.processing
+                ? 'serverProcessing'
+                : server.status.name,
+            serverStatus: server.status.name,
+            lastServerCheckAt: _now().toIso8601String(),
+            lastErrorCode: server.lastErrorCode ?? '',
+            lastError: server.lastErrorMessage ?? '',
+            requiresUserAction: requiresAction,
+            baseVersion: server.baseVersion,
+            resultVersion: server.resultVersion,
+            conflictedAt: server.status == ServerOperationStatus.conflict
+                ? (server.completedAt ?? server.updatedAt ?? _now())
+                      .toIso8601String()
+                : item.conflictedAt,
+          ),
+        );
+      } on ServerOperationException catch (error) {
+        remaining.add(
+          item.copyWith(
+            lastServerCheckAt: _now().toIso8601String(),
+            lastErrorCode: error.code,
+            lastError: error.message,
+            requiresUserAction: !error.isRetryable,
+          ),
+        );
+      }
+    }
+    final status = remaining.isEmpty ? 'synced' : 'pending';
+    return data.copyWith(
+      pendingSyncQueue: remaining,
+      syncSettings: data.syncSettings.copyWith(syncStatus: status),
+      appSettings: data.appSettings.copyWith(
+        storageSettings: data.appSettings.storageSettings.copyWith(
+          syncStatus: status,
+        ),
+      ),
+    );
+  }
+
+  PendingSyncItem _withStableServerIdentity(PendingSyncItem item) {
+    final localId = item.localOperationId.isEmpty
+        ? item.id
+        : item.localOperationId;
+    return item.copyWith(
+      localOperationId: localId,
+      idempotencyKey: item.idempotencyKey.isEmpty
+          ? 'ayivon-local:$localId'
+          : item.idempotencyKey,
+      submissionStatus: item.submissionStatus.isEmpty
+          ? 'pendingSubmission'
+          : item.submissionStatus,
+    );
+  }
+
+  ({ServerOperationType type, int baseVersion, Map<String, dynamic> payload})
+  _serverRequest(PendingSyncItem item, FamilyTreeData data) {
+    if (item.entityType == 'person') {
+      final person = item.payload.isEmpty
+          ? data.people.firstWhere((person) => person.id == item.entityId)
+          : Person.fromJson(item.payload);
+      final mapper = const FirestoreDocumentMapper();
+      final public = mapper.toMemberPublic(
+        person,
+        familyId: data.mainFamilyCode,
+      )..remove('updatedAt');
+      final private =
+          mapper.toMemberPrivate(person, familyId: data.mainFamilyCode)
+            ..remove('updatedAt')
+            ..remove('updatedBy')
+            ..remove('version');
+      final type = item.action == 'delete'
+          ? ServerOperationType.memberSoftDelete
+          : item.action == 'create' || item.action == 'restore'
+          ? ServerOperationType.memberCreate
+          : ServerOperationType.memberUpdate;
+      return (
+        type: type,
+        baseVersion: type == ServerOperationType.memberCreate
+            ? 0
+            : max(0, person.version - 1),
+        payload: type == ServerOperationType.memberSoftDelete
+            ? const <String, dynamic>{}
+            : {'public': public, 'private': private},
+      );
+    }
+    final isLink = item.entityType == 'familyLink';
+    final prefix = isLink ? 'familyTreeLink' : 'relationship';
+    final suffix = item.action == 'delete'
+        ? 'delete'
+        : item.action == 'create' || item.action == 'restore'
+        ? 'create'
+        : 'update';
+    return (
+      type: ServerOperationType.parse('$prefix.$suffix'),
+      baseVersion: suffix == 'create'
+          ? 0
+          : max(0, ((item.payload['version'] as num?)?.toInt() ?? 1) - 1),
+      payload: Map<String, dynamic>.from(item.payload)
+        ..remove('updatedAt')
+        ..remove('createdAt')
+        ..remove('updatedBy')
+        ..remove('version'),
+    );
+  }
+
   PendingSyncItem personOperation({
     required Person person,
     required String action,
@@ -531,7 +771,7 @@ class SyncService {
     );
   }
 
-  Future<void> _send(PendingSyncItem item) async {
+  Future<void> _send(PendingSyncItem item, FamilyTreeData data) async {
     if (item.entityType == 'marriage') {
       if (item.action == 'delete') {
         await _remoteRepository.deleteMarriage(item.entityId);
@@ -560,7 +800,15 @@ class SyncService {
       await _remoteRepository.deletePerson(item.entityId);
       return;
     }
-    final person = Person.fromJson(item.payload);
+    final person = item.payload.isEmpty
+        ? data.people.firstWhere(
+            (person) => person.id == item.entityId,
+            orElse: () => throw StateError(
+              'Membre local introuvable pour la synchronisation: '
+              '${item.entityId}',
+            ),
+          )
+        : Person.fromJson(item.payload);
     if (item.action == 'create' || item.action == 'restore') {
       debugPrint('SYNC REMOTE createPerson personId=${person.id}');
       await _remoteRepository.createPerson(person);

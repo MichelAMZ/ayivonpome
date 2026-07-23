@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/diagnostic_report.dart';
@@ -17,17 +18,20 @@ class DiagnosticService {
     required JsonStorageService localStorage,
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
+    FirebaseFunctions? functions,
     Duration remoteTimeout = const Duration(seconds: 20),
   }) : _connectivity = connectivity,
        _localStorage = localStorage,
        _firestore = firestore,
        _auth = auth,
+       _functions = functions,
        _remoteTimeout = remoteTimeout;
 
   final ConnectivityService _connectivity;
   final JsonStorageService _localStorage;
   final FirebaseFirestore? _firestore;
   final FirebaseAuth? _auth;
+  final FirebaseFunctions? _functions;
   final Duration _remoteTimeout;
 
   Future<DiagnosticReport> run({
@@ -344,8 +348,9 @@ class DiagnosticService {
         }
         final snapshot = await _withRemoteTimeout(
           firestore
-              .collection('members')
-              .where('familyId', isEqualTo: normalizedFamilyId)
+              .collection('families')
+              .doc(normalizedFamilyId)
+              .collection('members_public')
               .limit(1)
               .get(),
           code: 'local-timeout',
@@ -353,10 +358,11 @@ class DiagnosticService {
         if (snapshot.docs.isEmpty) {
           return 'warning:not-found|Firestore accessible, aucun membre $normalizedFamilyId trouvé.';
         }
-        return 'members/${snapshot.docs.first.id} lu.';
+        return 'families/$normalizedFamilyId/members_public/'
+            '${snapshot.docs.first.id} lu.';
       },
-      collectionName: 'members',
-      documentPath: 'members?familyId=$normalizedFamilyId',
+      collectionName: 'members_public',
+      documentPath: 'families/$normalizedFamilyId/members_public',
       ruleName: 'match /members/{memberId} allow read',
     );
   }
@@ -366,11 +372,11 @@ class DiagnosticService {
     return _timedCheck(
       'Firestore Ecriture members',
       () async {
-        final firestore = _firestore;
-        if (firestore == null) {
+        final functions = _functions;
+        if (functions == null) {
           throw const _DiagnosticFailure(
-            code: 'firestore-not-initialized',
-            message: 'Firestore non initialisé.',
+            code: 'functions-not-initialized',
+            message: 'Cloud Functions non initialisé.',
           );
         }
         final user = _auth?.currentUser;
@@ -380,34 +386,24 @@ class DiagnosticService {
             message: 'Aucun utilisateur Firebase connecté.',
           );
         }
-        final now = DateTime.now().toUtc().toIso8601String();
-        final docId =
-            '_diagnostic_${user.uid}_${DateTime.now().microsecondsSinceEpoch}';
-        final doc = firestore.collection('members').doc(docId);
-        await _withRemoteTimeout(
-          doc.set({
-            'id': docId,
+        final response = await _withRemoteTimeout(
+          functions.httpsCallable('testFirestoreWrite').call({
             'familyId': normalizedFamilyId,
-            'firstName': 'Diagnostic',
-            'lastName': 'Firestore',
-            'gender': 'unknown',
-            'deletedAt': now,
-            'createdAt': now,
-            'updatedAt': now,
-            'version': 1,
-            'diagnostic': true,
-            'createdBy': user.uid,
           }),
           code: 'local-timeout',
         );
-        await _withRemoteTimeout(doc.get(), code: 'local-timeout');
-        await _withRemoteTimeout(doc.delete(), code: 'local-timeout');
-        return 'Création, lecture et suppression OK sur members/$docId.';
+        final result = Map<String, dynamic>.from(response.data as Map);
+        if (result['ok'] != true) {
+          throw const _DiagnosticFailure(
+            code: 'health-check-failed',
+            message: 'Le contrôle serveur a échoué.',
+          );
+        }
+        return 'Contrôle technique serveur Firestore réussi.';
       },
-      collectionName: 'members',
-      documentPath: 'members/_diagnostic_<uid>_<timestamp>',
-      ruleName:
-          'match /members/{memberId} allow create + allow read + allow delete',
+      collectionName: 'system_health_checks',
+      documentPath: 'system_health_checks/<server-generated>',
+      ruleName: 'Admin SDK uniquement',
     );
   }
 

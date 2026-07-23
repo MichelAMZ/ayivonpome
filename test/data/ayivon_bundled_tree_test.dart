@@ -13,6 +13,27 @@ void main() {
     );
 
     expect(data.people, hasLength(23));
+    expect(data.accessCodes, isEmpty);
+    expect(data.modificationCodes, isEmpty);
+    expect(data.adminAccess.enabled, isFalse);
+    expect(data.adminAccess.currentAdminCode, isEmpty);
+    expect(data.superAdminRecovery.enabled, isFalse);
+    expect(data.superAdminRecovery.recoveryCode, isEmpty);
+    expect(data.pendingSyncQueue, hasLength(23));
+    expect(
+      data.pendingSyncQueue.map((item) => item.entityId).toSet(),
+      data.people.map((person) => person.id).toSet(),
+    );
+    expect(
+      data.pendingSyncQueue.every(
+        (item) =>
+            item.entityType == 'person' &&
+            item.action == 'create' &&
+            item.status == 'pending' &&
+            item.payload.isEmpty,
+      ),
+      isTrue,
+    );
     expect(data.familyLeadership.currentLeaderPersonId, 'ayivon--ayivon');
 
     final peopleById = {for (final person in data.people) person.id: person};

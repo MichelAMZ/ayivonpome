@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../core/firebase/firebase_runtime_config.dart';
 import '../data/firestore/firestore_remote_database_client.dart';
@@ -47,6 +48,7 @@ import '../services/person_duplicate_service.dart';
 import '../services/push_notification_provider.dart';
 import '../services/remote_database_repository.dart';
 import '../services/session_storage_service.dart';
+import '../services/server_operation_service.dart';
 import '../services/sync_service.dart';
 import '../services/tree_view_settings_service.dart';
 import '../services/super_admin_recovery_service.dart';
@@ -93,8 +95,20 @@ final syncServiceProvider = Provider<SyncService>(
   (ref) => SyncService(
     connectivity: ref.watch(connectivityServiceProvider),
     remoteRepository: ref.watch(remoteDatabaseRepositoryProvider),
+    serverOperationService: ref.watch(serverOperationServiceProvider),
+    serverOperationQueueEnabled:
+        FirebaseRuntimeConfig.serverOperationQueueEnabled,
   ),
 );
+
+final serverOperationServiceProvider = Provider<ServerOperationService?>((ref) {
+  final config = FirebaseRuntimeConfig.fromEnvironment();
+  if (!config.enabled || Firebase.apps.isEmpty) return null;
+  return ServerOperationService(
+    functions: FirebaseFunctions.instance,
+    firestore: FirebaseFirestore.instance,
+  );
+});
 
 final diagnosticServiceProvider = Provider<DiagnosticService>((ref) {
   final config = FirebaseRuntimeConfig.fromEnvironment();
@@ -104,6 +118,7 @@ final diagnosticServiceProvider = Provider<DiagnosticService>((ref) {
     localStorage: ref.watch(jsonStorageServiceProvider),
     firestore: firebaseReady ? FirebaseFirestore.instance : null,
     auth: firebaseReady ? FirebaseAuth.instance : null,
+    functions: firebaseReady ? FirebaseFunctions.instance : null,
   );
 });
 
