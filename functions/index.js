@@ -1,9 +1,14 @@
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const admin = require("firebase-admin");
+const {setGlobalOptions} = require("firebase-functions/v2");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+
+setGlobalOptions({
+  region: "europe-west1",
+});
 
 admin.initializeApp();
 

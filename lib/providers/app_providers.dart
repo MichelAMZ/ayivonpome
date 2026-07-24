@@ -105,7 +105,7 @@ final serverOperationServiceProvider = Provider<ServerOperationService?>((ref) {
   final config = FirebaseRuntimeConfig.fromEnvironment();
   if (!config.enabled || Firebase.apps.isEmpty) return null;
   return ServerOperationService(
-    functions: FirebaseFunctions.instance,
+    functions: FirebaseFunctions.instanceFor(region: 'europe-west1'),
     firestore: FirebaseFirestore.instance,
   );
 });
@@ -118,7 +118,9 @@ final diagnosticServiceProvider = Provider<DiagnosticService>((ref) {
     localStorage: ref.watch(jsonStorageServiceProvider),
     firestore: firebaseReady ? FirebaseFirestore.instance : null,
     auth: firebaseReady ? FirebaseAuth.instance : null,
-    functions: firebaseReady ? FirebaseFunctions.instance : null,
+    functions: firebaseReady
+        ? FirebaseFunctions.instanceFor(region: 'europe-west1')
+        : null,
   );
 });
 
