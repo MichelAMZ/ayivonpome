@@ -9,8 +9,10 @@ import 'package:ayivonpome/models/member_save_result.dart';
 import 'package:ayivonpome/models/person.dart';
 import 'package:ayivonpome/models/sync_incident.dart';
 import 'package:ayivonpome/models/sync_state.dart';
+import 'package:ayivonpome/models/server_operation.dart';
 import 'package:ayivonpome/services/connectivity_service.dart';
 import 'package:ayivonpome/services/family_repository.dart';
+import 'package:ayivonpome/services/server_operation_service.dart';
 import 'package:ayivonpome/services/sync_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,6 +120,99 @@ void main() {
     expect(attempt.result.remoteStatus, RemoteSaveStatus.timedOut);
     expect(attempt.data.pendingSyncQueue.single.id, operation.id);
   });
+
+  test('server operation is confirmed only after it completes', () async {
+    final gateway = _FakeServerOperationGateway([
+      ServerOperationStatus.processing,
+      ServerOperationStatus.completed,
+    ]);
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: _FakeFamilyRepository(),
+      serverOperationService: gateway,
+      serverOperationQueueEnabled: true,
+    );
+    const person = Person(id: 'person-123', firstName: 'Kossi');
+    final operation = service.personOperation(
+      person: person,
+      action: 'update',
+      updatedBy: 'test',
+    );
+
+    final attempt = await service.attemptCurrentOperations(
+      _tree(people: const [person], pendingSyncQueue: [operation]),
+      operations: [operation],
+      timeout: const Duration(seconds: 1),
+    );
+
+    expect(gateway.getCalls, 2);
+    expect(attempt.result.remoteStatus, RemoteSaveStatus.confirmed);
+    expect(attempt.data.pendingSyncQueue, isEmpty);
+  });
+
+  test('server timeout preserves the submitted operation identity', () async {
+    final gateway = _FakeServerOperationGateway([
+      ServerOperationStatus.processing,
+    ]);
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: _FakeFamilyRepository(),
+      serverOperationService: gateway,
+      serverOperationQueueEnabled: true,
+    );
+    const person = Person(id: 'person-123', firstName: 'Kossi');
+    final operation = service.personOperation(
+      person: person,
+      action: 'update',
+      updatedBy: 'test',
+    );
+
+    final attempt = await service.attemptCurrentOperations(
+      _tree(people: const [person], pendingSyncQueue: [operation]),
+      operations: [operation],
+      timeout: const Duration(milliseconds: 20),
+    );
+
+    expect(attempt.result.remoteStatus, RemoteSaveStatus.timedOut);
+    expect(attempt.data.pendingSyncQueue.single.serverOperationId, 'server-1');
+    expect(attempt.data.pendingSyncQueue.single.status, 'submittedToServer');
+  });
+
+  for (final terminalStatus in [
+    ServerOperationStatus.rejected,
+    ServerOperationStatus.failed,
+    ServerOperationStatus.conflict,
+  ]) {
+    test(
+      'server $terminalStatus never confirms the current operation',
+      () async {
+        final gateway = _FakeServerOperationGateway([terminalStatus]);
+        final service = SyncService(
+          connectivity: const _OnlineConnectivityService(),
+          remoteRepository: _FakeFamilyRepository(),
+          serverOperationService: gateway,
+          serverOperationQueueEnabled: true,
+        );
+        const person = Person(id: 'person-123', firstName: 'Kossi');
+        final operation = service.personOperation(
+          person: person,
+          action: 'update',
+          updatedBy: 'test',
+        );
+
+        final attempt = await service.attemptCurrentOperations(
+          _tree(people: const [person], pendingSyncQueue: [operation]),
+          operations: [operation],
+          timeout: const Duration(seconds: 1),
+        );
+
+        expect(attempt.result.isFirestoreConfirmed, isFalse);
+        expect(attempt.result.remoteStatus, RemoteSaveStatus.failed);
+        expect(attempt.data.pendingSyncQueue.single.status, 'needsResolution');
+        expect(attempt.data.pendingSyncQueue.single.requiresUserAction, isTrue);
+      },
+    );
+  }
 
   test(
     'replaces pending update for same person after repeated failure',
@@ -411,4 +506,63 @@ class _FakeFamilyRepository implements FamilyRepository {
 
   @override
   Future<void> upsertSyncIncident(SyncIncident incident) async {}
+}
+
+class _FakeServerOperationGateway implements ServerOperationGateway {
+  _FakeServerOperationGateway(this.statuses);
+
+  final List<ServerOperationStatus> statuses;
+  int getCalls = 0;
+
+  @override
+  Future<ServerOperationSubmission> submitOperation({
+    required String localOperationId,
+    required String idempotencyKey,
+    required String familyId,
+    required ServerOperationType type,
+    required String resourceId,
+    required int baseVersion,
+    required Map<String, dynamic> payload,
+    int schemaVersion = 1,
+  }) async => const ServerOperationSubmission(
+    operationId: 'server-1',
+    status: ServerOperationStatus.pending,
+    duplicate: false,
+    resourceSequence: 1,
+  );
+
+  @override
+  Future<ServerOperation> getOperation(String operationId) async {
+    final index = getCalls < statuses.length ? getCalls : statuses.length - 1;
+    final status = statuses[index];
+    getCalls += 1;
+    return ServerOperation(
+      operationId: operationId,
+      localOperationId: 'local-1',
+      idempotencyKey: 'key-1',
+      familyId: 'ayivon',
+      type: ServerOperationType.memberUpdate,
+      resourceType: 'member',
+      resourceId: 'person-123',
+      resourceKey: 'member:person-123',
+      resourceSequence: 1,
+      baseVersion: 0,
+      payload: const {},
+      status: status,
+      createdBy: 'test',
+      createdAt: DateTime(2026, 7, 24),
+      updatedAt: DateTime(2026, 7, 24),
+      attemptCount: 1,
+      lastErrorCode:
+          status.isTerminal && status != ServerOperationStatus.completed
+          ? 'operation-$status'
+          : null,
+      lastErrorMessage:
+          status.isTerminal && status != ServerOperationStatus.completed
+          ? 'Operation terminée sans succès.'
+          : null,
+      resultVersion: status == ServerOperationStatus.completed ? 1 : null,
+      schemaVersion: 1,
+    );
+  }
 }

@@ -29,7 +29,7 @@ class SyncService {
     IncidentReporter? incidentReporter,
     DateTime Function()? nowProvider,
     Random? random,
-    ServerOperationService? serverOperationService,
+    ServerOperationGateway? serverOperationService,
     bool serverOperationQueueEnabled = false,
   }) : _connectivity = connectivity,
        _remoteRepository = remoteRepository,
@@ -45,7 +45,7 @@ class SyncService {
   final IncidentReporter _incidentReporter;
   final DateTime Function()? _nowProvider;
   final Random _random;
-  final ServerOperationService? _serverOperationService;
+  final ServerOperationGateway? _serverOperationService;
   final bool _serverOperationQueueEnabled;
   static const int maxLocalAttempts = 8;
   Future<FamilyTreeData>? _runningSync;
@@ -270,18 +270,29 @@ class SyncService {
         ),
       );
     }
+    final deadline = DateTime.now().add(timeout);
+    var latest = data;
     try {
-      final synced = await enqueueOrSyncMany(
+      latest = await enqueueOrSyncMany(
         data,
         operations: operations,
       ).timeout(timeout);
+      if (_serverOperationQueueEnabled && _serverOperationService != null) {
+        final remainingTime = deadline.difference(DateTime.now());
+        if (remainingTime <= Duration.zero) throw TimeoutException('sync');
+        latest = await _awaitCurrentServerOperations(
+          latest,
+          operationIds,
+          timeout: remainingTime,
+        );
+      }
       return (
-        data: synced,
-        result: resultForOperationIds(synced, operationIds),
+        data: latest,
+        result: resultForOperationIds(latest, operationIds),
       );
     } on TimeoutException {
       return (
-        data: data,
+        data: latest,
         result: MemberSaveResult(
           localSaved: true,
           remoteStatus: RemoteSaveStatus.timedOut,
@@ -291,6 +302,84 @@ class SyncService {
         ),
       );
     }
+  }
+
+  Future<FamilyTreeData> _awaitCurrentServerOperations(
+    FamilyTreeData data,
+    List<String> operationIds, {
+    required Duration timeout,
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    var working = data;
+    final requestedIds = operationIds.toSet();
+
+    while (working.pendingSyncQueue.any(
+      (item) => requestedIds.contains(item.id) && !item.requiresUserAction,
+    )) {
+      final remainingTime = deadline.difference(DateTime.now());
+      if (remainingTime <= Duration.zero) throw TimeoutException('sync');
+
+      final remaining = <PendingSyncItem>[];
+      for (final item in working.pendingSyncQueue) {
+        if (!requestedIds.contains(item.id) || item.serverOperationId.isEmpty) {
+          remaining.add(item);
+          continue;
+        }
+        final server = await _serverOperationService!
+            .getOperation(item.serverOperationId)
+            .timeout(remainingTime);
+        if (server.status == ServerOperationStatus.completed) continue;
+        final terminalFailure =
+            server.status == ServerOperationStatus.rejected ||
+            server.status == ServerOperationStatus.conflict ||
+            server.status == ServerOperationStatus.failed;
+        remaining.add(
+          item.copyWith(
+            status: terminalFailure
+                ? 'needsResolution'
+                : server.status == ServerOperationStatus.processing
+                ? 'serverProcessing'
+                : server.status.name,
+            submissionStatus: terminalFailure
+                ? 'needsResolution'
+                : server.status.name,
+            serverStatus: server.status.name,
+            lastServerCheckAt: _now().toIso8601String(),
+            lastErrorCode: server.lastErrorCode ?? '',
+            lastError: server.lastErrorMessage ?? '',
+            requiresUserAction: terminalFailure,
+            resultVersion: server.resultVersion,
+          ),
+        );
+      }
+      working = working.copyWith(
+        pendingSyncQueue: remaining,
+        syncSettings: working.syncSettings.copyWith(
+          syncStatus: remaining.any((item) => requestedIds.contains(item.id))
+              ? 'pending'
+              : 'synced',
+        ),
+        appSettings: working.appSettings.copyWith(
+          storageSettings: working.appSettings.storageSettings.copyWith(
+            syncStatus: remaining.any((item) => requestedIds.contains(item.id))
+                ? 'pending'
+                : 'synced',
+          ),
+        ),
+      );
+      if (remaining.any(
+        (item) => requestedIds.contains(item.id) && !item.requiresUserAction,
+      )) {
+        final delay = deadline.difference(DateTime.now());
+        if (delay <= Duration.zero) throw TimeoutException('sync');
+        await Future<void>.delayed(
+          delay < const Duration(milliseconds: 150)
+              ? delay
+              : const Duration(milliseconds: 150),
+        );
+      }
+    }
+    return working;
   }
 
   MemberSaveResult resultForOperationIds(

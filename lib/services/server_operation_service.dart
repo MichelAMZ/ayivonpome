@@ -33,7 +33,22 @@ class ServerOperationException implements Exception {
   String toString() => 'ServerOperationException($code, $message)';
 }
 
-class ServerOperationService {
+abstract interface class ServerOperationGateway {
+  Future<ServerOperationSubmission> submitOperation({
+    required String localOperationId,
+    required String idempotencyKey,
+    required String familyId,
+    required ServerOperationType type,
+    required String resourceId,
+    required int baseVersion,
+    required Map<String, dynamic> payload,
+    int schemaVersion = 1,
+  });
+
+  Future<ServerOperation> getOperation(String operationId);
+}
+
+class ServerOperationService implements ServerOperationGateway {
   const ServerOperationService({
     required FirebaseFunctions functions,
     required FirebaseFirestore firestore,
@@ -43,6 +58,7 @@ class ServerOperationService {
   final FirebaseFunctions _functions;
   final FirebaseFirestore _firestore;
 
+  @override
   Future<ServerOperationSubmission> submitOperation({
     required String localOperationId,
     required String idempotencyKey,
@@ -90,6 +106,7 @@ class ServerOperationService {
       .snapshots()
       .map((snapshot) => _operationFromSnapshot(snapshot));
 
+  @override
   Future<ServerOperation> getOperation(String operationId) async =>
       _operationFromSnapshot(
         await _firestore.collection('operation_queue').doc(operationId).get(),
