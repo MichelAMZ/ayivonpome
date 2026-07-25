@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FirebaseAccessCodeAuthService', () {
-    for (final role in const ['viewer', 'editor', 'admin', 'superAdmin']) {
+    for (final role in const ['viewer', 'admin', 'superAdmin']) {
       test('accepte un code valide avec un rôle $role actif', () async {
         final client = _FakeAccessCodeAuthClient(
           identity: AccessCodeIdentity(
@@ -39,7 +39,7 @@ void main() {
       });
     }
 
-    test('rejette un code vide sans appeler la Function', () async {
+    test('rejette un code vide sans appeler Firebase Auth', () async {
       final client = _FakeAccessCodeAuthClient();
       final service = FirebaseAccessCodeAuthService(
         client: client,
@@ -72,60 +72,106 @@ void main() {
       expect(session.uid, 'technical-user');
     });
 
-    test(
-      'remplace ou réutilise une session existante via le custom token',
-      () async {
-        final client = _validClient();
-        final service = FirebaseAccessCodeAuthService(
-          client: client,
+    test('remplace ou réutilise une session Firebase existante', () async {
+      final client = _validClient();
+      final service = FirebaseAccessCodeAuthService(
+        client: client,
+        familyId: 'ayivon',
+      );
+
+      await service.signInWithAccessCode('valid-code');
+      await service.signInWithAccessCode('valid-code');
+
+      expect(client.authenticateCalls, 2);
+      expect(client.signOutCalls, 0);
+    });
+
+    test('distingue un rôle absent et ferme la session', () async {
+      final client = _FakeAccessCodeAuthClient(
+        identity: const AccessCodeIdentity(
+          uid: 'technical-user',
+          email: '',
+          role: 'admin',
           familyId: 'ayivon',
-        );
+        ),
+      );
+      final service = FirebaseAccessCodeAuthService(
+        client: client,
+        familyId: 'ayivon',
+      );
 
-        await service.signInWithAccessCode('valid-code');
-        await service.signInWithAccessCode('valid-code');
+      await expectLater(
+        service.signInWithAccessCode('valid-code'),
+        throwsA(
+          isA<FirebaseAccessCodeAuthException>().having(
+            (error) => error.failure,
+            'failure',
+            AccessCodeAuthFailure.roleMissing,
+          ),
+        ),
+      );
+      expect(client.signOutCalls, 1);
+    });
 
-        expect(client.authenticateCalls, 2);
-        expect(client.signOutCalls, 0);
-      },
-    );
-
-    test('rejette un rôle absent ou inactif et ferme la session', () async {
-      for (final roleData in <Map<String, dynamic>?>[
-        null,
-        <String, dynamic>{
-          'role': 'editor',
+    test('distingue un rôle inactif et ferme la session', () async {
+      final client = _FakeAccessCodeAuthClient(
+        identity: const AccessCodeIdentity(
+          uid: 'technical-user',
+          email: '',
+          role: 'admin',
+          familyId: 'ayivon',
+        ),
+        roleData: <String, dynamic>{
+          'role': 'admin',
           'familyIds': const ['ayivon'],
           'active': false,
         },
-      ]) {
-        final client = _FakeAccessCodeAuthClient(
-          identity: const AccessCodeIdentity(
-            uid: 'technical-user',
-            email: '',
-            role: 'editor',
-            familyId: 'ayivon',
-          ),
-          roleData: roleData,
-        );
-        final service = FirebaseAccessCodeAuthService(
-          client: client,
-          familyId: 'ayivon',
-        );
+      );
+      final service = FirebaseAccessCodeAuthService(
+        client: client,
+        familyId: 'ayivon',
+      );
 
-        await expectLater(
-          service.signInWithAccessCode('valid-code'),
-          throwsA(isA<FirebaseAccessCodeAuthException>()),
-        );
-        expect(client.signOutCalls, 1);
-      }
+      await expectLater(
+        service.signInWithAccessCode('valid-code'),
+        throwsA(
+          isA<FirebaseAccessCodeAuthException>().having(
+            (error) => error.failure,
+            'failure',
+            AccessCodeAuthFailure.roleInactive,
+          ),
+        ),
+      );
+      expect(client.signOutCalls, 1);
+    });
+
+    test('distingue code incorrect, réseau et compte désactivé', () {
+      expect(
+        FirebaseAccessCodeAuthClient.mapFirebaseAuthError(
+          'invalid-credential',
+        ).failure,
+        AccessCodeAuthFailure.invalidCode,
+      );
+      expect(
+        FirebaseAccessCodeAuthClient.mapFirebaseAuthError(
+          'network-request-failed',
+        ).failure,
+        AccessCodeAuthFailure.unavailable,
+      );
+      expect(
+        FirebaseAccessCodeAuthClient.mapFirebaseAuthError(
+          'user-disabled',
+        ).failure,
+        AccessCodeAuthFailure.accountDisabled,
+      );
     });
 
     test(
-      'ne transforme pas une Function indisponible en code incorrect',
+      'propage une erreur réseau sans la présenter comme code incorrect',
       () async {
         final client = _FakeAccessCodeAuthClient(
           authenticationError: const FirebaseAccessCodeAuthException(
-            'Service temporairement indisponible.',
+            'Connexion Internet indisponible.',
             AccessCodeAuthFailure.unavailable,
           ),
         );
@@ -147,15 +193,18 @@ void main() {
       },
     );
 
-    test('le client ne lit jamais les collections de codes protégées', () {
+    test('le client utilise Firebase Auth sans Function ni stockage local', () {
       final source = File(
         'lib/services/firebase_access_code_auth_service.dart',
       ).readAsStringSync();
 
+      expect(source, contains('signInWithEmailAndPassword'));
+      expect(source, isNot(contains('httpsCallable')));
       expect(source, isNot(contains(".collection('access_code_configs')")));
       expect(source, isNot(contains(".collection('access_codes')")));
-      expect(source, isNot(contains('signInWithEmailAndPassword')));
+      expect(source, isNot(contains('SharedPreferences')));
       expect(source, isNot(contains('debugPrint(accessCode')));
+      expect(source, isNot(contains('debugPrint(password')));
     });
   });
 }
@@ -165,13 +214,13 @@ _FakeAccessCodeAuthClient _validClient({Map<String, dynamic>? roleData}) {
     identity: const AccessCodeIdentity(
       uid: 'technical-user',
       email: '',
-      role: 'editor',
+      role: 'admin',
       familyId: 'ayivon',
     ),
     roleData:
         roleData ??
         <String, dynamic>{
-          'role': 'editor',
+          'role': 'admin',
           'familyIds': const ['ayivon'],
           'active': true,
           'authMethod': 'accessCode',

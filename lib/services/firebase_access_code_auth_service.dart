@@ -1,12 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/firebase_user_role.dart';
 import 'firebase_admin_auth_service.dart';
 
-enum AccessCodeAuthFailure { invalidCode, unavailable, failed }
+enum AccessCodeAuthFailure {
+  invalidCode,
+  unavailable,
+  accountDisabled,
+  roleMissing,
+  roleInactive,
+  roleInvalid,
+  failed,
+}
 
 class FirebaseAccessCodeAuthException extends FirebaseAdminAuthException {
   const FirebaseAccessCodeAuthException(super.message, this.failure);
@@ -51,14 +58,20 @@ class FirebaseAccessCodeAuthClient implements AccessCodeAuthClient {
   FirebaseAccessCodeAuthClient({
     required FirebaseAuth auth,
     required FirebaseFirestore firestore,
-    required FirebaseFunctions functions,
+    String viewerEmail = 'viewer@ayivon.app',
+    String adminEmail = 'admin@ayivon.app',
+    String superAdminEmail = 'superadmin@ayivon.app',
   }) : _auth = auth,
        _firestore = firestore,
-       _functions = functions;
+       _accounts = <_TechnicalAccount>[
+         _TechnicalAccount(email: viewerEmail, role: 'viewer'),
+         _TechnicalAccount(email: adminEmail, role: 'admin'),
+         _TechnicalAccount(email: superAdminEmail, role: 'superAdmin'),
+       ];
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
+  final List<_TechnicalAccount> _accounts;
 
   @override
   Stream<User?> idTokenChanges() => _auth.idTokenChanges();
@@ -73,79 +86,73 @@ class FirebaseAccessCodeAuthClient implements AccessCodeAuthClient {
     required String deviceId,
     required String appVersion,
   }) async {
-    try {
-      final callable = _functions.httpsCallable('authenticateWithAccessCode');
-      final result = await callable.call(<String, dynamic>{
-        'familyId': familyId,
-        'accessCode': accessCode,
-        'deviceId': deviceId,
-        'appVersion': appVersion,
-      });
-      final data = Map<String, dynamic>.from(result.data as Map);
-      final customToken = data['customToken'] as String? ?? '';
-      final returnedFamilyId = data['familyId'] as String? ?? '';
-      final role = FirebaseUserRole.normalizedRole(data['role']) ?? '';
-      final expiresAt = DateTime.tryParse(data['expiresAt'] as String? ?? '');
-      if (customToken.isEmpty ||
-          returnedFamilyId != familyId ||
-          !{'viewer', 'editor', 'admin', 'superAdmin'}.contains(role)) {
-        throw const FirebaseAccessCodeAuthException(
-          'Réponse d’authentification invalide.',
-          AccessCodeAuthFailure.failed,
+    FirebaseAccessCodeAuthException? lastInvalidCode;
+    for (final account in _accounts) {
+      if (account.email.trim().isEmpty) continue;
+      try {
+        final credential = await _auth.signInWithEmailAndPassword(
+          email: account.email.trim(),
+          password: accessCode,
         );
-      }
-
-      final credential = await _auth.signInWithCustomToken(customToken);
-      final user = credential.user;
-      if (user == null) {
-        throw const FirebaseAccessCodeAuthException(
-          'Session Firebase non créée après validation du code.',
-          AccessCodeAuthFailure.failed,
+        final user = credential.user;
+        if (user == null) {
+          throw const FirebaseAccessCodeAuthException(
+            'Session Firebase absente.',
+            AccessCodeAuthFailure.failed,
+          );
+        }
+        await user.getIdToken(true);
+        return AccessCodeIdentity(
+          uid: user.uid,
+          email: user.email ?? account.email,
+          role: account.role,
+          familyId: familyId,
         );
+      } on FirebaseAuthException catch (error) {
+        final mapped = mapFirebaseAuthError(error.code);
+        if (mapped.failure == AccessCodeAuthFailure.invalidCode) {
+          lastInvalidCode = mapped;
+          continue;
+        }
+        throw mapped;
       }
-      await user.getIdToken(true);
-      return AccessCodeIdentity(
-        uid: user.uid,
-        email: user.email ?? '',
-        role: role,
-        familyId: returnedFamilyId,
-        expiresAt: expiresAt,
-      );
-    } on FirebaseAccessCodeAuthException {
-      rethrow;
-    } on FirebaseFunctionsException catch (error) {
-      if (error.code == 'permission-denied' ||
-          error.code == 'unauthenticated' ||
-          error.code == 'invalid-argument') {
-        throw const FirebaseAccessCodeAuthException(
-          'Code incorrect.',
+    }
+    throw lastInvalidCode ??
+        const FirebaseAccessCodeAuthException(
+          'Code secret incorrect.',
           AccessCodeAuthFailure.invalidCode,
         );
-      }
-      if (error.code == 'unavailable' ||
-          error.code == 'deadline-exceeded' ||
-          error.code == 'internal') {
-        throw const FirebaseAccessCodeAuthException(
-          'Service d’authentification temporairement indisponible.',
-          AccessCodeAuthFailure.unavailable,
-        );
-      }
-      throw const FirebaseAccessCodeAuthException(
-        'Échec du service d’authentification.',
-        AccessCodeAuthFailure.failed,
-      );
-    } on FirebaseAuthException catch (error) {
-      if (error.code == 'network-request-failed') {
-        throw const FirebaseAccessCodeAuthException(
-          'Réseau indisponible pendant l’authentification.',
-          AccessCodeAuthFailure.unavailable,
-        );
-      }
-      throw const FirebaseAccessCodeAuthException(
-        'Impossible de créer la session Firebase.',
-        AccessCodeAuthFailure.failed,
+  }
+
+  @visibleForTesting
+  static FirebaseAccessCodeAuthException mapFirebaseAuthError(String code) {
+    if (code == 'wrong-password' ||
+        code == 'invalid-credential' ||
+        code == 'user-not-found' ||
+        code == 'invalid-email') {
+      return const FirebaseAccessCodeAuthException(
+        'Code secret incorrect.',
+        AccessCodeAuthFailure.invalidCode,
       );
     }
+    if (code == 'network-request-failed' ||
+        code == 'too-many-requests' ||
+        code == 'operation-not-allowed') {
+      return const FirebaseAccessCodeAuthException(
+        'Connexion Internet ou service d’authentification indisponible.',
+        AccessCodeAuthFailure.unavailable,
+      );
+    }
+    if (code == 'user-disabled') {
+      return const FirebaseAccessCodeAuthException(
+        'Compte désactivé.',
+        AccessCodeAuthFailure.accountDisabled,
+      );
+    }
+    return const FirebaseAccessCodeAuthException(
+      'Impossible de créer la session Firebase.',
+      AccessCodeAuthFailure.failed,
+    );
   }
 
   @override
@@ -219,20 +226,32 @@ class FirebaseAccessCodeAuthService {
       appVersion: appVersion,
     );
     final roleData = await _client.loadRole(identity.uid);
-    final session = roleData == null
-        ? null
-        : _sessionFromRoleData(
-            uid: identity.uid,
-            email: identity.email,
-            roleData: roleData,
-            expectedRole: identity.role,
-            expiresAt: identity.expiresAt,
-          );
+    if (roleData == null) {
+      await _client.signOut();
+      throw const FirebaseAccessCodeAuthException(
+        'Configuration du rôle manquante.',
+        AccessCodeAuthFailure.roleMissing,
+      );
+    }
+    if (!FirebaseUserRole.readActive(roleData)) {
+      await _client.signOut();
+      throw const FirebaseAccessCodeAuthException(
+        'Compte désactivé.',
+        AccessCodeAuthFailure.roleInactive,
+      );
+    }
+    final session = _sessionFromRoleData(
+      uid: identity.uid,
+      email: identity.email,
+      roleData: roleData,
+      expectedRole: identity.role,
+      expiresAt: identity.expiresAt,
+    );
     if (session == null) {
       await _client.signOut();
       throw const FirebaseAccessCodeAuthException(
-        'Ce compte n’a pas les droits actifs pour cette famille.',
-        AccessCodeAuthFailure.failed,
+        'Rôle non autorisé pour cette famille.',
+        AccessCodeAuthFailure.roleInvalid,
       );
     }
     return session;
@@ -285,4 +304,11 @@ class FirebaseAccessCodeAuthService {
       'found=$roleFound role=${role ?? 'absent'} active=${active ?? false}',
     );
   }
+}
+
+class _TechnicalAccount {
+  const _TechnicalAccount({required this.email, required this.role});
+
+  final String email;
+  final String role;
 }

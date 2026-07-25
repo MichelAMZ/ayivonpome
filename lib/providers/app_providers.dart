@@ -143,7 +143,18 @@ final firebaseAccessCodeAuthServiceProvider =
         client: FirebaseAccessCodeAuthClient(
           auth: FirebaseAuth.instance,
           firestore: FirebaseFirestore.instance,
-          functions: FirebaseFunctions.instanceFor(region: 'europe-west1'),
+          viewerEmail: const String.fromEnvironment(
+            'AYIVON_VIEWER_EMAIL',
+            defaultValue: 'viewer@ayivon.app',
+          ),
+          adminEmail: const String.fromEnvironment(
+            'AYIVON_ADMIN_EMAIL',
+            defaultValue: 'admin@ayivon.app',
+          ),
+          superAdminEmail: const String.fromEnvironment(
+            'AYIVON_SUPER_ADMIN_EMAIL',
+            defaultValue: 'superadmin@ayivon.app',
+          ),
         ),
         familyId: config.familyId,
       );
