@@ -844,12 +844,18 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final data = await future;
     final normalized = languageCode.trim().toLowerCase();
     final settings = data.appSettings.languageSettings;
+    final nextManualLocale = manual ? normalized : settings.manualLocale;
+    if (data.language == normalized &&
+        settings.currentLocale == normalized &&
+        settings.manualLocale == nextManualLocale) {
+      return;
+    }
     await save(
       data.copyWith(
         language: normalized,
         appSettings: data.appSettings.copyWith(
           languageSettings: settings.copyWith(
-            manualLocale: manual ? normalized : settings.manualLocale,
+            manualLocale: nextManualLocale,
             currentLocale: normalized,
           ),
         ),

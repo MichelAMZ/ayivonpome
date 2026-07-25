@@ -14,6 +14,7 @@ class LocaleController extends Notifier<Locale?> {
 
   var _detecting = false;
   var _loadingPersistedLocale = false;
+  var _persistedLocaleLoaded = false;
   var _manualSelectionVersion = 0;
   Locale? _cachedLocale;
 
@@ -70,7 +71,7 @@ class LocaleController extends Notifier<Locale?> {
   }
 
   Future<void> _loadPersistedLocaleIfNeeded() async {
-    if (_loadingPersistedLocale) return;
+    if (_loadingPersistedLocale || _persistedLocaleLoaded) return;
     _loadingPersistedLocale = true;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -83,9 +84,12 @@ class LocaleController extends Notifier<Locale?> {
           ? null
           : _supported(data.appSettings.languageSettings.manualLocale);
       if (manualLocale != null) return;
-      _cachedLocale = Locale(persistedLocale);
-      state = _cachedLocale;
-      debugPrint('LocaleProvider updated: $state');
+      final locale = Locale(persistedLocale);
+      _cachedLocale = locale;
+      if (state != locale) {
+        state = locale;
+        debugPrint('LocaleProvider updated: $state');
+      }
       if (data != null) {
         await ref
             .read(familyTreeProvider.notifier)
@@ -93,6 +97,7 @@ class LocaleController extends Notifier<Locale?> {
       }
     } finally {
       _loadingPersistedLocale = false;
+      _persistedLocaleLoaded = true;
     }
   }
 
