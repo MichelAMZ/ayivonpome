@@ -607,7 +607,21 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   Future<bool> _showAdminAccessDialog(BuildContext context) async {
-    return ref.read(authSessionProvider).isAdmin;
+    if (ref.read(authSessionProvider).isAdmin) return true;
+    final l10n = AppLocalizations.of(context);
+    final authenticated = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => _AccessEntryDialog(
+        title: l10n.adminDashboard,
+        label: l10n.adminAccessCode,
+        invalidMessage: l10n.invalidAdminCode,
+        cancelLabel: l10n.cancel,
+        submitLabel: l10n.enter,
+        onValidate: (code) =>
+            ref.read(authSessionProvider.notifier).unlockModification(code),
+      ),
+    );
+    return authenticated == true && ref.read(authSessionProvider).isAdmin;
   }
 
   ButtonStyle _accessButtonStyle(BuildContext context) {

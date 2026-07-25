@@ -7,37 +7,66 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FirebaseAccessCodeAuthService', () {
-    for (final role in const ['viewer', 'admin', 'superAdmin']) {
-      test('accepte un code valide avec un rôle $role actif', () async {
-        final client = _FakeAccessCodeAuthClient(
-          identity: AccessCodeIdentity(
-            uid: 'uid-$role',
-            email: '',
-            role: role,
-            familyId: 'ayivon',
-          ),
-          roleData: <String, dynamic>{
-            'role': role,
-            'familyIds': const ['ayivon'],
-            'active': true,
-            'authMethod': 'accessCode',
-          },
-        );
-        final service = FirebaseAccessCodeAuthService(
-          client: client,
+    test('accepte le mot de passe du compte admin unique', () async {
+      final client = _FakeAccessCodeAuthClient(
+        identity: const AccessCodeIdentity(
+          uid: 'uid-admin',
+          email: 'ayivonaziangbede@gmail.com',
+          role: 'admin',
           familyId: 'ayivon',
-          deviceId: 'device-test',
-        );
+        ),
+        roleData: <String, dynamic>{
+          'role': 'admin',
+          'familyIds': const ['ayivon'],
+          'active': true,
+          'authMethod': 'password',
+        },
+      );
+      final service = FirebaseAccessCodeAuthService(
+        client: client,
+        familyId: 'ayivon',
+        deviceId: 'device-test',
+      );
 
-        final session = await service.signInWithAccessCode('  code-$role  ');
+      final session = await service.signInWithAccessCode('  mot-de-passe  ');
 
-        expect(session.role, role);
-        expect(session.authMethod, 'accessCode');
-        expect(client.receivedCode, 'code-$role');
-        expect(client.receivedFamilyId, 'ayivon');
-        expect(client.receivedDeviceId, 'device-test');
-      });
-    }
+      expect(session.role, 'admin');
+      expect(session.authMethod, 'password');
+      expect(client.receivedCode, 'mot-de-passe');
+      expect(client.receivedFamilyId, 'ayivon');
+      expect(client.receivedDeviceId, 'device-test');
+    });
+
+    test('refuse un rôle non-admin pour le compte unique', () async {
+      final client = _FakeAccessCodeAuthClient(
+        identity: const AccessCodeIdentity(
+          uid: 'uid-admin',
+          email: 'ayivonaziangbede@gmail.com',
+          role: 'admin',
+          familyId: 'ayivon',
+        ),
+        roleData: <String, dynamic>{
+          'role': 'viewer',
+          'familyIds': const ['ayivon'],
+          'active': true,
+        },
+      );
+      final service = FirebaseAccessCodeAuthService(
+        client: client,
+        familyId: 'ayivon',
+      );
+
+      await expectLater(
+        service.signInWithAccessCode('mot-de-passe'),
+        throwsA(
+          isA<FirebaseAccessCodeAuthException>().having(
+            (error) => error.failure,
+            'failure',
+            AccessCodeAuthFailure.roleInvalid,
+          ),
+        ),
+      );
+    });
 
     test('rejette un code vide sans appeler Firebase Auth', () async {
       final client = _FakeAccessCodeAuthClient();
@@ -199,12 +228,26 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('signInWithEmailAndPassword'));
+      expect(source, contains('ayivonaziangbede@gmail.com'));
+      expect(source, isNot(contains('viewer@ayivon.app')));
+      expect(source, isNot(contains('admin@ayivon.app')));
+      expect(source, isNot(contains('superadmin@ayivon.app')));
       expect(source, isNot(contains('httpsCallable')));
       expect(source, isNot(contains(".collection('access_code_configs')")));
       expect(source, isNot(contains(".collection('access_codes')")));
       expect(source, isNot(contains('SharedPreferences')));
       expect(source, isNot(contains('debugPrint(accessCode')));
       expect(source, isNot(contains('debugPrint(password')));
+    });
+
+    test('le code viewer initial reste un accès local en lecture', () {
+      final source = File(
+        'lib/providers/auth_provider.dart',
+      ).readAsStringSync();
+
+      expect(source, contains("normalizedCode == 'ayivon'"));
+      expect(source, contains("accessCode.role == 'viewer'"));
+      expect(source, contains("role: 'viewer'"));
     });
   });
 }

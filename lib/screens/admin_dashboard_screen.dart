@@ -25,6 +25,7 @@ import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../services/admin_access_service.dart';
 import '../services/activity_log_service.dart';
+import '../services/firebase_admin_auth_service.dart';
 import 'branding_settings_screen.dart';
 import '../widgets/admin_contact_card.dart';
 import '../widgets/activity_journal_panel.dart';
@@ -744,7 +745,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               Align(
                 alignment: AlignmentDirectional.centerEnd,
                 child: FilledButton.icon(
-                  onPressed: auth.isSuperAdmin
+                  onPressed: auth.isAdmin
                       ? () => _showChangeAdminCodeDialog(context, ref)
                       : null,
                   icon: const Icon(Icons.password_outlined),
@@ -756,7 +757,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 icon: Icons.info_outline,
                 title: 'Modifier le code d’accès Firebase',
                 message:
-                    'Les codes de modification et d’administration utilisés par Firebase Auth correspondent aux mots de passe des comptes techniques editor@ayivon.app et admin@ayivon.app. Pour le moment, modifiez ces mots de passe dans Firebase Authentication.',
+                    'Le code de modification correspond au mot de passe du compte administrateur Firebase AYIVON.',
               ),
               const SizedBox(height: 12),
               Text(
@@ -892,16 +893,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   return;
                 }
                 try {
-                  final auth = ref.read(authSessionProvider);
-                  await ref
-                      .read(familyTreeProvider.notifier)
-                      .changeAdminAccessCode(
-                        oldCode: oldController.text,
-                        newCode: newController.text,
-                        changedByAdminId:
-                            auth.session?.familyCode ?? 'superAdmin',
-                        actorRole: auth.session?.role ?? 'superAdmin',
-                      );
+                  final service = ref.read(firebaseAdminAuthServiceProvider);
+                  if (service == null) {
+                    throw const FirebaseAdminAuthException('unavailable');
+                  }
+                  await service.updateCurrentAdminPassword(
+                    currentPassword: oldController.text,
+                    newPassword: newController.text,
+                  );
                   if (context.mounted) Navigator.pop(context, true);
                 } catch (_) {
                   setDialogState(() => error = l10n.invalidAdminCode);

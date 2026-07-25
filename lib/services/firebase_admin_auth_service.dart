@@ -43,8 +43,14 @@ class FirebaseAdminAuthService {
     required String email,
     required String password,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail != 'ayivonaziangbede@gmail.com') {
+      throw const FirebaseAdminAuthException(
+        'Identifiants administrateur invalides.',
+      );
+    }
     final credential = await _auth.signInWithEmailAndPassword(
-      email: email.trim(),
+      email: normalizedEmail,
       password: password,
     );
     final user = credential.user;
@@ -79,7 +85,7 @@ class FirebaseAdminAuthService {
 
     return FirebaseAdminSession(
       uid: user.uid,
-      email: user.email ?? email.trim(),
+      email: user.email ?? normalizedEmail,
       role: role,
       familyIds: familyIds,
     );
@@ -87,6 +93,26 @@ class FirebaseAdminAuthService {
 
   Future<void> sendPasswordReset(String email) {
     return _auth.sendPasswordResetEmail(email: email.trim());
+  }
+
+  Future<void> updateCurrentAdminPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email != 'ayivonaziangbede@gmail.com') {
+      throw const FirebaseAdminAuthException(
+        'Le compte administrateur AYIVON doit être connecté.',
+      );
+    }
+    final verifiedEmail = email!;
+    final credential = EmailAuthProvider.credential(
+      email: verifiedEmail,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
   }
 
   Future<void> signOut() => _auth.signOut();

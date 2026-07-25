@@ -58,20 +58,14 @@ class FirebaseAccessCodeAuthClient implements AccessCodeAuthClient {
   FirebaseAccessCodeAuthClient({
     required FirebaseAuth auth,
     required FirebaseFirestore firestore,
-    String viewerEmail = 'viewer@ayivon.app',
-    String adminEmail = 'admin@ayivon.app',
-    String superAdminEmail = 'superadmin@ayivon.app',
+    String adminEmail = 'ayivonaziangbede@gmail.com',
   }) : _auth = auth,
        _firestore = firestore,
-       _accounts = <_TechnicalAccount>[
-         _TechnicalAccount(email: viewerEmail, role: 'viewer'),
-         _TechnicalAccount(email: adminEmail, role: 'admin'),
-         _TechnicalAccount(email: superAdminEmail, role: 'superAdmin'),
-       ];
+       _adminEmail = adminEmail;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
-  final List<_TechnicalAccount> _accounts;
+  final String _adminEmail;
 
   @override
   Stream<User?> idTokenChanges() => _auth.idTokenChanges();
@@ -86,42 +80,28 @@ class FirebaseAccessCodeAuthClient implements AccessCodeAuthClient {
     required String deviceId,
     required String appVersion,
   }) async {
-    FirebaseAccessCodeAuthException? lastInvalidCode;
-    for (final account in _accounts) {
-      if (account.email.trim().isEmpty) continue;
-      try {
-        final credential = await _auth.signInWithEmailAndPassword(
-          email: account.email.trim(),
-          password: accessCode,
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: _adminEmail,
+        password: accessCode,
+      );
+      final user = credential.user;
+      if (user == null) {
+        throw const FirebaseAccessCodeAuthException(
+          'Session Firebase absente.',
+          AccessCodeAuthFailure.failed,
         );
-        final user = credential.user;
-        if (user == null) {
-          throw const FirebaseAccessCodeAuthException(
-            'Session Firebase absente.',
-            AccessCodeAuthFailure.failed,
-          );
-        }
-        await user.getIdToken(true);
-        return AccessCodeIdentity(
-          uid: user.uid,
-          email: user.email ?? account.email,
-          role: account.role,
-          familyId: familyId,
-        );
-      } on FirebaseAuthException catch (error) {
-        final mapped = mapFirebaseAuthError(error.code);
-        if (mapped.failure == AccessCodeAuthFailure.invalidCode) {
-          lastInvalidCode = mapped;
-          continue;
-        }
-        throw mapped;
       }
+      await user.getIdToken(true);
+      return AccessCodeIdentity(
+        uid: user.uid,
+        email: user.email ?? _adminEmail,
+        role: 'admin',
+        familyId: familyId,
+      );
+    } on FirebaseAuthException catch (error) {
+      throw mapFirebaseAuthError(error.code);
     }
-    throw lastInvalidCode ??
-        const FirebaseAccessCodeAuthException(
-          'Code secret incorrect.',
-          AccessCodeAuthFailure.invalidCode,
-        );
   }
 
   @visibleForTesting
@@ -304,11 +284,4 @@ class FirebaseAccessCodeAuthService {
       'found=$roleFound role=${role ?? 'absent'} active=${active ?? false}',
     );
   }
-}
-
-class _TechnicalAccount {
-  const _TechnicalAccount({required this.email, required this.role});
-
-  final String email;
-  final String role;
 }

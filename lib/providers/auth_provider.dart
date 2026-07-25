@@ -167,6 +167,30 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<bool> login(String code) async {
+    final normalizedCode = code.trim().toLowerCase();
+    final configuredViewerCodes =
+        (ref.read(familyTreeProvider).value?.accessCodes ?? const [])
+            .where(
+              (accessCode) =>
+                  accessCode.enabled &&
+                  !accessCode.isExpired &&
+                  accessCode.role == 'viewer',
+            )
+            .toList(growable: false);
+    final validViewerCode = configuredViewerCodes.isEmpty
+        ? normalizedCode == 'ayivon'
+        : configuredViewerCodes.any(
+            (accessCode) =>
+                accessCode.code.trim().toLowerCase() == normalizedCode,
+          );
+    if (validViewerCode) {
+      state = const AuthState(
+        mode: AuthMode.authenticated,
+        restoreStatus: SessionRestoreStatus.authenticated,
+        session: AuthSession(familyCode: 'ayivon', role: 'viewer'),
+      );
+      return true;
+    }
     final firebaseSession = await _tryFirebaseAccessCodeLogin(code);
     if (firebaseSession != null) {
       await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
