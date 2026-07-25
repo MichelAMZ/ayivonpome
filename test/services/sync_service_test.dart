@@ -18,6 +18,67 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('direct Firestore flow creates, updates and deletes a member', () async {
+    final repository = _FakeFamilyRepository();
+    final service = SyncService(
+      connectivity: const _OnlineConnectivityService(),
+      remoteRepository: repository,
+    );
+    const person = Person(id: 'person-direct', firstName: 'Kossi');
+    final create = service.personOperation(
+      person: person,
+      action: 'create',
+      updatedBy: 'admin',
+    );
+    final update = service.personOperation(
+      person: person,
+      action: 'update',
+      updatedBy: 'admin',
+    );
+    const delete = PendingSyncItem(
+      id: 'delete-direct',
+      entityType: 'person',
+      entityId: 'person-direct',
+      action: 'delete',
+    );
+
+    var data = await service.enqueueOrSyncMany(
+      _tree(people: const [person]),
+      operations: [create],
+    );
+    data = await service.enqueueOrSyncMany(data, operations: [update]);
+    data = await service.enqueueOrSyncMany(data, operations: const [delete]);
+
+    expect(repository.createdPeople.single.id, person.id);
+    expect(repository.updatedPeople.single.id, person.id);
+    expect(repository.deletedPersonIds, const ['person-direct']);
+    expect(data.pendingSyncQueue, isEmpty);
+    expect(data.syncSettings.syncStatus, 'synced');
+  });
+
+  test('offline direct flow keeps the member operation pending', () async {
+    final repository = _FakeFamilyRepository();
+    final service = SyncService(
+      connectivity: const _OfflineConnectivityService(),
+      remoteRepository: repository,
+    );
+    const person = Person(id: 'person-offline', firstName: 'Kossi');
+    final operation = service.personOperation(
+      person: person,
+      action: 'create',
+      updatedBy: 'admin',
+    );
+
+    final data = await service.enqueueOrSyncMany(
+      _tree(people: const [person]),
+      operations: [operation],
+    );
+
+    expect(repository.createdPeople, isEmpty);
+    expect(data.pendingSyncQueue.single.entityId, 'person-offline');
+    expect(data.syncSettings.syncStatus, 'offline');
+  });
+
   test('pending create can resolve its person from the local tree', () async {
     final repository = _FakeFamilyRepository();
     final service = SyncService(
@@ -431,6 +492,13 @@ class _OnlineConnectivityService extends ConnectivityService {
   Future<bool> get isOnline async => true;
 }
 
+class _OfflineConnectivityService extends ConnectivityService {
+  const _OfflineConnectivityService();
+
+  @override
+  Future<bool> get isOnline async => false;
+}
+
 class _FakeFamilyRepository implements FamilyRepository {
   _FakeFamilyRepository({
     this.shouldFailUpdates = false,
@@ -443,6 +511,7 @@ class _FakeFamilyRepository implements FamilyRepository {
   final bool hangUpdates;
   final createdPeople = <Person>[];
   final updatedPeople = <Person>[];
+  final deletedPersonIds = <String>[];
 
   @override
   Future<void> updatePerson(Person person) async {
@@ -473,7 +542,9 @@ class _FakeFamilyRepository implements FamilyRepository {
   }
 
   @override
-  Future<void> deletePerson(String personId) => throw UnimplementedError();
+  Future<void> deletePerson(String personId) async {
+    deletedPersonIds.add(personId);
+  }
 
   @override
   Future<void> createMarriage(MarriageRelation relation) =>

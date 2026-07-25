@@ -8,6 +8,7 @@
   "scripts": {
     "lint": "node --check index.js",
     "test:rules": "node --test test/firestore.rules.test.js",
+    "test:rules:direct": "node --test test/firestore.direct.rules.test.js",
     "test:unit": "node --test test/operation_queue.unit.test.js",
     "test:integration": "node --test test/operation_queue.integration.test.js",
     "test:integration:all": "node --test test/operation_queue.integration.test.js test/relationship_operations.integration.test.js test/operation_recovery.integration.test.js",

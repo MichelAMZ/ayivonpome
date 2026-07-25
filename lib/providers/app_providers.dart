@@ -48,7 +48,6 @@ import '../services/person_duplicate_service.dart';
 import '../services/push_notification_provider.dart';
 import '../services/remote_database_repository.dart';
 import '../services/session_storage_service.dart';
-import '../services/server_operation_service.dart';
 import '../services/sync_service.dart';
 import '../services/tree_view_settings_service.dart';
 import '../services/super_admin_recovery_service.dart';
@@ -95,20 +94,8 @@ final syncServiceProvider = Provider<SyncService>(
   (ref) => SyncService(
     connectivity: ref.watch(connectivityServiceProvider),
     remoteRepository: ref.watch(remoteDatabaseRepositoryProvider),
-    serverOperationService: ref.watch(serverOperationServiceProvider),
-    serverOperationQueueEnabled:
-        FirebaseRuntimeConfig.serverOperationQueueEnabled,
   ),
 );
-
-final serverOperationServiceProvider = Provider<ServerOperationService?>((ref) {
-  final config = FirebaseRuntimeConfig.fromEnvironment();
-  if (!config.enabled || Firebase.apps.isEmpty) return null;
-  return ServerOperationService(
-    functions: FirebaseFunctions.instanceFor(region: 'europe-west1'),
-    firestore: FirebaseFirestore.instance,
-  );
-});
 
 final diagnosticServiceProvider = Provider<DiagnosticService>((ref) {
   final config = FirebaseRuntimeConfig.fromEnvironment();

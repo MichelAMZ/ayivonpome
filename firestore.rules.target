@@ -32,14 +32,27 @@ service cloud.firestore {
         roleDocument().data.familyIds.hasAny([familyId]);
     }
 
+    function canManageFamily(familyId) {
+      return superAdmin() || familyAdmin(familyId);
+    }
+
     match /families/{familyId} {
       allow read: if resource.data.isPublic == true ||
         belongsToFamily(familyId) || superAdmin();
-      allow write: if false;
+      allow create: if canManageFamily(familyId) &&
+        request.resource.data.id == familyId;
+      allow update: if canManageFamily(familyId) &&
+        request.resource.data.id == familyId;
+      allow delete: if false;
 
       match /members_public/{memberId} {
         allow read: if true;
-        allow write: if false;
+        allow create: if canManageFamily(familyId) &&
+          request.resource.data.familyId == familyId;
+        allow update: if canManageFamily(familyId) &&
+          resource.data.familyId == familyId &&
+          request.resource.data.familyId == familyId;
+        allow delete: if false;
       }
 
       match /members_private/{memberId} {
@@ -47,7 +60,14 @@ service cloud.firestore {
           (superAdmin() || familyAdmin(familyId) ||
             (belongsToFamily(familyId) &&
               resource.data.ownerUid == request.auth.uid));
-        allow write: if false;
+        allow create: if canManageFamily(familyId) &&
+          request.resource.data.familyId == familyId &&
+          request.resource.data.memberId == memberId;
+        allow update: if canManageFamily(familyId) &&
+          resource.data.familyId == familyId &&
+          request.resource.data.familyId == familyId &&
+          request.resource.data.memberId == memberId;
+        allow delete: if false;
       }
     }
 
@@ -61,19 +81,33 @@ service cloud.firestore {
     match /relationships/{relationshipId} {
       allow read: if resource.data.familyId == 'ayivon' ||
         belongsToFamily(resource.data.familyId) || superAdmin();
-      allow write: if false;
+      allow create: if canManageFamily(request.resource.data.familyId);
+      allow update: if canManageFamily(resource.data.familyId) &&
+        request.resource.data.familyId == resource.data.familyId;
+      allow delete: if false;
     }
 
     match /family_tree_links/{linkId} {
       allow read: if resource.data.familyId == 'ayivon' ||
         belongsToFamily(resource.data.familyId) || superAdmin();
-      allow write: if false;
+      allow create: if canManageFamily(request.resource.data.familyId);
+      allow update: if canManageFamily(resource.data.familyId) &&
+        request.resource.data.familyId == resource.data.familyId;
+      allow delete: if false;
+    }
+
+    match /activity_logs/{logId} {
+      allow read: if canManageFamily(resource.data.familyId);
+      allow create: if canManageFamily(request.resource.data.familyId);
+      allow update, delete: if false;
     }
 
     match /user_roles/{uid} {
       allow read: if signedIn() &&
         (request.auth.uid == uid || superAdmin() ||
-          familyAdmin(resource.data.familyIds[0]));
+          (resource.data.familyIds is list &&
+            resource.data.familyIds.size() > 0 &&
+            familyAdmin(resource.data.familyIds[0])));
       allow write: if false;
     }
 
