@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+import '../models/firebase_user_role.dart';
 
 class FirebaseAdminSession {
   const FirebaseAdminSession({
@@ -55,17 +58,17 @@ class FirebaseAdminAuthService {
         .get();
     final roleData = roleSnapshot.data();
     if (roleData == null) {
+      _debugRoleResolution(user.uid, roleFound: false);
       await _auth.signOut();
       throw const FirebaseAdminAuthException(
         'Aucun rôle applicatif Firestore n’est associé à ce compte.',
       );
     }
 
-    final active = roleData['active'] == true;
-    final role = _normalizeRole(roleData['role'] as String?);
-    final familyIds = (roleData['familyIds'] as List<dynamic>? ?? const [])
-        .whereType<String>()
-        .toList(growable: false);
+    final active = FirebaseUserRole.readActive(roleData);
+    final role = FirebaseUserRole.normalizedRole(roleData['role']);
+    final familyIds = FirebaseUserRole.readFamilyIds(roleData);
+    _debugRoleResolution(user.uid, roleFound: true, role: role, active: active);
 
     if (!active || role == null || !familyIds.contains(_familyId)) {
       await _auth.signOut();
@@ -88,14 +91,17 @@ class FirebaseAdminAuthService {
 
   Future<void> signOut() => _auth.signOut();
 
-  static String? _normalizeRole(String? role) {
-    return switch (role) {
-      'superAdmin' => 'superAdmin',
-      'admin' => 'admin',
-      'editor' => 'editor',
-      'viewer' => 'viewer',
-      _ => null,
-    };
+  void _debugRoleResolution(
+    String uid, {
+    required bool roleFound,
+    String? role,
+    bool? active,
+  }) {
+    if (!kDebugMode) return;
+    debugPrint(
+      'AUTH ROLE uid=$uid familyId=$_familyId '
+      'found=$roleFound role=${role ?? 'absent'} active=${active ?? false}',
+    );
   }
 }
 

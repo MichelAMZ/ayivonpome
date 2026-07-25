@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
+import '../models/firebase_user_role.dart';
 import 'firebase_admin_auth_service.dart';
 
 class FirebaseAccessCodeAuthService {
@@ -39,11 +41,10 @@ class FirebaseAccessCodeAuthService {
         .get();
     final roleData = roleSnapshot.data();
     if (roleData == null) return null;
-    final active = roleData['active'] == true;
-    final role = roleData['role'] as String? ?? '';
-    final familyIds = (roleData['familyIds'] as List<dynamic>? ?? const [])
-        .whereType<String>()
-        .toList(growable: false);
+    final active = FirebaseUserRole.readActive(roleData);
+    final role = FirebaseUserRole.normalizedRole(roleData['role']) ?? '';
+    final familyIds = FirebaseUserRole.readFamilyIds(roleData);
+    _debugRoleResolution(user.uid, roleFound: true, role: role, active: active);
     final sessionExpiresAt = _readDateTime(roleData['sessionExpiresAt']);
     if (!active) {
       throw const FirebaseAdminAuthException('Session révoquée.');
@@ -111,17 +112,19 @@ class FirebaseAccessCodeAuthService {
     DateTime? expiresAt,
   }) {
     final roleData = roleSnapshot.data();
-    if (roleData == null) return null;
+    if (roleData == null) {
+      _debugRoleResolution(user.uid, roleFound: false);
+      return null;
+    }
 
-    final role = roleData['role'] as String? ?? '';
+    final role = FirebaseUserRole.normalizedRole(roleData['role']) ?? '';
     final authMethod =
         roleData['authMethod'] as String? ??
         (user.email == null || user.email!.isEmpty ? 'accessCode' : 'password');
-    final active = roleData['active'] == true;
+    final active = FirebaseUserRole.readActive(roleData);
     final sessionExpiresAt = _readDateTime(roleData['sessionExpiresAt']);
-    final familyIds = (roleData['familyIds'] as List<dynamic>? ?? const [])
-        .whereType<String>()
-        .toList(growable: false);
+    final familyIds = FirebaseUserRole.readFamilyIds(roleData);
+    _debugRoleResolution(user.uid, roleFound: true, role: role, active: active);
     if (!active || !familyIds.contains(_familyId)) return null;
     if (sessionExpiresAt != null && !sessionExpiresAt.isAfter(DateTime.now())) {
       return null;
@@ -142,6 +145,19 @@ class FirebaseAccessCodeAuthService {
     if (value is Timestamp) return value.toDate();
     if (value is String) return DateTime.tryParse(value);
     return null;
+  }
+
+  void _debugRoleResolution(
+    String uid, {
+    required bool roleFound,
+    String? role,
+    bool? active,
+  }) {
+    if (!kDebugMode) return;
+    debugPrint(
+      'AUTH ROLE uid=$uid familyId=$_familyId '
+      'found=$roleFound role=${role ?? 'absent'} active=${active ?? false}',
+    );
   }
 
   List<_TechnicalAccountTarget> get _technicalAccounts => [

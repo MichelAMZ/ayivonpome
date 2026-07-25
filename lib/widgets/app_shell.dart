@@ -1301,6 +1301,8 @@ class _AccessEntryDialogState extends ConsumerState<_AccessEntryDialog> {
     setState(() {
       _submittingCode = true;
       _codeError = null;
+      _adminError = null;
+      _adminMessage = null;
     });
     try {
       final ok = await widget.onValidate(_codeController.text);
@@ -1334,6 +1336,7 @@ class _AccessEntryDialogState extends ConsumerState<_AccessEntryDialog> {
     }
     setState(() {
       _submittingAdmin = true;
+      _codeError = null;
       _adminError = null;
       _adminMessage = null;
     });

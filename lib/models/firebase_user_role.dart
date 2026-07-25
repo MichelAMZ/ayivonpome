@@ -39,11 +39,9 @@ class FirebaseUserRole {
     return FirebaseUserRole(
       uid: uid,
       email: data['email'] as String? ?? '',
-      role: data['role'] as String? ?? 'viewer',
-      familyIds: (data['familyIds'] as List<dynamic>? ?? const [])
-          .whereType<String>()
-          .toList(growable: false),
-      active: data['active'] == true,
+      role: normalizedRole(data['role']) ?? 'viewer',
+      familyIds: readFamilyIds(data),
+      active: readActive(data),
       authMethod: data['authMethod'] as String? ?? '',
       accessCodeId: data['accessCodeId'] as String? ?? '',
       deviceFingerprintHash: data['deviceFingerprintHash'] as String? ?? '',
@@ -53,5 +51,35 @@ class FirebaseUserRole {
       createdAt: data['createdAt'],
       updatedAt: data['updatedAt'],
     );
+  }
+
+  static List<String> readFamilyIds(Map<String, dynamic> data) {
+    final values = <String>{
+      if (data['familyId'] is String) (data['familyId'] as String).trim(),
+      if (data['familyIds'] is List)
+        ...(data['familyIds'] as List).whereType<String>().map(
+          (value) => value.trim(),
+        ),
+    }..removeWhere((value) => value.isEmpty);
+    return values.toList(growable: false);
+  }
+
+  static bool readActive(Map<String, dynamic> data) {
+    if (data['active'] is bool) return data['active'] == true;
+    if (data['isActive'] is bool) return data['isActive'] == true;
+    if (data['enabled'] is bool) return data['enabled'] == true;
+    return data['status'] is String &&
+        (data['status'] as String).trim().toLowerCase() == 'active';
+  }
+
+  static String? normalizedRole(Object? value) {
+    final role = value is String ? value.trim() : '';
+    return switch (role) {
+      'superAdmin' => 'superAdmin',
+      'familyAdmin' || 'admin' => 'admin',
+      'editor' => 'editor',
+      'viewer' => 'viewer',
+      _ => null,
+    };
   }
 }

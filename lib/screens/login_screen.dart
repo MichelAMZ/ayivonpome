@@ -143,6 +143,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _login() async {
     final l10n = AppLocalizations.of(context);
+    setState(() {
+      _error = null;
+      _adminError = null;
+      _adminMessage = null;
+    });
     final ok = await ref
         .read(authSessionProvider.notifier)
         .login(_controller.text);
@@ -163,6 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     setState(() {
       _adminSubmitting = true;
+      _error = null;
       _adminError = null;
       _adminMessage = null;
     });
