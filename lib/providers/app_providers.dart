@@ -153,21 +153,12 @@ final firebaseAccessCodeAuthServiceProvider =
       final config = FirebaseRuntimeConfig.fromEnvironment();
       if (!config.enabled || Firebase.apps.isEmpty) return null;
       return FirebaseAccessCodeAuthService(
-        auth: FirebaseAuth.instance,
-        firestore: FirebaseFirestore.instance,
+        client: FirebaseAccessCodeAuthClient(
+          auth: FirebaseAuth.instance,
+          firestore: FirebaseFirestore.instance,
+          functions: FirebaseFunctions.instanceFor(region: 'europe-west1'),
+        ),
         familyId: config.familyId,
-        editorEmail: const String.fromEnvironment(
-          'AYIVON_EDITOR_EMAIL',
-          defaultValue: 'editor@ayivon.app',
-        ),
-        adminEmail: const String.fromEnvironment(
-          'AYIVON_ADMIN_EMAIL',
-          defaultValue: 'admin@ayivon.app',
-        ),
-        superAdminEmail: const String.fromEnvironment(
-          'AYIVON_SUPER_ADMIN_EMAIL',
-          defaultValue: 'ayivonaziangbede@gmail.com',
-        ),
       );
     });
 

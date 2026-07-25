@@ -14,7 +14,7 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const operationQueue = require("./operation_queue");
-const allowedRoles = new Set(["viewer", "editor", "admin"]);
+const allowedRoles = new Set(["viewer", "editor", "admin", "superAdmin"]);
 const manageableRoles = new Set(["admin", "superAdmin"]);
 
 exports.submitFamilyOperation = onCall(operationQueue.submitFamilyOperation);
