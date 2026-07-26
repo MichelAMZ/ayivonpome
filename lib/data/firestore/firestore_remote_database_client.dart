@@ -299,7 +299,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         _mapper.toMemberPrivate(
           prepared,
           familyId: _tenantFamilyId,
-          actorUid: user?.uid,
+          actorUid: user.uid,
         ),
         SetOptions(merge: true),
       );
@@ -390,7 +390,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         _mapper.toMemberPrivate(
           prepared,
           familyId: _tenantFamilyId,
-          actorUid: user?.uid,
+          actorUid: user.uid,
         ),
         SetOptions(merge: true),
       );
@@ -817,11 +817,6 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final doc = _syncIncidents.doc(incident.id);
     try {
       final user = await _ensureFirebaseUser('upsertSyncIncident', doc.path);
-      if (user == null) {
-        throw StateError(
-          'Impossible d’enregistrer l’incident : utilisateur Firebase non connecté.',
-        );
-      }
       await doc.set({
         ...incident.toFirestoreUpdate(),
         'id': incident.id,
@@ -889,20 +884,26 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
 
   String get _tenantFamilyId => _familyId;
 
-  Future<User?> _ensureFirebaseUser(
+  Future<User> _ensureFirebaseUser(
     String operation,
     String documentPath, {
     String personId = '',
   }) async {
     if (Firebase.apps.isEmpty) {
       _debugAuthMessage('AUTH Firebase not initialized for $operation');
-      return null;
+      throw FirebaseException(
+        plugin: 'firebase_core',
+        code: 'unavailable',
+        message: 'Firebase n’est pas initialisé.',
+      );
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || user.isAnonymous) {
-      throw StateError(
-        'Session Firebase editor/admin requise pour écrire dans Firestore.',
+      throw FirebaseException(
+        plugin: 'firebase_auth',
+        code: 'unauthenticated',
+        message: 'Une session Firebase administrateur est requise.',
       );
     }
 
@@ -913,7 +914,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     _debugAuthMessage('FIRESTORE OPERATION = $operation');
     _debugAuthMessage('FIRESTORE PATH = $documentPath');
     await _debugCurrentRole(user.uid);
-    return user;
+    return _requireFirebaseAdminForFamily();
   }
 
   void _debugAuthMessage(String message) {

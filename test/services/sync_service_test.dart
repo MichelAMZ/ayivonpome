@@ -10,6 +10,7 @@ import 'package:ayivonpome/models/person.dart';
 import 'package:ayivonpome/models/sync_incident.dart';
 import 'package:ayivonpome/models/sync_state.dart';
 import 'package:ayivonpome/models/server_operation.dart';
+import 'package:ayivonpome/data/firestore/firestore_remote_database_client.dart';
 import 'package:ayivonpome/services/connectivity_service.dart';
 import 'package:ayivonpome/services/family_repository.dart';
 import 'package:ayivonpome/services/server_operation_service.dart';
@@ -157,6 +158,65 @@ void main() {
     expect(attempt.result.firebaseCode, 'permission-denied');
     expect(attempt.data.pendingSyncQueue, isNotEmpty);
   });
+
+  test(
+    'wrapped Firestore permission-denied never confirms the operation',
+    () async {
+      final repository = _FakeFamilyRepository(
+        createFailureCode: 'permission-denied',
+      );
+      final service = SyncService(
+        connectivity: const _OnlineConnectivityService(),
+        remoteRepository: repository,
+      );
+      const person = Person(id: 'person-wrapped-denied', firstName: 'Kossi');
+      final operation = service.personOperation(
+        person: person,
+        action: 'create',
+        updatedBy: 'test',
+      );
+
+      final attempt = await service.attemptCurrentOperations(
+        _tree(people: const [person], pendingSyncQueue: [operation]),
+        operations: [operation],
+      );
+
+      expect(attempt.result.isFirestoreConfirmed, isFalse);
+      expect(attempt.result.remoteStatus, RemoteSaveStatus.permissionRequired);
+      expect(attempt.result.firebaseCode, 'permission-denied');
+      expect(attempt.data.pendingSyncQueue.single.requiresUserAction, isTrue);
+    },
+  );
+
+  test(
+    'wrapped Firestore unavailable remains pending without authorization badge',
+    () async {
+      final repository = _FakeFamilyRepository(
+        createFailureCode: 'unavailable',
+      );
+      final service = SyncService(
+        connectivity: const _OnlineConnectivityService(),
+        remoteRepository: repository,
+      );
+      const person = Person(id: 'person-wrapped-offline', firstName: 'Kossi');
+      final operation = service.personOperation(
+        person: person,
+        action: 'create',
+        updatedBy: 'test',
+      );
+
+      final attempt = await service.attemptCurrentOperations(
+        _tree(people: const [person], pendingSyncQueue: [operation]),
+        operations: [operation],
+      );
+
+      expect(attempt.result.isFirestoreConfirmed, isFalse);
+      expect(attempt.result.remoteStatus, RemoteSaveStatus.unavailable);
+      expect(attempt.result.firebaseCode, 'unavailable');
+      expect(attempt.data.pendingSyncQueue.single.status, 'retryScheduled');
+      expect(attempt.data.pendingSyncQueue.single.requiresUserAction, isFalse);
+    },
+  );
 
   test('a timed out current operation remains pending', () async {
     final repository = _FakeFamilyRepository(hangUpdates: true);
@@ -504,11 +564,13 @@ class _FakeFamilyRepository implements FamilyRepository {
     this.shouldFailUpdates = false,
     this.shouldDenyCreates = false,
     this.hangUpdates = false,
+    this.createFailureCode,
   });
 
   final bool shouldFailUpdates;
   final bool shouldDenyCreates;
   final bool hangUpdates;
+  final String? createFailureCode;
   final createdPeople = <Person>[];
   final updatedPeople = <Person>[];
   final deletedPersonIds = <String>[];
@@ -531,6 +593,14 @@ class _FakeFamilyRepository implements FamilyRepository {
 
   @override
   Future<void> createPerson(Person person) async {
+    if (createFailureCode != null) {
+      throw FirestoreSaveException(
+        operation: 'createPerson',
+        documentPath: 'families/ayivon/members_public/${person.id}',
+        firebaseCode: createFailureCode,
+        message: 'Remote write rejected.',
+      );
+    }
     if (shouldDenyCreates) {
       throw FirebaseException(
         plugin: 'cloud_firestore',

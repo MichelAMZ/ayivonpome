@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ayivonpome/services/diagnostic_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,5 +32,23 @@ void main() {
       DiagnosticService.diagnosticMessageForCode('failed-precondition'),
       startsWith('Configuration Firebase ou persistance indisponible'),
     );
+  });
+
+  test('classifies the Firestore Web internal assertion', () {
+    expect(
+      DiagnosticService.diagnosticMessageForCode('firestore-internal-state'),
+      contains('Etat interne Firestore Web invalide'),
+    );
+  });
+
+  test('diagnostic write check no longer depends on Cloud Functions', () {
+    final source = File(
+      'lib/services/diagnostic_service.dart',
+    ).readAsStringSync();
+
+    expect(source, isNot(contains('httpsCallable')));
+    expect(source, isNot(contains('testFirestoreWrite')));
+    expect(source, contains("collection('user_roles')"));
+    expect(source, contains('Aucun document de diagnostic créé'));
   });
 }

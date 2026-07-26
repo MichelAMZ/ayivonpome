@@ -87,6 +87,25 @@ void main() {
     expect(viewerBranch, contains("role: 'viewer'"));
   });
 
+  test('public Firestore listener is not stopped by Firebase sign-out', () {
+    final source = File('lib/providers/auth_provider.dart').readAsStringSync();
+    final signedOutBranch = source.substring(
+      source.indexOf('if (user == null || user.isAnonymous)'),
+      source.indexOf('Future.microtask(restoreSession)'),
+    );
+    final logoutBranch = source.substring(
+      source.indexOf('Future<void> logout()'),
+      source.indexOf(
+        'Future<FirebaseAdminSession?> _tryFirebaseAccessCodeLogin',
+      ),
+    );
+
+    expect(signedOutBranch, contains('startRemoteFamilyTreeWatch'));
+    expect(signedOutBranch, isNot(contains('stopRemoteFamilyTreeWatch')));
+    expect(logoutBranch, contains('startRemoteFamilyTreeWatch'));
+    expect(logoutBranch, isNot(contains('stopRemoteFamilyTreeWatch')));
+  });
+
   test('a signed-out Firebase user cannot retain a cached admin role', () {
     const signedOut = AuthState(
       mode: AuthMode.publicLimited,

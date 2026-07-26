@@ -85,7 +85,7 @@ class AuthController extends Notifier<AuthState> {
           return;
         }
         unawaited(
-          ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch(),
+          ref.read(familyTreeProvider.notifier).startRemoteFamilyTreeWatch(),
         );
         state = const AuthState(
           restoreStatus: SessionRestoreStatus.unauthenticated,
@@ -110,7 +110,7 @@ class AuthController extends Notifier<AuthState> {
     }
     final currentUser = service.currentUser;
     if (currentUser == null || currentUser.isAnonymous) {
-      await ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch();
+      await ref.read(familyTreeProvider.notifier).startRemoteFamilyTreeWatch();
       state = const AuthState(
         restoreStatus: SessionRestoreStatus.unauthenticated,
       );
@@ -145,7 +145,9 @@ class AuthController extends Notifier<AuthState> {
       return true;
     } catch (error) {
       if (_isConfirmedAuthorizationFailure(error)) {
-        await ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch();
+        await ref
+            .read(familyTreeProvider.notifier)
+            .startRemoteFamilyTreeWatch();
         await ref.read(sessionStorageServiceProvider).clearSession();
         state = AuthState(
           restoreStatus: SessionRestoreStatus.unauthorized,
@@ -295,7 +297,6 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch();
     final service = ref.read(firebaseAdminAuthServiceProvider);
     if (service != null && state.firebaseUid != null) {
       await service.signOut();
@@ -304,6 +305,7 @@ class AuthController extends Notifier<AuthState> {
     state = const AuthState(
       restoreStatus: SessionRestoreStatus.unauthenticated,
     );
+    await ref.read(familyTreeProvider.notifier).startRemoteFamilyTreeWatch();
   }
 
   Future<FirebaseAdminSession?> _tryFirebaseAccessCodeLogin(

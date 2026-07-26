@@ -292,6 +292,35 @@ void main() {
     expect(watchSource, isNot(contains('_legacyMembers')));
     expect(watchSource, contains('legacyPeople: false'));
   });
+
+  test('application startup schedules the public Firestore listener', () {
+    final source = File(
+      'lib/providers/family_tree_provider.dart',
+    ).readAsStringSync();
+    final buildSource = source.substring(
+      source.indexOf('Future<FamilyTreeData> build()'),
+      source.indexOf('Future<void> initializeAppFresh()'),
+    );
+
+    expect(buildSource, contains('Firebase.apps.isNotEmpty'));
+    expect(buildSource, contains('startRemoteFamilyTreeWatch'));
+  });
+
+  test('public realtime listener never reads members_private', () {
+    final source = File(
+      'lib/data/firestore/firestore_remote_database_client.dart',
+    ).readAsStringSync();
+    final watchSource = source.substring(
+      source.indexOf('Stream<FamilyTreeData> watchFamilyTree()'),
+      source.indexOf(
+        'Stream<List<AuditLog>> watchActivityLogs()',
+        source.indexOf('Stream<FamilyTreeData> watchFamilyTree()'),
+      ),
+    );
+
+    expect(watchSource, contains('_membersPublic'));
+    expect(watchSource, isNot(contains('_membersPrivate')));
+  });
 }
 
 Future<void> _flushRemoteWatch() async {

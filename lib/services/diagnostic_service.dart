@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/diagnostic_report.dart';
@@ -18,20 +17,17 @@ class DiagnosticService {
     required JsonStorageService localStorage,
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
-    FirebaseFunctions? functions,
     Duration remoteTimeout = const Duration(seconds: 20),
   }) : _connectivity = connectivity,
        _localStorage = localStorage,
        _firestore = firestore,
        _auth = auth,
-       _functions = functions,
        _remoteTimeout = remoteTimeout;
 
   final ConnectivityService _connectivity;
   final JsonStorageService _localStorage;
   final FirebaseFirestore? _firestore;
   final FirebaseAuth? _auth;
-  final FirebaseFunctions? _functions;
   final Duration _remoteTimeout;
 
   Future<DiagnosticReport> run({
@@ -85,6 +81,9 @@ class DiagnosticService {
       'local-timeout' => 'Réponse Firebase trop lente ou inaccessible',
       'failed-precondition' =>
         'Configuration Firebase ou persistance indisponible$detail',
+      'firestore-internal-state' =>
+        'Etat interne Firestore Web invalide. Rechargez l’application pour '
+            'réinitialiser la connexion.',
       'network-request-failed' => 'Requête Firebase Auth bloquée$detail',
       'auth-not-initialized' => 'Firebase Auth non initialisé$detail',
       'firebase-not-initialized' => 'Firebase non initialisé$detail',
@@ -363,7 +362,7 @@ class DiagnosticService {
       },
       collectionName: 'members_public',
       documentPath: 'families/$normalizedFamilyId/members_public',
-      ruleName: 'match /members/{memberId} allow read',
+      ruleName: 'match /members_public/{memberId} allow read',
     );
   }
 
@@ -372,13 +371,6 @@ class DiagnosticService {
     return _timedCheck(
       'Firestore Ecriture members',
       () async {
-        final functions = _functions;
-        if (functions == null) {
-          throw const _DiagnosticFailure(
-            code: 'functions-not-initialized',
-            message: 'Cloud Functions non initialisé.',
-          );
-        }
         final user = _auth?.currentUser;
         if (user == null) {
           throw const _DiagnosticFailure(
@@ -386,24 +378,35 @@ class DiagnosticService {
             message: 'Aucun utilisateur Firebase connecté.',
           );
         }
-        final response = await _withRemoteTimeout(
-          functions.httpsCallable('testFirestoreWrite').call({
-            'familyId': normalizedFamilyId,
-          }),
-          code: 'local-timeout',
-        );
-        final result = Map<String, dynamic>.from(response.data as Map);
-        if (result['ok'] != true) {
+        final firestore = _firestore;
+        if (firestore == null) {
           throw const _DiagnosticFailure(
-            code: 'health-check-failed',
-            message: 'Le contrôle serveur a échoué.',
+            code: 'firestore-not-initialized',
+            message: 'Firestore non initialisé.',
           );
         }
-        return 'Contrôle technique serveur Firestore réussi.';
+        final roleSnapshot = await _withRemoteTimeout(
+          firestore.collection('user_roles').doc(user.uid).get(),
+          code: 'local-timeout',
+        );
+        final role = roleSnapshot.data();
+        final familyIds = (role?['familyIds'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(growable: false);
+        if (role?['active'] != true ||
+            role?['role'] != 'admin' ||
+            !familyIds.contains(normalizedFamilyId)) {
+          throw const _DiagnosticFailure(
+            code: 'admin-role-denied',
+            message: 'Autorisation d’écriture administrateur absente.',
+          );
+        }
+        return 'Autorisation admin validée pour les écritures directes. '
+            'Aucun document de diagnostic créé.';
       },
-      collectionName: 'system_health_checks',
-      documentPath: 'system_health_checks/<server-generated>',
-      ruleName: 'Admin SDK uniquement',
+      collectionName: 'members_public',
+      documentPath: 'families/$normalizedFamilyId/members_public/<memberId>',
+      ruleName: 'match /members_public/{memberId} allow create, update',
     );
   }
 
@@ -497,12 +500,20 @@ class DiagnosticService {
       );
     } catch (error, stackTrace) {
       stopwatch.stop();
+      final rawMessage = error.toString();
+      final internalFirestoreState =
+          rawMessage.contains('FIRESTORE') &&
+          rawMessage.contains('INTERNAL ASSERTION FAILED');
       return DiagnosticCheck(
         label: label,
         ok: false,
-        code: 'diagnostic-error',
+        code: internalFirestoreState
+            ? 'firestore-internal-state'
+            : 'diagnostic-error',
         errorType: error.runtimeType.toString(),
-        message: error.toString(),
+        message: internalFirestoreState
+            ? diagnosticMessageForCode('firestore-internal-state')
+            : rawMessage,
         stackTrace: stackTrace.toString(),
         collectionName: collectionName,
         documentPath: documentPath,
@@ -530,10 +541,9 @@ class DiagnosticService {
       code: 'skipped-auth-not-ready',
       message:
           'Ecriture de diagnostic non exécutée : Auth non prête (${authCheck.code}).',
-      collectionName: 'members',
-      documentPath: 'members/_diagnostic_<uid>_<timestamp>',
-      ruleName:
-          'match /members/{memberId} allow create + allow read + allow delete',
+      collectionName: 'members_public',
+      documentPath: 'families/ayivon/members_public/<memberId>',
+      ruleName: 'match /members_public/{memberId} allow create, update',
     );
   }
 

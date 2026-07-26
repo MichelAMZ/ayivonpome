@@ -24,7 +24,6 @@ class SyncStatusBadge extends ConsumerWidget {
     final needsResolutionCount = openItems
         .where(
           (item) =>
-              item.status == 'needsResolution' ||
               item.status == 'authorizationRequired' ||
               item.lastErrorCode == 'permission-denied' ||
               item.lastErrorCode == 'unauthenticated',

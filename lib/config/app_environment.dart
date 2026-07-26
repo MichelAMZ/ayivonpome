@@ -11,10 +11,18 @@ class AppEnvironment {
 
   static const productionProjectId = 'ayivon-aziangbede';
   static const emulatorProjectId = 'demo-ayivon-staging';
+  static const _buildEnvironment = String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: 'prod',
+  );
+
+  /// Safe to use while building the fallback UI, even when the complete
+  /// Firebase staging configuration is missing or invalid.
+  static bool get isStagingBuild =>
+      _buildEnvironment.toLowerCase() == 'staging';
 
   factory AppEnvironment.fromEnvironment({String? appEnv, String? projectId}) {
-    final name =
-        appEnv ?? const String.fromEnvironment('APP_ENV', defaultValue: 'prod');
+    final name = appEnv ?? _buildEnvironment;
     final parsed = switch (name.toLowerCase()) {
       'dev' => AppEnvironmentType.dev,
       'staging' => AppEnvironmentType.staging,

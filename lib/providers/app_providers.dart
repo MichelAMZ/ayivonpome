@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import '../core/firebase/firebase_runtime_config.dart';
 import '../data/firestore/firestore_remote_database_client.dart';
@@ -105,9 +104,6 @@ final diagnosticServiceProvider = Provider<DiagnosticService>((ref) {
     localStorage: ref.watch(jsonStorageServiceProvider),
     firestore: firebaseReady ? FirebaseFirestore.instance : null,
     auth: firebaseReady ? FirebaseAuth.instance : null,
-    functions: firebaseReady
-        ? FirebaseFunctions.instanceFor(region: 'europe-west1')
-        : null,
   );
 });
 

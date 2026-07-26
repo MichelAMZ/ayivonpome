@@ -2,6 +2,10 @@ import 'package:ayivonpome/config/app_environment.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('staging build detection does not validate Firebase options', () {
+    expect(AppEnvironment.isStagingBuild, isFalse);
+  });
+
   test('staging refuse production, émulateur et projectId absent', () {
     for (final projectId in [
       '',

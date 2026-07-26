@@ -47,7 +47,7 @@ class FamilyTreeApp extends ConsumerWidget {
           ),
         ),
       ),
-      builder: (context, child) => AppEnvironment.fromEnvironment().isStaging
+      builder: (context, child) => AppEnvironment.isStagingBuild
           ? Banner(
               message: 'PRÉPRODUCTION',
               location: BannerLocation.topEnd,

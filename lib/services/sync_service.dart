@@ -17,6 +17,7 @@ import '../models/sync_incident.dart';
 import '../models/sync_state.dart';
 import '../models/server_operation.dart';
 import '../data/firestore/firestore_document_mapper.dart';
+import '../data/firestore/firestore_remote_database_client.dart';
 import 'connectivity_service.dart';
 import 'family_repository.dart';
 import 'incident_reporter.dart';
@@ -1221,6 +1222,10 @@ class SyncService {
   String _errorCode(Object error, String lastError) {
     if (error is FirebaseException && error.code.isNotEmpty) {
       return error.code;
+    }
+    if (error is FirestoreSaveException &&
+        error.firebaseCode?.trim().isNotEmpty == true) {
+      return error.firebaseCode!.trim();
     }
     final lower = lastError.toLowerCase();
     const knownCodes = [

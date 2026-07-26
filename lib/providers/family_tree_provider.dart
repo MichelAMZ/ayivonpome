@@ -61,6 +61,12 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final data = await _loadFreshData();
     resetFilters();
     fitAndCenterTreeOnStart();
+    if (Firebase.apps.isNotEmpty) {
+      Future.microtask(() async {
+        if (!ref.mounted) return;
+        await startRemoteFamilyTreeWatch();
+      });
+    }
     return data;
   }
 

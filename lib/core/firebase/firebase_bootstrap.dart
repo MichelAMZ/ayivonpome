@@ -51,10 +51,12 @@ class FirebaseBootstrap {
 
       var degraded = false;
       try {
-        FirebaseFirestore.instance.settings = const Settings(
-          persistenceEnabled: true,
-          cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-        );
+        FirebaseFirestore.instance.settings = kIsWeb
+            ? const Settings(persistenceEnabled: false)
+            : const Settings(
+                persistenceEnabled: true,
+                cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+              );
       } on FirebaseException catch (error) {
         degraded = true;
         _lastError = error;
