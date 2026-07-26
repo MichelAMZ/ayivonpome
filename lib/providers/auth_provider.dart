@@ -78,6 +78,12 @@ class AuthController extends Notifier<AuthState> {
     }
     final subscription = service.idTokenChanges().listen((user) {
       if (user == null || user.isAnonymous) {
+        final current = state;
+        if (current.isAuthenticated &&
+            current.firebaseUid == null &&
+            current.session?.role == 'viewer') {
+          return;
+        }
         unawaited(
           ref.read(familyTreeProvider.notifier).stopRemoteFamilyTreeWatch(),
         );
@@ -189,6 +195,7 @@ class AuthController extends Notifier<AuthState> {
         restoreStatus: SessionRestoreStatus.authenticated,
         session: AuthSession(familyCode: 'ayivon', role: 'viewer'),
       );
+      await ref.read(familyTreeProvider.notifier).startRemoteFamilyTreeWatch();
       return true;
     }
     final firebaseSession = await _tryFirebaseAccessCodeLogin(code);

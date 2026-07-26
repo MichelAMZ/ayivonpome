@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ayivonpome/providers/auth_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -69,5 +71,30 @@ void main() {
 
     expect(missingUid.isAdmin, isFalse);
     expect(missingRole.hasFirebaseWriteAccess, isFalse);
+  });
+
+  test('viewer login starts the realtime tree listener', () {
+    final source = File('lib/providers/auth_provider.dart').readAsStringSync();
+    final viewerBranch = source.substring(
+      source.indexOf('if (validViewerCode)'),
+      source.indexOf(
+        'final firebaseSession',
+        source.indexOf('if (validViewerCode)'),
+      ),
+    );
+
+    expect(viewerBranch, contains('startRemoteFamilyTreeWatch'));
+    expect(viewerBranch, contains("role: 'viewer'"));
+  });
+
+  test('a signed-out Firebase user cannot retain a cached admin role', () {
+    const signedOut = AuthState(
+      mode: AuthMode.publicLimited,
+      restoreStatus: SessionRestoreStatus.unauthenticated,
+      firebaseRole: 'admin',
+    );
+
+    expect(signedOut.isAdmin, isFalse);
+    expect(signedOut.canModify, isFalse);
   });
 }

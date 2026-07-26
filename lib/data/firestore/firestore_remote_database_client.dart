@@ -79,7 +79,6 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   Stream<FamilyTreeData> watchFamilyTree() {
     final controller = StreamController<FamilyTreeData>();
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? people;
-    List<QueryDocumentSnapshot<Map<String, dynamic>>>? legacyPeople;
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? relationships;
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? links;
     final subscriptions =
@@ -97,10 +96,10 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       }
       controller.add(
         _treeFromSnapshots(
-          currentPeople.isNotEmpty ? currentPeople : (legacyPeople ?? const []),
+          currentPeople,
           currentRelationships,
           currentLinks,
-          legacyPeople: currentPeople.isEmpty,
+          legacyPeople: false,
         ),
       );
     }
@@ -118,7 +117,6 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     }
 
     listen(_activeMembers(_membersPublic), (docs) => people = docs);
-    listen(_activeByFamily(_legacyMembers), (docs) => legacyPeople = docs);
     listen(_activeByFamily(_relationships), (docs) => relationships = docs);
     listen(_activeByFamily(_familyLinks), (docs) => links = docs);
 

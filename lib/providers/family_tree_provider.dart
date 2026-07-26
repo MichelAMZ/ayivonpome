@@ -399,10 +399,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final mergedById = Map<String, Person>.from(remoteById);
 
     for (final localPerson in current.people) {
-      final remotePerson = remoteById[localPerson.id];
-      if (pendingPersonIds.contains(localPerson.id) ||
-          (remotePerson != null &&
-              _isLocalPersonNewer(localPerson, remotePerson))) {
+      if (pendingPersonIds.contains(localPerson.id)) {
         mergedById[localPerson.id] = localPerson;
       }
     }
@@ -421,15 +418,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     };
     final merged = Map<String, MarriageRelation>.from(remoteById);
     for (final local in current.marriageRelations) {
-      final remote = remoteById[local.id];
-      if (pendingIds.contains(local.id) ||
-          (remote != null &&
-              _isLocalRecordNewer(
-                local.version,
-                local.updatedAt,
-                remote.version,
-                remote.updatedAt,
-              ))) {
+      if (pendingIds.contains(local.id)) {
         merged[local.id] = local;
       }
     }
@@ -446,15 +435,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     };
     final merged = Map<String, FamilyLink>.from(remoteById);
     for (final local in current.familyLinks) {
-      final remote = remoteById[local.id];
-      if (pendingIds.contains(local.id) ||
-          (remote != null &&
-              _isLocalRecordNewer(
-                local.version,
-                local.updatedAt,
-                remote.version,
-                remote.updatedAt,
-              ))) {
+      if (pendingIds.contains(local.id)) {
         merged[local.id] = local;
       }
     }
@@ -473,33 +454,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   bool _isOpenPendingSyncItem(PendingSyncItem item) {
     const closedStatuses = {'completed', 'discarded', 'resolved', 'synced'};
     return !closedStatuses.contains(item.status);
-  }
-
-  bool _isLocalVersionNewer(String localUpdatedAt, String remoteUpdatedAt) {
-    final local = DateTime.tryParse(localUpdatedAt);
-    final remote = DateTime.tryParse(remoteUpdatedAt);
-    if (local == null) return false;
-    if (remote == null) return true;
-    return local.isAfter(remote);
-  }
-
-  bool _isLocalPersonNewer(Person local, Person remote) {
-    return _isLocalRecordNewer(
-      local.version,
-      local.updatedAt,
-      remote.version,
-      remote.updatedAt,
-    );
-  }
-
-  bool _isLocalRecordNewer(
-    int localVersion,
-    String localUpdatedAt,
-    int remoteVersion,
-    String remoteUpdatedAt,
-  ) {
-    if (localVersion != remoteVersion) return localVersion > remoteVersion;
-    return _isLocalVersionNewer(localUpdatedAt, remoteUpdatedAt);
   }
 
   Future<FamilyTreeData> save(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:ayivonpome/models/family_tree_data.dart';
 import 'package:ayivonpome/models/person.dart';
@@ -228,6 +229,69 @@ void main() {
       );
     },
   );
+
+  test(
+    'remote state replaces a stale local cache when no operation is pending',
+    () async {
+      final storage = _MemoryJsonStorageService();
+      final remote = _WatchRemoteClient();
+      final container = ProviderContainer(
+        overrides: [
+          familyTreeProvider.overrideWith(_StaleRealtimeTestController.new),
+          jsonStorageServiceProvider.overrideWithValue(storage),
+          localJsonRepositoryProvider.overrideWithValue(
+            JsonFamilyRepository(storage),
+          ),
+          remoteDatabaseRepositoryProvider.overrideWithValue(
+            DatabaseFamilyRepository(client: remote),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await remote.close();
+      });
+      await container.read(familyTreeProvider.future);
+      await container
+          .read(familyTreeProvider.notifier)
+          .startRemoteFamilyTreeWatch();
+
+      remote.emit(
+        const FamilyTreeData(
+          people: [
+            Person(
+              id: 'p001',
+              firstName: 'Valeur distante',
+              updatedAt: '2026-03-01T00:00:00Z',
+              version: 3,
+            ),
+          ],
+        ),
+      );
+      await _flushRemoteWatch();
+
+      final person = container.read(familyTreeProvider).value!.people.single;
+      expect(person.firstName, 'Valeur distante');
+      expect(storage.raw, contains('Valeur distante'));
+    },
+  );
+
+  test('realtime watch uses only the public member collection', () {
+    final source = File(
+      'lib/data/firestore/firestore_remote_database_client.dart',
+    ).readAsStringSync();
+    final watchSource = source.substring(
+      source.indexOf('Stream<FamilyTreeData> watchFamilyTree()'),
+      source.indexOf(
+        'Stream<List<AuditLog>> watchActivityLogs()',
+        source.indexOf('Stream<FamilyTreeData> watchFamilyTree()'),
+      ),
+    );
+
+    expect(watchSource, contains('_membersPublic'));
+    expect(watchSource, isNot(contains('_legacyMembers')));
+    expect(watchSource, contains('legacyPeople: false'));
+  });
 }
 
 Future<void> _flushRemoteWatch() async {
@@ -276,6 +340,20 @@ class _PendingRealtimeTestController extends FamilyTreeController {
         entityType: 'person',
         entityId: 'p001',
         action: 'update',
+      ),
+    ],
+  );
+}
+
+class _StaleRealtimeTestController extends FamilyTreeController {
+  @override
+  Future<FamilyTreeData> build() async => const FamilyTreeData(
+    people: [
+      Person(
+        id: 'p001',
+        firstName: 'Ancien cache local',
+        updatedAt: '2026-01-01T00:00:00Z',
+        version: 1,
       ),
     ],
   );
