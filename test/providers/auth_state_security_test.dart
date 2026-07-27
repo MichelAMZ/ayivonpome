@@ -1,11 +1,14 @@
 import 'dart:io';
 
 import 'package:ayivonpome/providers/auth_provider.dart';
+import 'package:ayivonpome/services/auth_code_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('cached or ambiguous role never grants sensitive access', () {
     const state = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'superAdmin'),
       restoreStatus: SessionRestoreStatus.error,
       firebaseUid: 'test-uid',
       firebaseRole: 'superAdmin',
@@ -19,6 +22,8 @@ void main() {
 
   test('verified Firebase admin role grants admin access', () {
     const state = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'test-uid',
       firebaseRole: 'admin',
@@ -32,6 +37,8 @@ void main() {
 
   test('verified Firebase super admin role grants super admin access', () {
     const state = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'superAdmin'),
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'test-uid',
       firebaseRole: 'superAdmin',
@@ -48,6 +55,8 @@ void main() {
       SessionRestoreStatus.error,
     ]) {
       final state = AuthState(
+        mode: AuthMode.authenticated,
+        session: const AuthSession(familyCode: 'ayivon', role: 'admin'),
         restoreStatus: status,
         firebaseUid: 'stale-uid',
         firebaseRole: 'admin',
@@ -61,16 +70,155 @@ void main() {
 
   test('missing Firebase UID or role never grants cached access', () {
     const missingUid = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseRole: 'admin',
     );
     const missingRole = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'test-uid',
     );
 
     expect(missingUid.isAdmin, isFalse);
     expect(missingRole.hasFirebaseWriteAccess, isFalse);
+  });
+
+  test('access levels expose only their intended capabilities', () {
+    const publicState = AuthState();
+    const viewerState = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'viewer'),
+      restoreStatus: SessionRestoreStatus.unauthenticated,
+    );
+    const editorState = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'editor'),
+      restoreStatus: SessionRestoreStatus.authenticated,
+      firebaseUid: 'editor-uid',
+      firebaseRole: 'editor',
+    );
+    const adminState = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
+      restoreStatus: SessionRestoreStatus.authenticated,
+      firebaseUid: 'admin-uid',
+      firebaseRole: 'admin',
+    );
+
+    expect(publicState.accessLevel, AccessLevel.public);
+    expect(publicState.canViewMemberDetails, isFalse);
+    expect(publicState.canEdit, isFalse);
+    expect(publicState.canDelete, isFalse);
+    expect(publicState.canAccessKpi, isFalse);
+
+    expect(viewerState.accessLevel, AccessLevel.viewer);
+    expect(viewerState.canViewMemberDetails, isTrue);
+    expect(viewerState.canEdit, isFalse);
+    expect(viewerState.canDelete, isFalse);
+    expect(viewerState.canAccessKpi, isFalse);
+
+    expect(editorState.accessLevel, AccessLevel.editor);
+    expect(editorState.canViewMemberDetails, isTrue);
+    expect(editorState.canEdit, isTrue);
+    expect(editorState.canDelete, isTrue);
+    expect(editorState.canAccessKpi, isFalse);
+
+    expect(adminState.accessLevel, AccessLevel.admin);
+    expect(adminState.canViewMemberDetails, isTrue);
+    expect(adminState.canEdit, isTrue);
+    expect(adminState.canDelete, isTrue);
+    expect(adminState.canAccessKpi, isTrue);
+  });
+
+  test('viewer and cached identities never inherit editor or admin rights', () {
+    const viewerWithStaleAdminMetadata = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'viewer'),
+      restoreStatus: SessionRestoreStatus.authenticated,
+      firebaseUid: 'stale-uid',
+      firebaseRole: 'admin',
+    );
+    const cachedEditor = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'editor'),
+      restoreStatus: SessionRestoreStatus.error,
+      firebaseUid: 'editor-uid',
+      firebaseRole: 'editor',
+    );
+
+    expect(viewerWithStaleAdminMetadata.accessLevel, AccessLevel.viewer);
+    expect(viewerWithStaleAdminMetadata.canEdit, isFalse);
+    expect(viewerWithStaleAdminMetadata.canAccessKpi, isFalse);
+    expect(cachedEditor.accessLevel, AccessLevel.public);
+    expect(cachedEditor.canEdit, isFalse);
+  });
+
+  test('sensitive UI controls use explicit capabilities', () {
+    final shell = File('lib/widgets/app_shell.dart').readAsStringSync();
+    final details = File(
+      'lib/screens/person_detail_screen.dart',
+    ).readAsStringSync();
+    final dashboard = File(
+      'lib/screens/dashboard_screen.dart',
+    ).readAsStringSync();
+
+    expect(shell, contains('if (auth.canAccessKpi)'));
+    expect(details, contains('final canEdit = auth.canEdit;'));
+    expect(details, contains('onDelete: auth.canDelete'));
+    expect(dashboard, contains('floatingActionButton: canEdit'));
+  });
+
+  test('all member profile entry points use the central viewer guard', () {
+    for (final path in [
+      'lib/screens/tree_screen.dart',
+      'lib/screens/dashboard_screen.dart',
+      'lib/screens/family_honor_hall_screen.dart',
+      'lib/screens/linked_family_tree_screen.dart',
+    ]) {
+      final source = File(path).readAsStringSync();
+      expect(
+        source,
+        contains('ensureCanViewMemberDetails'),
+        reason: '$path doit contrôler le droit viewer avant la navigation.',
+      );
+    }
+
+    final card = File('lib/widgets/person_card.dart').readAsStringSync();
+    final preview = File(
+      'lib/widgets/person_preview_popup.dart',
+    ).readAsStringSync();
+    expect(
+      card,
+      contains('if (!ref.read(authSessionProvider).canViewMemberDetails)'),
+    );
+    expect(
+      preview,
+      contains('if (!ref.watch(authSessionProvider).canViewMemberDetails)'),
+    );
+  });
+
+  test('direct profile route checks access before loading tree data', () {
+    final source = File(
+      'lib/screens/person_detail_screen.dart',
+    ).readAsStringSync();
+    final buildStart = source.indexOf(
+      'Widget build(BuildContext context, WidgetRef ref)',
+    );
+    final accessCheck = source.indexOf(
+      'if (!auth.canViewMemberDetails)',
+      buildStart,
+    );
+    final dataWatch = source.indexOf(
+      'ref.watch(familyTreeProvider)',
+      buildStart,
+    );
+
+    expect(accessCheck, greaterThan(buildStart));
+    expect(dataWatch, greaterThan(accessCheck));
+    expect(source, contains('_MemberDetailAccessGate'));
   });
 
   test('viewer login starts the realtime tree listener', () {

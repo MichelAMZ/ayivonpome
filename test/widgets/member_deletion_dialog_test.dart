@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('only a live Firebase admin session exposes secure deletion', () {
+  test('only a live Firebase editor or admin session exposes deletion', () {
     const localAdmin = AuthState(
       mode: AuthMode.authenticated,
       restoreStatus: SessionRestoreStatus.authenticated,
@@ -31,7 +31,7 @@ void main() {
     );
 
     expect(localAdmin.canSecurelyDeleteMember, isFalse);
-    expect(editor.canSecurelyDeleteMember, isFalse);
+    expect(editor.canSecurelyDeleteMember, isTrue);
     expect(firebaseAdmin.canSecurelyDeleteMember, isTrue);
   });
 

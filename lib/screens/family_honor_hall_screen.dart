@@ -6,6 +6,7 @@ import '../models/person.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../widgets/responsive.dart';
+import '../widgets/member_profile_access_guard.dart';
 import 'person_detail_screen.dart';
 
 class FamilyHonorHallScreen extends ConsumerWidget {
@@ -39,6 +40,7 @@ class FamilyHonorHallScreen extends ConsumerWidget {
                   person: current,
                   subtitle: leadership.title,
                   authMode: auth.mode,
+                  onOpen: () => _openProfile(context, ref, current),
                 ),
               if (former != null)
                 _HonorCard(
@@ -46,6 +48,7 @@ class FamilyHonorHallScreen extends ConsumerWidget {
                   person: former,
                   subtitle: l10n.formerChief,
                   authMode: auth.mode,
+                  onOpen: () => _openProfile(context, ref, former),
                 ),
               if (successor != null)
                 _HonorCard(
@@ -53,6 +56,7 @@ class FamilyHonorHallScreen extends ConsumerWidget {
                   person: successor,
                   subtitle: l10n.successor,
                   authMode: auth.mode,
+                  onOpen: () => _openProfile(context, ref, successor),
                 ),
               if (patriarch != null)
                 _HonorCard(
@@ -60,6 +64,7 @@ class FamilyHonorHallScreen extends ConsumerWidget {
                   person: patriarch,
                   subtitle: l10n.familyHonor,
                   authMode: auth.mode,
+                  onOpen: () => _openProfile(context, ref, patriarch),
                 ),
             ],
           ),
@@ -107,6 +112,20 @@ class FamilyHonorHallScreen extends ConsumerWidget {
     }
     return null;
   }
+
+  Future<void> _openProfile(
+    BuildContext context,
+    WidgetRef ref,
+    Person person,
+  ) async {
+    if (!await ensureCanViewMemberDetails(context, ref)) return;
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PersonDetailScreen(personId: person.id),
+      ),
+    );
+  }
 }
 
 class _HonorCard extends StatelessWidget {
@@ -115,23 +134,21 @@ class _HonorCard extends StatelessWidget {
     required this.person,
     required this.subtitle,
     required this.authMode,
+    required this.onOpen,
   });
 
   final String title;
   final Person person;
   final String subtitle;
   final AuthMode authMode;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => PersonDetailScreen(personId: person.id),
-          ),
-        ),
+        onTap: onOpen,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(

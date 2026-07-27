@@ -9,6 +9,7 @@ import '../providers/linked_family_tree_provider.dart';
 import '../providers/tree_runtime_provider.dart';
 import '../services/linked_family_tree_service.dart';
 import '../widgets/family_tree_canvas.dart';
+import '../widgets/member_profile_access_guard.dart';
 import 'linked_family_tree_screen.dart';
 import 'person_detail_screen.dart';
 
@@ -21,7 +22,7 @@ class TreeScreen extends ConsumerWidget {
     final auth = ref.watch(authSessionProvider);
     final resetToken = ref.watch(treeViewResetProvider);
     final linkedTreeService = ref.watch(linkedFamilyTreeServiceProvider(data));
-    final visiblePeopleCount = auth.isAuthenticated
+    final visiblePeopleCount = auth.canViewMemberDetails
         ? data.people.length
         : data.people.where(_isPubliclyVisible).length;
     return FamilyTreeCanvas(
@@ -33,7 +34,8 @@ class TreeScreen extends ConsumerWidget {
           data.appSettings.treeSettings.showMembersCounter &&
           data.appSettings.branding.memberCountDisplayMode == 'bottomBar',
       topReservedSpace: 8,
-      onOpenPerson: (person) => _openPerson(context, linkedTreeService, person),
+      onOpenPerson: (person) =>
+          _openPerson(context, ref, linkedTreeService, person),
     );
   }
 
@@ -43,9 +45,12 @@ class TreeScreen extends ConsumerWidget {
 
   Future<void> _openPerson(
     BuildContext context,
+    WidgetRef ref,
     LinkedFamilyTreeService service,
     Person person,
   ) async {
+    if (!await ensureCanViewMemberDetails(context, ref)) return;
+    if (!context.mounted) return;
     if (!service.hasLinkedFamilyTree(person)) {
       _openProfile(context, person);
       return;

@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../providers/linked_family_tree_provider.dart';
 import '../widgets/family_tree_canvas.dart';
+import '../widgets/member_profile_access_guard.dart';
 import 'person_detail_screen.dart';
 
 class LinkedFamilyTreeScreen extends ConsumerWidget {
@@ -84,14 +85,24 @@ class LinkedFamilyTreeScreen extends ConsumerWidget {
                   data.appSettings.branding.memberCountDisplayMode ==
                       'bottomBar',
               highlightedPersonIds: {focusPersonId},
-              onOpenPerson: (person) => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PersonDetailScreen(personId: person.id),
-                ),
-              ),
+              onOpenPerson: (person) => _openProfile(context, ref, person),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openProfile(
+    BuildContext context,
+    WidgetRef ref,
+    Person person,
+  ) async {
+    if (!await ensureCanViewMemberDetails(context, ref)) return;
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PersonDetailScreen(personId: person.id),
       ),
     );
   }

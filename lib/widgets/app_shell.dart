@@ -118,6 +118,8 @@ class _AppShellState extends ConsumerState<AppShell>
       }
       if (!next.isAuthenticated) {
         _dismissedThisSession.clear();
+      }
+      if (!next.canAccessKpi) {
         _adminKpiUnlocked = false;
       }
     });
@@ -150,7 +152,7 @@ class _AppShellState extends ConsumerState<AppShell>
       if (authenticated) const FamilyLinkRequestsScreen(),
       if (authenticated) const NotificationsScreen(),
       if (authenticated) const ModificationHistoryScreen(),
-      if (authenticated) const AdminDashboardScreen(),
+      if (auth.canAccessKpi) const AdminDashboardScreen(),
       const SettingsScreen(),
     ];
     final destinations = [
@@ -169,7 +171,7 @@ class _AppShellState extends ConsumerState<AppShell>
         selectedIcon: const Icon(Icons.dashboard),
         label: l10n.dashboardTitle,
       ),
-      if (authenticated)
+      if (auth.canAccessKpi)
         NavigationDestination(
           icon: const Icon(Icons.groups_outlined),
           selectedIcon: const Icon(Icons.groups),
@@ -607,7 +609,7 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   Future<bool> _showAdminAccessDialog(BuildContext context) async {
-    if (ref.read(authSessionProvider).isAdmin) return true;
+    if (ref.read(authSessionProvider).canAccessKpi) return true;
     final l10n = AppLocalizations.of(context);
     final authenticated = await showDialog<bool>(
       context: context,
@@ -621,7 +623,7 @@ class _AppShellState extends ConsumerState<AppShell>
             ref.read(authSessionProvider.notifier).unlockModification(code),
       ),
     );
-    return authenticated == true && ref.read(authSessionProvider).isAdmin;
+    return authenticated == true && ref.read(authSessionProvider).canAccessKpi;
   }
 
   ButtonStyle _accessButtonStyle(BuildContext context) {

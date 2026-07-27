@@ -13,6 +13,7 @@ import '../providers/family_tree_provider.dart';
 import '../widgets/contact_section.dart';
 import '../widgets/mini_map_card.dart';
 import '../widgets/member_deletion_dialog.dart';
+import '../widgets/member_profile_access_guard.dart';
 import '../widgets/modification_code_required_dialog.dart';
 import '../widgets/notify_person_button.dart';
 import 'person_detail_formatters.dart';
@@ -32,6 +33,10 @@ class PersonDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final auth = ref.watch(authSessionProvider);
+    if (!auth.canViewMemberDetails) {
+      return _MemberDetailAccessGate(title: l10n.personDetails);
+    }
     final asyncData = ref.watch(familyTreeProvider);
     return asyncData.when(
       loading: () => Scaffold(
@@ -112,6 +117,49 @@ class PersonDetailScreen extends ConsumerWidget {
   }
 }
 
+class _MemberDetailAccessGate extends ConsumerStatefulWidget {
+  const _MemberDetailAccessGate({required this.title});
+
+  final String title;
+
+  @override
+  ConsumerState<_MemberDetailAccessGate> createState() =>
+      _MemberDetailAccessGateState();
+}
+
+class _MemberDetailAccessGateState
+    extends ConsumerState<_MemberDetailAccessGate> {
+  var _dialogScheduled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_dialogScheduled) {
+      _dialogScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestAccess());
+    }
+    return Scaffold(
+      appBar: _ProfileAppBar(
+        title: widget.title,
+        canShowLocation: false,
+        canEdit: false,
+        onOpenLocation: null,
+        onEdit: null,
+        onDelete: null,
+      ),
+      backgroundColor: _pageBackground,
+      body: const _ProfileLoadingSkeleton(),
+    );
+  }
+
+  Future<void> _requestAccess() async {
+    if (!mounted) return;
+    final allowed = await ensureCanViewMemberDetails(context, ref);
+    if (!mounted || allowed) return;
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.pop();
+  }
+}
+
 class _LoadedPersonDetail extends ConsumerWidget {
   const _LoadedPersonDetail({required this.data, required this.person});
 
@@ -122,7 +170,8 @@ class _LoadedPersonDetail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final auth = ref.watch(authSessionProvider);
-    final authenticated = auth.isAuthenticated;
+    final canViewMemberDetails = auth.canViewMemberDetails;
+    final canEdit = auth.canEdit;
     final relationService = ref.watch(familyRelationServiceProvider);
     final father = relationService.fatherOf(data, person);
     final mother = relationService.motherOf(data, person);
@@ -137,18 +186,28 @@ class _LoadedPersonDetail extends ConsumerWidget {
         .relationsFor(data, person.id);
     final peopleById = {for (final item in data.people) item.id: item};
     final localeName = Localizations.localeOf(context).toLanguageTag();
-    final display = _ProfileDisplay(context, person, authenticated, localeName);
+    final display = _ProfileDisplay(
+      context,
+      person,
+      canViewMemberDetails,
+      localeName,
+    );
 
     return Scaffold(
       backgroundColor: _pageBackground,
       appBar: _ProfileAppBar(
         title: l10n.personDetails,
         canShowLocation: display.hasMapLocation,
-        canEdit: authenticated,
+        canEdit: canEdit,
         onOpenLocation: display.hasMapLocation
-            ? () => _openPersonLocation(context, ref, display, authenticated)
+            ? () => _openPersonLocation(
+                context,
+                ref,
+                display,
+                canViewMemberDetails,
+              )
             : null,
-        onEdit: authenticated
+        onEdit: canEdit
             ? () => _requestModificationThen(
                 context,
                 ref,
@@ -159,9 +218,7 @@ class _LoadedPersonDetail extends ConsumerWidget {
                 ),
               )
             : null,
-        onDelete: auth.canSecurelyDeleteMember
-            ? () => _delete(context, ref, person)
-            : null,
+        onDelete: auth.canDelete ? () => _delete(context, ref, person) : null,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -174,8 +231,8 @@ class _LoadedPersonDetail extends ConsumerWidget {
                   _MemberProfileHeader(
                     person: person,
                     display: display,
-                    canEdit: authenticated,
-                    onEdit: authenticated
+                    canEdit: canEdit,
+                    onEdit: canEdit
                         ? () => _requestModificationThen(
                             context,
                             ref,
@@ -260,7 +317,7 @@ class _LoadedPersonDetail extends ConsumerWidget {
                           _EventsAndPlacesCard(display: display),
                           const SizedBox(height: 16),
                           MemberNotesCard(note: display.notes),
-                          if (authenticated) ...[
+                          if (canViewMemberDetails) ...[
                             const SizedBox(height: 16),
                             ContactSection(
                               person: person,

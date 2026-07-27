@@ -10,6 +10,8 @@ import 'family_tree_provider.dart';
 
 enum AuthMode { publicLimited, authenticated }
 
+enum AccessLevel { public, viewer, editor, admin }
+
 enum SessionRestoreStatus {
   initializing,
   authenticated,
@@ -50,17 +52,27 @@ class AuthState {
       (firebaseRole == 'editor' ||
           firebaseRole == 'admin' ||
           firebaseRole == 'superAdmin');
-  bool get canModify => hasFirebaseWriteAccess;
-  bool get isSuperAdmin =>
-      hasFirebaseWriteAccess && firebaseRole == 'superAdmin';
-  bool get isAdmin =>
-      hasFirebaseWriteAccess &&
-      (firebaseRole == 'admin' || firebaseRole == 'superAdmin');
-  bool get canSecurelyDeleteMember =>
-      restoreStatus == SessionRestoreStatus.authenticated &&
-      firebaseUid != null &&
-      firebaseUid!.isNotEmpty &&
-      (firebaseRole == 'admin' || firebaseRole == 'superAdmin');
+  AccessLevel get accessLevel {
+    if (!isAuthenticated) return AccessLevel.public;
+    if (session?.role == 'viewer') {
+      return AccessLevel.viewer;
+    }
+    if (!hasFirebaseWriteAccess) return AccessLevel.public;
+    if (firebaseRole == 'admin' || firebaseRole == 'superAdmin') {
+      return AccessLevel.admin;
+    }
+    return AccessLevel.editor;
+  }
+
+  bool get canViewMemberDetails => accessLevel != AccessLevel.public;
+  bool get canEdit =>
+      accessLevel == AccessLevel.editor || accessLevel == AccessLevel.admin;
+  bool get canDelete => canEdit;
+  bool get canAccessKpi => accessLevel == AccessLevel.admin;
+  bool get canModify => canEdit;
+  bool get isSuperAdmin => canAccessKpi && firebaseRole == 'superAdmin';
+  bool get isAdmin => canAccessKpi;
+  bool get canSecurelyDeleteMember => canDelete;
 }
 
 final authSessionProvider = NotifierProvider<AuthController, AuthState>(

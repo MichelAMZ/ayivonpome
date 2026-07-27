@@ -16,7 +16,7 @@ class FamilyLinkRequestsScreen extends ConsumerWidget {
     final auth = ref.watch(authSessionProvider);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.familyLinks)),
-      floatingActionButton: auth.isAuthenticated && data.people.length >= 2
+      floatingActionButton: auth.canEdit && data.people.length >= 2
           ? FloatingActionButton.extended(
               onPressed: () => _showLinkDialog(context, ref),
               icon: const Icon(Icons.add_link),

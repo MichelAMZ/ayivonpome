@@ -41,7 +41,7 @@ class _ActivityJournalPanelState extends ConsumerState<ActivityJournalPanel> {
   int _rowsPerPage = 10;
   bool _deleting = false;
 
-  bool get _canDelete => widget.auth.canSecurelyDeleteMember;
+  bool get _canDelete => widget.auth.canAccessKpi;
 
   @override
   void didUpdateWidget(covariant ActivityJournalPanel oldWidget) {

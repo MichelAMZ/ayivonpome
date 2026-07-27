@@ -26,7 +26,7 @@ class FamilyCouncilScreen extends ConsumerWidget {
     }
 
     const service = FamilyCouncilService();
-    final publicLimited = !auth.isAuthenticated;
+    final publicLimited = !auth.canViewMemberDetails;
     final canManage = service.canManage(auth.session?.role ?? 'viewer');
     final members = service.visibleMembers(
       data,
@@ -160,7 +160,7 @@ class FamilyCouncilScreen extends ConsumerWidget {
 
   bool authModeAllowsDetails(WidgetRef ref, FamilyCouncilMember member) {
     final auth = ref.read(authSessionProvider);
-    return auth.isAuthenticated && member.allowContact;
+    return auth.canViewMemberDetails && member.allowContact;
   }
 
   Future<void> _deleteMember(

@@ -29,6 +29,9 @@ class PersonPreviewPopup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(authSessionProvider).canViewMemberDetails) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     final relationService = FamilyRelationService();
     final statistics = ref

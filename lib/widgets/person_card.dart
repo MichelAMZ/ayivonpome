@@ -406,6 +406,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
   }
 
   void _show() {
+    if (!ref.read(authSessionProvider).canViewMemberDetails) {
+      return;
+    }
     if (_entry != null || _showScheduled || !mounted) {
       return;
     }
@@ -420,6 +423,9 @@ class _PersonCardState extends ConsumerState<PersonCard> {
   }
 
   void _insertPreviewOverlay() {
+    if (!ref.read(authSessionProvider).canViewMemberDetails) {
+      return;
+    }
     final box = context.findRenderObject() as RenderBox;
     if (!box.hasSize || box.size.isEmpty) {
       return;
@@ -467,8 +473,7 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     _remove();
     final l10n = AppLocalizations.of(context);
     final auth = ref.read(authSessionProvider);
-    final canRequestModify =
-        auth.isAuthenticated && auth.session?.role != 'viewer';
+    final canRequestModify = auth.canEdit;
     final hasMap = _mapAddress.isNotEmpty;
     final hasContact =
         widget.person.allowContact &&
@@ -485,7 +490,7 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       items: personContextMenuItems(
         l10n,
         canModify: canRequestModify,
-        canDelete: auth.canSecurelyDeleteMember,
+        canDelete: auth.canDelete,
         hasMap: hasMap,
         hasContact: hasContact,
         canNotify: auth.isAdmin,

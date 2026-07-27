@@ -10,6 +10,7 @@ import '../providers/app_providers.dart';
 import '../providers/auth_provider.dart';
 import '../providers/family_tree_provider.dart';
 import '../widgets/modification_code_required_dialog.dart';
+import '../widgets/member_profile_access_guard.dart';
 import '../widgets/responsive.dart';
 import 'person_detail_screen.dart';
 import 'person_edit_screen.dart';
@@ -29,7 +30,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final l10n = AppLocalizations.of(context);
     final data = ref.watch(familyTreeProvider).value!;
     final auth = ref.watch(authSessionProvider);
-    final authenticated = auth.isAuthenticated;
+    final canViewMemberDetails = auth.canViewMemberDetails;
+    final canEdit = auth.canEdit;
     final pending = data.familyLinks
         .where((link) => link.status == 'pending')
         .length;
@@ -42,7 +44,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.dashboardTitle)),
-      floatingActionButton: authenticated
+      floatingActionButton: canEdit
           ? FloatingActionButton.extended(
               onPressed: () =>
                   _requestModificationThen(() => _openEditor(null)),
@@ -59,12 +61,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             mainAxisExtent: 116,
             children: [
               _Metric(label: l10n.totalPeople, value: '${data.people.length}'),
-              if (authenticated)
+              if (canViewMemberDetails)
                 _Metric(
                   label: l10n.familiesCount,
                   value: '${data.familyCodes.length}',
                 ),
-              if (authenticated)
+              if (canViewMemberDetails)
                 _Metric(label: l10n.pendingCount, value: '$pending'),
             ],
           ),
@@ -73,7 +75,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             spacing: 12,
             runSpacing: 12,
             children: [
-              if (authenticated) ...[
+              if (canEdit) ...[
                 FilledButton.icon(
                   onPressed: () =>
                       _requestModificationThen(() => _openEditor(null)),
@@ -115,18 +117,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.person)),
                   title: Text(person.fullName),
-                  subtitle: authenticated
+                  subtitle: canViewMemberDetails
                       ? Text(person.familyCode)
                       : person.privacy.showMapInPublicMode &&
                             person.publicMapLocation.isNotEmpty
                       ? Text(person.publicMapLocation)
                       : null,
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PersonDetailScreen(personId: person.id),
-                    ),
-                  ),
+                  onTap: () => _openProfile(person),
                 ),
               ),
             ),
@@ -139,6 +137,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => PersonEditScreen(person: person)));
+  }
+
+  Future<void> _openProfile(Person person) async {
+    if (!await ensureCanViewMemberDetails(context, ref) || !mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PersonDetailScreen(personId: person.id),
+      ),
+    );
   }
 
   Future<void> _requestModificationThen(VoidCallback action) async {

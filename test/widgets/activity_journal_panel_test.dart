@@ -1,6 +1,7 @@
 import 'package:ayivonpome/models/audit_log.dart';
 import 'package:ayivonpome/models/family_tree_data.dart';
 import 'package:ayivonpome/providers/auth_provider.dart';
+import 'package:ayivonpome/services/auth_code_service.dart';
 import 'package:ayivonpome/widgets/activity_journal_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +34,8 @@ void main() {
       _app(
         data,
         const AuthState(
+          mode: AuthMode.authenticated,
+          session: AuthSession(familyCode: 'ayivon', role: 'admin'),
           restoreStatus: SessionRestoreStatus.authenticated,
           firebaseUid: 'admin-uid',
           firebaseRole: 'admin',
@@ -51,6 +54,8 @@ void main() {
       _app(
         data,
         const AuthState(
+          mode: AuthMode.authenticated,
+          session: AuthSession(familyCode: 'ayivon', role: 'editor'),
           restoreStatus: SessionRestoreStatus.authenticated,
           firebaseUid: 'editor-uid',
           firebaseRole: 'editor',
