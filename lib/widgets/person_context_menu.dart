@@ -31,6 +31,7 @@ enum PersonContextAction {
 List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
   AppLocalizations l10n, {
   required bool canModify,
+  required bool canRequestEdit,
   required bool canDelete,
   required bool hasMap,
   required bool hasContact,
@@ -130,7 +131,7 @@ List<PopupMenuEntry<PersonContextAction>> personContextMenuItems(
       value: PersonContextAction.viewProfile,
       child: _MenuRow(icon: Icons.badge_outlined, label: l10n.viewProfile),
     ),
-    if (canModify)
+    if (canRequestEdit)
       PopupMenuItem(
         value: PersonContextAction.editPerson,
         child: _MenuRow(icon: Icons.edit_outlined, label: l10n.editPerson),

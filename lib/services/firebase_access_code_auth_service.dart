@@ -163,6 +163,8 @@ class FirebaseAccessCodeAuthService {
 
   User? get currentUser => _client.currentUser;
 
+  Future<void> signOut() => _client.signOut();
+
   Future<FirebaseAdminSession?> restoreCurrentSession() async {
     final user = _client.currentUser;
     if (user == null || user.isAnonymous) return null;
@@ -191,6 +193,17 @@ class FirebaseAccessCodeAuthService {
   }
 
   Future<FirebaseAdminSession> signInWithAccessCode(String accessCode) async {
+    return _signInWithCode(accessCode, authMethod: 'accessCode');
+  }
+
+  Future<FirebaseAdminSession> signInWithAdminCode(String accessCode) async {
+    return _signInWithCode(accessCode, authMethod: 'password');
+  }
+
+  Future<FirebaseAdminSession> _signInWithCode(
+    String accessCode, {
+    required String authMethod,
+  }) async {
     final code = accessCode.trim();
     if (code.isEmpty) {
       throw const FirebaseAccessCodeAuthException(
@@ -226,6 +239,7 @@ class FirebaseAccessCodeAuthService {
       roleData: roleData,
       expectedRole: identity.role,
       expiresAt: identity.expiresAt,
+      authMethodOverride: authMethod,
     );
     if (session == null) {
       await _client.signOut();
@@ -243,6 +257,7 @@ class FirebaseAccessCodeAuthService {
     required Map<String, dynamic> roleData,
     String? expectedRole,
     DateTime? expiresAt,
+    String? authMethodOverride,
   }) {
     final role = FirebaseUserRole.normalizedRole(roleData['role']) ?? '';
     final authMethod = roleData['authMethod'] as String? ?? 'accessCode';
@@ -261,7 +276,9 @@ class FirebaseAccessCodeAuthService {
       email: email,
       role: role,
       familyIds: familyIds,
-      authMethod: authMethod.isEmpty ? 'accessCode' : authMethod,
+      authMethod:
+          authMethodOverride ??
+          (authMethod.isEmpty ? 'accessCode' : authMethod),
       expiresAt: expiresAt ?? sessionExpiresAt,
     );
   }

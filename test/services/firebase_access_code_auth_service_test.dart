@@ -31,10 +31,35 @@ void main() {
       final session = await service.signInWithAccessCode('  mot-de-passe  ');
 
       expect(session.role, 'admin');
-      expect(session.authMethod, 'password');
+      expect(session.authMethod, 'accessCode');
       expect(client.receivedCode, 'mot-de-passe');
       expect(client.receivedFamilyId, 'ayivon');
       expect(client.receivedDeviceId, 'device-test');
+    });
+
+    test('conserve les droits admin pour le code du KPI', () async {
+      final client = _FakeAccessCodeAuthClient(
+        identity: const AccessCodeIdentity(
+          uid: 'uid-admin',
+          email: 'ayivonaziangbede@gmail.com',
+          role: 'admin',
+          familyId: 'ayivon',
+        ),
+        roleData: <String, dynamic>{
+          'role': 'admin',
+          'familyIds': const ['ayivon'],
+          'active': true,
+        },
+      );
+      final service = FirebaseAccessCodeAuthService(
+        client: client,
+        familyId: 'ayivon',
+      );
+
+      final session = await service.signInWithAdminCode('secret-admin');
+
+      expect(session.isAdmin, isTrue);
+      expect(session.authMethod, 'password');
     });
 
     test('refuse un rôle non-admin pour le compte unique', () async {

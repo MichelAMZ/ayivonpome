@@ -604,6 +604,11 @@ class _AppShellState extends ConsumerState<AppShell>
       if (!allowed || !mounted) return;
       _adminKpiUnlocked = true;
       debugPrint('Navigating to AdminDashboardScreen');
+      // Les droits admin ajoutent une destination au menu après la saisie.
+      // Reprendre l'écran demandé plutôt que l'ancien index du menu.
+      const adminDashboardScreenIndex = 7;
+      setState(() => _index = adminDashboardScreenIndex);
+      return;
     }
     setState(() => _index = value);
   }
@@ -620,7 +625,7 @@ class _AppShellState extends ConsumerState<AppShell>
         cancelLabel: l10n.cancel,
         submitLabel: l10n.enter,
         onValidate: (code) =>
-            ref.read(authSessionProvider.notifier).unlockModification(code),
+            ref.read(authSessionProvider.notifier).unlockAdmin(code),
       ),
     );
     return authenticated == true && ref.read(authSessionProvider).canAccessKpi;

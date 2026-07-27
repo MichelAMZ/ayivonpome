@@ -9,7 +9,7 @@ class AppEnvironment {
     required this.demoDataAllowed,
   });
 
-  static const productionProjectId = 'ayivon-aziangbede';
+  static const productionProjectId = 'ayivon-prod';
   static const emulatorProjectId = 'demo-ayivon-staging';
   static const _buildEnvironment = String.fromEnvironment(
     'APP_ENV',

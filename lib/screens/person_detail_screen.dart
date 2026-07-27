@@ -171,7 +171,7 @@ class _LoadedPersonDetail extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final auth = ref.watch(authSessionProvider);
     final canViewMemberDetails = auth.canViewMemberDetails;
-    final canEdit = auth.canEdit;
+    final canShowEditButton = auth.canShowEditButton;
     final relationService = ref.watch(familyRelationServiceProvider);
     final father = relationService.fatherOf(data, person);
     final mother = relationService.motherOf(data, person);
@@ -198,7 +198,7 @@ class _LoadedPersonDetail extends ConsumerWidget {
       appBar: _ProfileAppBar(
         title: l10n.personDetails,
         canShowLocation: display.hasMapLocation,
-        canEdit: canEdit,
+        canEdit: canShowEditButton,
         onOpenLocation: display.hasMapLocation
             ? () => _openPersonLocation(
                 context,
@@ -207,7 +207,7 @@ class _LoadedPersonDetail extends ConsumerWidget {
                 canViewMemberDetails,
               )
             : null,
-        onEdit: canEdit
+        onEdit: canShowEditButton
             ? () => _requestModificationThen(
                 context,
                 ref,
@@ -231,8 +231,8 @@ class _LoadedPersonDetail extends ConsumerWidget {
                   _MemberProfileHeader(
                     person: person,
                     display: display,
-                    canEdit: canEdit,
-                    onEdit: canEdit
+                    canEdit: canShowEditButton,
+                    onEdit: canShowEditButton
                         ? () => _requestModificationThen(
                             context,
                             ref,

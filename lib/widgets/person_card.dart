@@ -473,7 +473,7 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     _remove();
     final l10n = AppLocalizations.of(context);
     final auth = ref.read(authSessionProvider);
-    final canRequestModify = auth.canEdit;
+    final canRequestModify = auth.canShowEditButton;
     final hasMap = _mapAddress.isNotEmpty;
     final hasContact =
         widget.person.allowContact &&
@@ -489,7 +489,8 @@ class _PersonCardState extends ConsumerState<PersonCard> {
       ),
       items: personContextMenuItems(
         l10n,
-        canModify: canRequestModify,
+        canModify: auth.canEdit,
+        canRequestEdit: canRequestModify,
         canDelete: auth.canDelete,
         hasMap: hasMap,
         hasContact: hasContact,

@@ -216,19 +216,23 @@ class _ModificationCodeRequiredDialogState
         return;
       }
       _setStep(ModificationAuthorizationStep.restoringAuthentication);
-      final restored = await ref
-          .read(authSessionProvider.notifier)
-          .restoreSession()
-          .timeout(const Duration(seconds: 8));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
       if (!mounted) return;
-      if (!restored) {
+      _setStep(ModificationAuthorizationStep.checkingPermissions);
+      if (!ref.read(authSessionProvider).canEdit) {
         setState(() {
           _step = ModificationAuthorizationStep.failed;
-          _error = 'Session Firebase non restaurée ou accès non autorisé.';
+          _error = 'Session Firebase sans droit de modification.';
         });
         return;
       }
-      _setStep(ModificationAuthorizationStep.checkingPermissions);
+      if (widget.operationIds.isEmpty) {
+        _setStep(ModificationAuthorizationStep.saved);
+        _controller.clear();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        if (mounted) Navigator.pop(context, true);
+        return;
+      }
       await Future<void>.delayed(const Duration(milliseconds: 120));
       _setStep(ModificationAuthorizationStep.synchronizing);
       final result = await ref

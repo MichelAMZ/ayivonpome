@@ -58,6 +58,7 @@ class AuthState {
       return AccessLevel.viewer;
     }
     if (!hasFirebaseWriteAccess) return AccessLevel.public;
+    if (firebaseAuthMethod == 'accessCode') return AccessLevel.editor;
     if (firebaseRole == 'admin' || firebaseRole == 'superAdmin') {
       return AccessLevel.admin;
     }
@@ -67,6 +68,7 @@ class AuthState {
   bool get canViewMemberDetails => accessLevel != AccessLevel.public;
   bool get canEdit =>
       accessLevel == AccessLevel.editor || accessLevel == AccessLevel.admin;
+  bool get canShowEditButton => canViewMemberDetails;
   bool get canDelete => canEdit;
   bool get canAccessKpi => accessLevel == AccessLevel.admin;
   bool get canModify => canEdit;
@@ -262,50 +264,119 @@ class AuthController extends Notifier<AuthState> {
     final firebaseAccessCodeService = ref.read(
       firebaseAccessCodeAuthServiceProvider,
     );
-    if (firebaseAccessCodeService != null) {
-      try {
-        final firebaseSession = await firebaseAccessCodeService
-            .signInWithAccessCode(trimmedCode);
-        if (!firebaseSession.isEditor) {
-          await logout();
-          return false;
-        }
-        _applyFirebaseSession(firebaseSession);
-        await _saveSessionMetadata(firebaseSession);
-        await ref
-            .read(familyTreeProvider.notifier)
-            .startRemoteFamilyTreeWatch(
-              includeActivityLog: firebaseSession.isAdmin,
-            );
-        await ref
-            .read(familyTreeProvider.notifier)
-            .addAuditLog(
-              'modification_code_accepted',
-              description: 'Accès modification autorisé via Firebase Auth.',
-              actorRole: firebaseSession.role,
-            );
-        await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
-        return true;
-      } catch (_) {
-        await ref
-            .read(familyTreeProvider.notifier)
-            .addAuditLog(
-              'modification_code_refused',
-              description: 'Code de modification incorrect.',
-              actorRole: state.session?.role ?? 'viewer',
-            );
-        return false;
-      }
+    if (firebaseAccessCodeService == null) {
+      await _recordModificationAccessAudit(
+        'modification_code_refused',
+        description: 'Authentification Firebase requise.',
+        actorRole: state.session?.role ?? 'viewer',
+      );
+      return false;
     }
 
-    await ref
-        .read(familyTreeProvider.notifier)
-        .addAuditLog(
+    late final FirebaseAdminSession firebaseSession;
+    try {
+      firebaseSession = await firebaseAccessCodeService.signInWithAccessCode(
+        trimmedCode,
+      );
+      if (!firebaseSession.isEditor) {
+        await firebaseAccessCodeService.signOut();
+        await _recordModificationAccessAudit(
           'modification_code_refused',
-          description: 'Authentification Firebase requise.',
+          description: 'Rôle sans droit de modification.',
           actorRole: state.session?.role ?? 'viewer',
         );
-    return false;
+        return false;
+      }
+    } catch (_) {
+      await _recordModificationAccessAudit(
+        'modification_code_refused',
+        description: 'Code de modification incorrect ou compte non autorisé.',
+        actorRole: state.session?.role ?? 'viewer',
+      );
+      return false;
+    }
+
+    _applyFirebaseSession(firebaseSession);
+
+    try {
+      await _saveSessionMetadata(firebaseSession);
+    } catch (_) {
+      // La session Firebase courante reste la source d'autorité.
+    }
+    try {
+      await ref
+          .read(familyTreeProvider.notifier)
+          .startRemoteFamilyTreeWatch(
+            includeActivityLog: firebaseSession.isAdmin,
+          );
+    } catch (_) {
+      // Le listener pourra être relancé sans invalider l'authentification.
+    }
+    await _recordModificationAccessAudit(
+      'modification_code_accepted',
+      description: 'Accès modification autorisé via Firebase Auth.',
+      actorRole: firebaseSession.role,
+    );
+    try {
+      await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
+    } catch (_) {
+      // Le nettoyage est secondaire et ne doit pas invalider un code correct.
+    }
+
+    return state.canEdit;
+  }
+
+  Future<bool> unlockAdmin(String code) async {
+    final trimmedCode = code.trim();
+    if (trimmedCode.isEmpty) return false;
+
+    final service = ref.read(firebaseAccessCodeAuthServiceProvider);
+    if (service == null) return false;
+
+    late final FirebaseAdminSession firebaseSession;
+    try {
+      firebaseSession = await service.signInWithAdminCode(trimmedCode);
+      if (!firebaseSession.isAdmin) {
+        await service.signOut();
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
+
+    _applyFirebaseSession(firebaseSession);
+    try {
+      await _saveSessionMetadata(firebaseSession);
+    } catch (_) {
+      // La session Firebase validée reste la source d'autorité.
+    }
+    try {
+      await ref
+          .read(familyTreeProvider.notifier)
+          .startRemoteFamilyTreeWatch(includeActivityLog: true);
+    } catch (_) {
+      // Le listener pourra être relancé sans annuler l'accès administrateur.
+    }
+    try {
+      await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
+    } catch (_) {
+      // Le nettoyage est secondaire à l'authentification.
+    }
+    return state.canAccessKpi;
+  }
+
+  Future<void> _recordModificationAccessAudit(
+    String action, {
+    required String description,
+    required String actorRole,
+  }) async {
+    try {
+      await ref
+          .read(familyTreeProvider.notifier)
+          .addAuditLog(action, description: description, actorRole: actorRole);
+    } catch (_) {
+      // La journalisation ne doit jamais modifier le résultat d'authentification.
+    }
   }
 
   Future<void> logout() async {

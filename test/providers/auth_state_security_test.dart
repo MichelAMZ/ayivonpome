@@ -111,26 +111,55 @@ void main() {
     expect(publicState.accessLevel, AccessLevel.public);
     expect(publicState.canViewMemberDetails, isFalse);
     expect(publicState.canEdit, isFalse);
+    expect(publicState.canShowEditButton, isFalse);
     expect(publicState.canDelete, isFalse);
     expect(publicState.canAccessKpi, isFalse);
 
     expect(viewerState.accessLevel, AccessLevel.viewer);
     expect(viewerState.canViewMemberDetails, isTrue);
     expect(viewerState.canEdit, isFalse);
+    expect(viewerState.canShowEditButton, isTrue);
     expect(viewerState.canDelete, isFalse);
     expect(viewerState.canAccessKpi, isFalse);
 
     expect(editorState.accessLevel, AccessLevel.editor);
     expect(editorState.canViewMemberDetails, isTrue);
     expect(editorState.canEdit, isTrue);
+    expect(editorState.canShowEditButton, isTrue);
     expect(editorState.canDelete, isTrue);
     expect(editorState.canAccessKpi, isFalse);
 
     expect(adminState.accessLevel, AccessLevel.admin);
     expect(adminState.canViewMemberDetails, isTrue);
     expect(adminState.canEdit, isTrue);
+    expect(adminState.canShowEditButton, isTrue);
     expect(adminState.canDelete, isTrue);
     expect(adminState.canAccessKpi, isTrue);
+  });
+
+  test('access-code admin identity is limited to editor capabilities', () {
+    const modificationSession = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
+      restoreStatus: SessionRestoreStatus.authenticated,
+      firebaseUid: 'admin-uid',
+      firebaseRole: 'admin',
+      firebaseAuthMethod: 'accessCode',
+    );
+    const explicitAdminSession = AuthState(
+      mode: AuthMode.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
+      restoreStatus: SessionRestoreStatus.authenticated,
+      firebaseUid: 'admin-uid',
+      firebaseRole: 'admin',
+      firebaseAuthMethod: 'password',
+    );
+
+    expect(modificationSession.accessLevel, AccessLevel.editor);
+    expect(modificationSession.canEdit, isTrue);
+    expect(modificationSession.canAccessKpi, isFalse);
+    expect(explicitAdminSession.accessLevel, AccessLevel.admin);
+    expect(explicitAdminSession.canAccessKpi, isTrue);
   });
 
   test('viewer and cached identities never inherit editor or admin rights', () {
@@ -166,7 +195,10 @@ void main() {
     ).readAsStringSync();
 
     expect(shell, contains('if (auth.canAccessKpi)'));
-    expect(details, contains('final canEdit = auth.canEdit;'));
+    expect(
+      details,
+      contains('final canShowEditButton = auth.canShowEditButton;'),
+    );
     expect(details, contains('onDelete: auth.canDelete'));
     expect(dashboard, contains('floatingActionButton: canEdit'));
   });
@@ -219,6 +251,36 @@ void main() {
     expect(accessCheck, greaterThan(buildStart));
     expect(dataWatch, greaterThan(accessCheck));
     expect(source, contains('_MemberDetailAccessGate'));
+  });
+
+  test('modification authorization does not depend on auxiliary sync', () {
+    final authSource = File(
+      'lib/providers/auth_provider.dart',
+    ).readAsStringSync();
+    final dialogSource = File(
+      'lib/widgets/modification_code_required_dialog.dart',
+    ).readAsStringSync();
+
+    expect(authSource, contains('return state.canEdit;'));
+    expect(authSource, contains('_recordModificationAccessAudit'));
+    expect(dialogSource, contains('if (widget.operationIds.isEmpty)'));
+    expect(
+      dialogSource,
+      isNot(contains('.restoreSession()\n          .timeout')),
+    );
+  });
+
+  test('admin access resumes the requested KPI navigation', () {
+    final shell = File('lib/widgets/app_shell.dart').readAsStringSync();
+    final authProvider = File(
+      'lib/providers/auth_provider.dart',
+    ).readAsStringSync();
+
+    expect(shell, contains('.unlockAdmin(code)'));
+    expect(shell, contains('const adminDashboardScreenIndex = 7;'));
+    expect(shell, contains('_index = adminDashboardScreenIndex'));
+    expect(authProvider, contains('Future<bool> unlockAdmin(String code)'));
+    expect(authProvider, contains('return state.canAccessKpi;'));
   });
 
   test('viewer login starts the realtime tree listener', () {
