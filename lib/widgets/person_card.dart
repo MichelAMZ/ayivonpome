@@ -33,6 +33,10 @@ class PersonCard extends ConsumerStatefulWidget {
     this.height,
     this.highlighted = false,
     this.hasLinkedFamilyTree = false,
+    this.hasDescendants = false,
+    this.branchCollapsed = false,
+    this.descendantCount = 0,
+    this.onToggleBranch,
   });
 
   final Person person;
@@ -44,6 +48,10 @@ class PersonCard extends ConsumerStatefulWidget {
   final double? height;
   final bool highlighted;
   final bool hasLinkedFamilyTree;
+  final bool hasDescendants;
+  final bool branchCollapsed;
+  final int descendantCount;
+  final VoidCallback? onToggleBranch;
 
   @override
   ConsumerState<PersonCard> createState() => _PersonCardState();
@@ -79,6 +87,13 @@ class _PersonCardState extends ConsumerState<PersonCard> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.width != null && widget.height != null) {
+      return _buildCompactTreeCard(context);
+    }
+    return _buildHorizontalCard(context);
+  }
+
+  Widget _buildHorizontalCard(BuildContext context) {
     final isCurrentLeader =
         widget.data.familyLeadership.currentLeaderPersonId == widget.person.id;
     final compact = widget.compact;
@@ -385,6 +400,232 @@ class _PersonCardState extends ConsumerState<PersonCard> {
                   ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactTreeCard(BuildContext context) {
+    final isCurrentLeader =
+        widget.data.familyLeadership.currentLeaderPersonId == widget.person.id;
+    final borderColor = _genderColor;
+    final showGenerationBadge =
+        widget.data.appSettings.treeSettings.showGenerationBadges &&
+        widget.person.generation > 0;
+    final photo = widget.person.photo.trim();
+    final birthYear = widget.person.birthDate.length >= 4
+        ? widget.person.birthDate.substring(0, 4)
+        : '';
+
+    Widget avatarFallback() => ColoredBox(
+      color: _genderLightColor,
+      child: Center(
+        child: Text(
+          _initials(widget.person),
+          style: TextStyle(
+            color: borderColor,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+
+    final avatar = ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        width: 56,
+        height: 64,
+        child: photo.isEmpty
+            ? avatarFallback()
+            : Image.network(
+                photo,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => avatarFallback(),
+              ),
+      ),
+    );
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _hovered = true);
+        _show();
+      },
+      onExit: (_) {
+        setState(() => _hovered = false);
+        _remove();
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onOpen,
+        onSecondaryTapDown: (details) =>
+            _showContextMenu(details.globalPosition),
+        onLongPressStart: (_) => _show(),
+        onLongPressEnd: (_) => _remove(),
+        child: SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.fromLTRB(8, 9, 8, 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: widget.highlighted
+                    ? const Color(0xFFD6AD42)
+                    : borderColor,
+                width: widget.highlighted ? 2.4 : 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.highlighted
+                      ? const Color(0x33D6AD42)
+                      : isCurrentLeader
+                      ? const Color(0x30C59A2A)
+                      : const Color(0x14000000),
+                  blurRadius: _hovered ? 18 : 12,
+                  offset: Offset(0, _hovered ? 8 : 5),
+                ),
+              ],
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 28),
+                  child: Column(
+                    children: [
+                      Center(child: avatar),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.person.lastName.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF121411),
+                          fontSize: 12,
+                          height: 1.05,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        widget.person.firstName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF30342F),
+                          fontSize: 12,
+                          height: 1.05,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _genderSymbol,
+                            style: TextStyle(
+                              color: borderColor,
+                              fontSize: 15,
+                              height: 1,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (birthYear.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                birthYear,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF4F514C),
+                                  fontSize: 11,
+                                  height: 1,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (isCurrentLeader)
+                  const Positioned(
+                    bottom: -1,
+                    left: 2,
+                    child: Icon(
+                      Icons.workspace_premium,
+                      size: 19,
+                      color: Color(0xFFC99A19),
+                    ),
+                  ),
+                if (widget.hasLinkedFamilyTree)
+                  const Positioned(
+                    top: 30,
+                    right: 2,
+                    child: Icon(
+                      Icons.account_tree_outlined,
+                      size: 17,
+                      color: Color(0xFF315B22),
+                    ),
+                  ),
+                if (showGenerationBadge)
+                  Positioned(
+                    right: 0,
+                    bottom: -1,
+                    child: _GenerationBadge(
+                      generation: widget.person.generation,
+                    ),
+                  ),
+                if (widget.hasDescendants && widget.onToggleBranch != null)
+                  Positioned(
+                    left: -7,
+                    top: -7,
+                    child: _BranchToggleBadge(
+                      key: ValueKey('branch-toggle-${widget.person.id}'),
+                      collapsed: widget.branchCollapsed,
+                      descendantCount: widget.descendantCount,
+                      borderColor: borderColor,
+                      onPressed: widget.onToggleBranch!,
+                    ),
+                  ),
+                Positioned(
+                  right: -7,
+                  top: -7,
+                  child: Builder(
+                    builder: (buttonContext) => IconButton(
+                      tooltip: 'Menu',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      padding: EdgeInsets.zero,
+                      iconSize: 18,
+                      icon: const Icon(Icons.more_vert),
+                      onPressed: () {
+                        final box =
+                            buttonContext.findRenderObject() as RenderBox;
+                        final center = box.localToGlobal(
+                          box.size.center(Offset.zero),
+                        );
+                        _showContextMenu(center);
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -973,6 +1214,108 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     final last = person.lastName.isEmpty ? '' : person.lastName[0];
     final value = '$first$last';
     return value.isEmpty ? '?' : value.toUpperCase();
+  }
+}
+
+class _BranchToggleBadge extends StatelessWidget {
+  const _BranchToggleBadge({
+    super.key,
+    required this.collapsed,
+    required this.descendantCount,
+    required this.borderColor,
+    required this.onPressed,
+  });
+
+  final bool collapsed;
+  final int descendantCount;
+  final Color borderColor;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final actionLabel = collapsed
+        ? 'Afficher les descendants'
+        : 'Masquer les descendants';
+    return Semantics(
+      button: true,
+      label: '$actionLabel, $descendantCount descendants',
+      child: Tooltip(
+        message: actionLabel,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onPressed,
+                borderRadius: BorderRadius.circular(9),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  width: 44,
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: collapsed
+                        ? const Color(0xFFF1F5EA)
+                        : const Color(0xFFF8FAF4),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: borderColor.withValues(alpha: 0.72),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x12000000),
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedRotation(
+                        turns: collapsed ? 0 : 0.25,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        child: const Icon(
+                          Icons.chevron_right,
+                          size: 15,
+                          color: Color(0xFF315B22),
+                        ),
+                      ),
+                      const SizedBox(width: 1),
+                      SizedBox(
+                        width: 20,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 180),
+                            child: Text(
+                              '$descendantCount',
+                              key: ValueKey('$collapsed-$descendantCount'),
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: Color(0xFF315B22),
+                                fontSize: 10,
+                                height: 1,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -48,6 +48,7 @@ class _AppShellState extends ConsumerState<AppShell>
   var _index = 0;
   var _popupOpen = false;
   var _adminKpiUnlocked = false;
+  var _adminNavigationInProgress = false;
   var _familyAnnouncementsBootstrapped = false;
   var _syncAttemptedThisSession = false;
   Timer? _syncRetryTimer;
@@ -599,15 +600,23 @@ class _AppShellState extends ConsumerState<AppShell>
     final destination = destinations[value];
     final isAdminKpi =
         destination.label == AppLocalizations.of(context).adminDashboard;
-    if (isAdminKpi && !_adminKpiUnlocked) {
-      final allowed = await _showAdminAccessDialog(context);
-      if (!allowed || !mounted) return;
-      _adminKpiUnlocked = true;
-      debugPrint('Navigating to AdminDashboardScreen');
-      // Les droits admin ajoutent une destination au menu après la saisie.
-      // Reprendre l'écran demandé plutôt que l'ancien index du menu.
-      const adminDashboardScreenIndex = 7;
-      setState(() => _index = adminDashboardScreenIndex);
+    if (isAdminKpi) {
+      if (_adminNavigationInProgress) return;
+      _adminNavigationInProgress = true;
+      try {
+        final allowed =
+            _adminKpiUnlocked || await _showAdminAccessDialog(context);
+        if (!allowed || !mounted) return;
+        _adminKpiUnlocked = true;
+        debugPrint('Navigating to AdminDashboardScreen');
+        // L'authentification ajoute des destinations au menu. Une fois celle-ci
+        // terminée, naviguer une seule fois vers l'écran demandé sans réutiliser
+        // l'index issu de l'ancienne liste.
+        const adminDashboardScreenIndex = 7;
+        setState(() => _index = adminDashboardScreenIndex);
+      } finally {
+        _adminNavigationInProgress = false;
+      }
       return;
     }
     setState(() => _index = value);

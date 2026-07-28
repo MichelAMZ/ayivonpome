@@ -26,6 +26,7 @@ import '../providers/family_tree_provider.dart';
 import '../services/admin_access_service.dart';
 import '../services/activity_log_service.dart';
 import '../services/firebase_admin_auth_service.dart';
+import '../services/info_news_service.dart';
 import 'branding_settings_screen.dart';
 import '../widgets/admin_contact_card.dart';
 import '../widgets/activity_journal_panel.dart';
@@ -5095,7 +5096,14 @@ class _InfoNewsManagementSectionState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final auth = ref.watch(authSessionProvider);
-    final canManage = auth.isAdmin;
+    final canManage = auth.canAccessKpi;
+    final managedNews = widget.data.infoNews.isEmpty
+        ? [
+            ref
+                .watch(infoNewsServiceProvider)
+                .defaultNews(widget.data.appSettings.accessCodeContactName),
+          ]
+        : widget.data.infoNews;
     final logs = widget.data.infoNewsSendLogs
         .where(
           (log) =>
@@ -5124,7 +5132,7 @@ class _InfoNewsManagementSectionState
           ],
         ),
         const SizedBox(height: 8),
-        for (final news in widget.data.infoNews)
+        for (final news in managedNews)
           Card(
             child: ListTile(
               leading: Icon(
@@ -5152,7 +5160,9 @@ class _InfoNewsManagementSectionState
                     tooltip: news.isActive
                         ? l10n.disableAccessCode
                         : l10n.enableAccessCode,
-                    onPressed: canManage
+                    onPressed:
+                        canManage &&
+                            news.id != InfoNewsService.defaultInfoNewsId
                         ? () => _save(
                             ref,
                             news.copyWith(isActive: !news.isActive),
@@ -5167,13 +5177,23 @@ class _InfoNewsManagementSectionState
                   IconButton(
                     tooltip: l10n.editInfoNews,
                     onPressed: canManage
-                        ? () => _showDialog(context, ref, news)
+                        ? () => _showDialog(
+                            context,
+                            ref,
+                            news.id == InfoNewsService.defaultInfoNewsId
+                                ? news.copyWith(id: '')
+                                : news,
+                          )
                         : null,
                     icon: const Icon(Icons.edit_outlined),
                   ),
                   IconButton(
                     tooltip: l10n.deleteInfoNews,
-                    onPressed: canManage ? () => _delete(ref, news) : null,
+                    onPressed:
+                        canManage &&
+                            news.id != InfoNewsService.defaultInfoNewsId
+                        ? () => _delete(ref, news)
+                        : null,
                     icon: const Icon(Icons.delete_outline),
                   ),
                 ],
@@ -5369,8 +5389,8 @@ class _InfoNewsManagementSectionState
         .read(familyTreeProvider.notifier)
         .upsertInfoNews(
           news,
-          actorRole: auth.session?.role ?? 'viewer',
-          adminId: auth.session?.familyCode ?? '',
+          actorRole: auth.firebaseRole ?? auth.session?.role ?? 'viewer',
+          adminId: auth.firebaseUid ?? '',
         );
   }
 
@@ -5380,8 +5400,8 @@ class _InfoNewsManagementSectionState
         .read(familyTreeProvider.notifier)
         .deleteInfoNews(
           news,
-          actorRole: auth.session?.role ?? 'viewer',
-          adminId: auth.session?.familyCode ?? '',
+          actorRole: auth.firebaseRole ?? auth.session?.role ?? 'viewer',
+          adminId: auth.firebaseUid ?? '',
         );
   }
 
@@ -6417,6 +6437,7 @@ class _FamilyHonorSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final auth = ref.watch(authSessionProvider);
+    final canManage = auth.canAccessKpi;
     final honor = data.familyHonor;
     final leadership = data.familyLeadership;
     final selected = honor.patriarchPersonId.isEmpty
@@ -6567,6 +6588,9 @@ class _FamilyHonorSection extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
+                  key: ValueKey(
+                    'family-leader-${selectedLeader?.id ?? 'none'}',
+                  ),
                   initialValue: selectedLeader?.id ?? '',
                   decoration: InputDecoration(labelText: l10n.currentLeader),
                   items: [
@@ -6578,11 +6602,15 @@ class _FamilyHonorSection extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  onChanged: (value) => _saveLeadership(
-                    ref,
-                    auth,
-                    leadership.copyWith(currentLeaderPersonId: value ?? ''),
-                  ),
+                  onChanged: canManage
+                      ? (value) => _saveLeadership(
+                          ref,
+                          auth,
+                          leadership.copyWith(
+                            currentLeaderPersonId: value ?? '',
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -6763,8 +6791,8 @@ class _FamilyHonorSection extends ConsumerWidget {
         .read(familyTreeProvider.notifier)
         .updateFamilyLeadership(
           familyLeadership,
-          actorRole: auth.session?.role ?? 'viewer',
-          adminId: auth.session?.familyCode ?? '',
+          actorRole: auth.firebaseRole ?? auth.session?.role ?? 'viewer',
+          adminId: auth.firebaseUid ?? '',
         );
   }
 }

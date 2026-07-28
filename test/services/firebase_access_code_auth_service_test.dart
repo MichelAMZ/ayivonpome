@@ -62,6 +62,38 @@ void main() {
       expect(session.authMethod, 'password');
     });
 
+    test('accepte aussi le rôle superAdmin du compte admin unique', () async {
+      final client = _FakeAccessCodeAuthClient(
+        identity: const AccessCodeIdentity(
+          uid: 'uid-admin',
+          email: 'ayivonaziangbede@gmail.com',
+          role: 'admin',
+          familyId: 'ayivon',
+        ),
+        roleData: <String, dynamic>{
+          'role': 'superAdmin',
+          'familyIds': const ['ayivon'],
+          'active': true,
+        },
+      );
+      final service = FirebaseAccessCodeAuthService(
+        client: client,
+        familyId: 'ayivon',
+      );
+
+      final adminSession = await service.signInWithAdminCode('secret-admin');
+      final modificationSession = await service.signInWithAccessCode(
+        'secret-admin',
+      );
+
+      expect(adminSession.role, 'superAdmin');
+      expect(adminSession.isAdmin, isTrue);
+      expect(adminSession.authMethod, 'password');
+      expect(modificationSession.role, 'superAdmin');
+      expect(modificationSession.isEditor, isTrue);
+      expect(modificationSession.authMethod, 'accessCode');
+    });
+
     test('refuse un rôle non-admin pour le compte unique', () async {
       final client = _FakeAccessCodeAuthClient(
         identity: const AccessCodeIdentity(

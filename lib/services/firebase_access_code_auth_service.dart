@@ -269,7 +269,13 @@ class FirebaseAccessCodeAuthService {
     if (sessionExpiresAt != null && !sessionExpiresAt.isAfter(DateTime.now())) {
       return null;
     }
-    if (expectedRole != null && expectedRole != role) return null;
+    if (expectedRole == 'admin') {
+      // Le compte administrateur unique peut être configuré avec l'un des
+      // deux rôles administratifs reconnus par l'application et les règles.
+      if (!{'admin', 'superAdmin'}.contains(role)) return null;
+    } else if (expectedRole != null && expectedRole != role) {
+      return null;
+    }
 
     return FirebaseAdminSession(
       uid: uid,

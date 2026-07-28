@@ -2433,7 +2433,17 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     required String actorRole,
     required String adminId,
   }) async {
+    if (actorRole != 'superAdmin' && actorRole != 'admin') {
+      throw StateError('forbidden');
+    }
     final data = await future;
+    final leaderId = familyLeadership.currentLeaderPersonId.trim();
+    if (leaderId.isNotEmpty &&
+        !data.people.any(
+          (person) => person.id == leaderId && person.deletedAt.isEmpty,
+        )) {
+      throw StateError('family_leader_not_found');
+    }
     final previousLeaderId = data.familyLeadership.currentLeaderPersonId;
     final leaderChanged =
         previousLeaderId.isNotEmpty &&

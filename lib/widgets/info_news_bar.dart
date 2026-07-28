@@ -33,18 +33,11 @@ class _InfoNewsBarState extends ConsumerState<InfoNewsBar> {
               .where((item) => !_dismissedIds.contains(item.id))
               .toList();
     final hasPublishedNews = news.isNotEmpty;
-    final defaultMessage = _defaultMessage(
-      data?.appSettings.accessCodeContactName ?? '',
-    );
     if (news.isEmpty && data != null) {
       news.add(
-        InfoNews(
-          id: '_default_info_news',
-          title: '',
-          message: defaultMessage,
-          priority: 0,
-          isActive: true,
-        ),
+        ref
+            .watch(infoNewsServiceProvider)
+            .defaultNews(data.appSettings.accessCodeContactName),
       );
     }
     if (news.isEmpty) return const SizedBox.shrink();
@@ -84,15 +77,6 @@ class _InfoNewsBarState extends ConsumerState<InfoNewsBar> {
     if (title.isEmpty) return message;
     if (message.isEmpty) return title;
     return '$title - $message';
-  }
-
-  String _defaultMessage(String contactName) {
-    final contact = contactName.trim().isEmpty
-        ? 'Conseil de Famille'
-        : contactName.trim();
-    return 'Bienvenue ! Pour accéder aux fonctionnalités avancées '
-        '(ajout, modification, administration), demandez votre code secret '
-        'auprès du $contact.';
   }
 }
 

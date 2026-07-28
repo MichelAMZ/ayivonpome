@@ -279,6 +279,9 @@ void main() {
     expect(shell, contains('.unlockAdmin(code)'));
     expect(shell, contains('const adminDashboardScreenIndex = 7;'));
     expect(shell, contains('_index = adminDashboardScreenIndex'));
+    expect(shell, contains('_adminNavigationInProgress'));
+    expect(shell, contains('if (_adminNavigationInProgress) return;'));
+    expect(shell, contains('_adminNavigationInProgress = false;'));
     expect(authProvider, contains('Future<bool> unlockAdmin(String code)'));
     expect(authProvider, contains('return state.canAccessKpi;'));
   });

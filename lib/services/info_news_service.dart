@@ -5,6 +5,25 @@ import '../models/person.dart';
 class InfoNewsService {
   const InfoNewsService();
 
+  static const defaultInfoNewsId = '_default_info_news';
+
+  InfoNews defaultNews(String contactName) => InfoNews(
+    id: defaultInfoNewsId,
+    title: '',
+    message: defaultMessage(contactName),
+    priority: 0,
+    isActive: true,
+  );
+
+  String defaultMessage(String contactName) {
+    final contact = contactName.trim().isEmpty
+        ? 'Conseil de Famille'
+        : contactName.trim();
+    return 'Bienvenue ! Pour accéder aux fonctionnalités avancées '
+        '(ajout, modification, administration), demandez votre code secret '
+        'auprès du $contact.';
+  }
+
   List<InfoNews> activeNews(FamilyTreeData data) {
     final now = DateTime.now();
     final items = data.infoNews.where((item) {

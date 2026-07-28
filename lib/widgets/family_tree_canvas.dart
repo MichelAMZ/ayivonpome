@@ -20,6 +20,7 @@ import '../screens/person_edit_screen.dart';
 import 'members_counter_badge.dart';
 import '../services/location_filter_service.dart';
 import '../services/genealogy_layout_service.dart';
+import '../services/family_tree_branch_visibility_service.dart';
 import 'location_filter_panel.dart';
 import 'person_card.dart';
 import 'sync_status_badge.dart';
@@ -68,6 +69,8 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   Rect? _lastContentRect;
   Offset? _lastCanvasOffset;
   Map<String, Rect> _lastPersonRects = const {};
+  final _branchVisibilityService = const FamilyTreeBranchVisibilityService();
+  Set<String> _collapsedBranchMemberIds = <String>{};
 
   @override
   void initState() {
@@ -75,6 +78,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     _contextMenuPreventerDisposer = installContextMenuPreventer(
       _isPointerInsideCanvas,
     );
+    _restoreCollapsedBranches();
   }
 
   @override
@@ -104,16 +108,37 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     }
     final filter = ref.watch(treeFilterProvider);
     const filterService = LocationFilterService();
+    final branchData = _branchVisibilityService.visibleData(
+      widget.data,
+      _collapsedBranchMemberIds,
+    );
+    final membersWithDescendants = <String>{};
+    for (final person in widget.data.people) {
+      membersWithDescendants.addAll({
+        if (person.fatherId.isNotEmpty) person.fatherId,
+        if (person.motherId.isNotEmpty) person.motherId,
+        ...person.parents.where((id) => id.isNotEmpty),
+      });
+      if (person.childrenIds.isNotEmpty || person.children.isNotEmpty) {
+        membersWithDescendants.add(person.id);
+      }
+    }
+    final descendantCountsByRoot = <String, int>{
+      for (final rootId in membersWithDescendants)
+        rootId: _branchVisibilityService
+            .collectDescendantIds(rootId, widget.data.people)
+            .length,
+    };
     final filteredPeople = filterService.filterPeopleByLocation(
-      sourcePeople,
+      branchData.people,
       filter,
     );
     final highlightedIds = filter.isActive && filter.highlightResults
         ? filteredPeople.map((person) => person.id).toSet()
         : <String>{};
     final displayData = filter.isActive && filter.showOnlyResults
-        ? widget.data.copyWith(people: filteredPeople)
-        : widget.data;
+        ? branchData.copyWith(people: filteredPeople)
+        : branchData;
     final linkedTreeService = ref.watch(
       linkedFamilyTreeServiceProvider(widget.data),
     );
@@ -235,6 +260,15 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                                 hasLinkedFamilyTree: linkedTreeService
                                     .hasLinkedFamilyTree(entry.key),
                                 onOpen: () => widget.onOpenPerson(entry.key),
+                                hasDescendants: membersWithDescendants.contains(
+                                  entry.key.id,
+                                ),
+                                branchCollapsed: _collapsedBranchMemberIds
+                                    .contains(entry.key.id),
+                                descendantCount:
+                                    descendantCountsByRoot[entry.key.id] ?? 0,
+                                onToggleBranch: () =>
+                                    _toggleBranch(entry.key.id),
                               ),
                             ),
                           ),
@@ -516,6 +550,15 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
       builder: (context) => _PersonSearchDialog(people: widget.data.people),
     );
     if (selected != null) {
+      final roots = _branchVisibilityService.collapsedRootsHiding(
+        selected.id,
+        widget.data,
+        _collapsedBranchMemberIds,
+      );
+      if (roots.isNotEmpty) {
+        setState(() => _collapsedBranchMemberIds.removeAll(roots));
+        await _persistCollapsedBranches();
+      }
       widget.onOpenPerson(selected);
     }
   }
@@ -583,6 +626,12 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                 title: const Text('Ouvrir en plein écran'),
                 onTap: () => Navigator.pop(context, 'fullscreen'),
               ),
+              if (_collapsedBranchMemberIds.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.unfold_more),
+                  title: const Text('Tout afficher'),
+                  onTap: () => Navigator.pop(context, 'expandAll'),
+                ),
             ],
           ),
         ),
@@ -600,6 +649,46 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     if (selected == 'fullscreen') {
       await _openFullscreenCanvas();
     }
+    if (selected == 'expandAll') {
+      await _expandAllBranches();
+    }
+  }
+
+  String get _collapsedBranchesFamilyId {
+    final id = widget.data.mainFamilyCode.trim();
+    return id.isEmpty ? 'ayivon' : id;
+  }
+
+  Future<void> _restoreCollapsedBranches() async {
+    final restored = await _branchVisibilityService.load(
+      _collapsedBranchesFamilyId,
+    );
+    if (!mounted) return;
+    final knownIds = widget.data.people.map((person) => person.id).toSet();
+    setState(() {
+      _collapsedBranchMemberIds = restored.intersection(knownIds);
+    });
+  }
+
+  Future<void> _persistCollapsedBranches() => _branchVisibilityService.save(
+    _collapsedBranchesFamilyId,
+    _collapsedBranchMemberIds,
+  );
+
+  Future<void> _toggleBranch(String memberId) async {
+    setState(() {
+      if (!_collapsedBranchMemberIds.remove(memberId)) {
+        _collapsedBranchMemberIds.add(memberId);
+      }
+    });
+    await _persistCollapsedBranches();
+  }
+
+  Future<void> _expandAllBranches() async {
+    if (_collapsedBranchMemberIds.isEmpty) return;
+    setState(_collapsedBranchMemberIds.clear);
+    await _persistCollapsedBranches();
+    _showFeedback('Toutes les branches sont affichées');
   }
 
   void _showFeedback(String message) {
@@ -610,6 +699,15 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
 }
 
 class _TreeMetrics {
+  static const compactCardWidth = 92.0;
+  static const standardCardWidth = 100.0;
+  static const compactCardHeight = 158.0;
+  static const standardCardHeight = 168.0;
+  static const compactHorizontalGap = 14.0;
+  static const standardHorizontalGap = 20.0;
+  static const compactVerticalGap = 58.0;
+  static const standardVerticalGap = 72.0;
+
   const _TreeMetrics({
     required this.canvasPadding,
     required this.verticalGap,
@@ -630,30 +728,30 @@ class _TreeMetrics {
     if (width < 620) {
       return const _TreeMetrics(
         canvasPadding: 12,
-        verticalGap: 54,
-        cardGap: 12,
-        spouseGap: 12,
-        cardWidth: 310,
-        cardHeight: 122,
+        verticalGap: compactVerticalGap,
+        cardGap: compactHorizontalGap,
+        spouseGap: compactHorizontalGap,
+        cardWidth: compactCardWidth,
+        cardHeight: compactCardHeight,
       );
     }
     if (width < 1000) {
       return const _TreeMetrics(
         canvasPadding: 16,
-        verticalGap: 68,
-        cardGap: 18,
-        spouseGap: 18,
-        cardWidth: 360,
-        cardHeight: 126,
+        verticalGap: standardVerticalGap,
+        cardGap: standardHorizontalGap,
+        spouseGap: standardHorizontalGap,
+        cardWidth: standardCardWidth,
+        cardHeight: standardCardHeight,
       );
     }
     return const _TreeMetrics(
       canvasPadding: 24,
-      verticalGap: 82,
-      cardGap: 32,
-      spouseGap: 44,
-      cardWidth: 430,
-      cardHeight: 132,
+      verticalGap: standardVerticalGap,
+      cardGap: standardHorizontalGap,
+      spouseGap: 24,
+      cardWidth: standardCardWidth,
+      cardHeight: standardCardHeight,
     );
   }
 }
@@ -1021,28 +1119,37 @@ class _MarriageMarkerData {
 class _TreeConnectorPainter extends CustomPainter {
   _TreeConnectorPainter(this.layout, this.offset);
 
+  static const _connectorStrokeWidth = 4.0;
+
   final _TreeLayout layout;
   final Offset offset;
 
   @override
   void paint(Canvas canvas, Size size) {
     final connector = Paint()
-      ..color = const Color(0xFF92A78D)
-      ..strokeWidth = 1.35
+      ..color = const Color(0xFF6F8F68)
+      ..strokeWidth = _connectorStrokeWidth
       ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
     final marriage = Paint()
-      ..color = const Color(0xFFB9C4B4)
-      ..strokeWidth = 1.25
-      ..strokeCap = StrokeCap.round;
+      ..color = const Color(0xFF899D83)
+      ..strokeWidth = _connectorStrokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
     final divorcedMarriage = Paint()
-      ..color = const Color(0xFFE5A6AE)
-      ..strokeWidth = 1.25
-      ..strokeCap = StrokeCap.round;
+      ..color = const Color(0xFFD64D61)
+      ..strokeWidth = _connectorStrokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
     final traditionalMarriage = Paint()
-      ..color = const Color(0xFFE1A928)
-      ..strokeWidth = 1.7
-      ..strokeCap = StrokeCap.round;
+      ..color = const Color(0xFFC99000)
+      ..strokeWidth = _connectorStrokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
 
     for (final marker in layout.marriageMarkers) {
       final start = offset + Offset(marker.center.dx - 30, marker.center.dy);
@@ -1050,7 +1157,7 @@ class _TreeConnectorPainter extends CustomPainter {
       if (marker.status == 'divorced') {
         _drawDashedLine(canvas, start, end, divorcedMarriage);
       } else if (marker.marriageType == 'traditional') {
-        canvas.drawLine(start, end, traditionalMarriage);
+        _drawDashedLine(canvas, start, end, traditionalMarriage);
       } else {
         canvas.drawLine(start, end, marriage);
       }
@@ -1058,9 +1165,10 @@ class _TreeConnectorPainter extends CustomPainter {
 
     for (final link in layout.parentLinks) {
       final branchConnector = Paint()
-        ..color = link.connectorColor.withValues(alpha: 0.72)
+        ..color = link.connectorColor.withValues(alpha: 0.94)
         ..strokeWidth = connector.strokeWidth
         ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke;
       _drawFamilyUnitConnectors(canvas, link, branchConnector);
     }
@@ -1124,8 +1232,8 @@ class _TreeConnectorPainter extends CustomPainter {
   }
 
   void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
-    const dashWidth = 6.0;
-    const dashGap = 4.0;
+    const dashWidth = 12.0;
+    const dashGap = 6.0;
     final distance = (end - start).distance;
     final direction = (end - start) / distance;
     var current = 0.0;
