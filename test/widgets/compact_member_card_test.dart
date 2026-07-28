@@ -152,8 +152,11 @@ void main() {
     final toggle = find.byKey(const ValueKey('branch-toggle-parent'));
     expect(toggle, findsOneWidget);
     expect(find.text('8'), findsOneWidget);
-    expect(find.byTooltip('Afficher les descendants'), findsOneWidget);
+    expect(find.byTooltip('Réafficher les descendants'), findsOneWidget);
     expect(tester.getSize(toggle), const Size(44, 44));
+    final toggleTop = tester.getTopLeft(toggle);
+    final menuTop = tester.getTopLeft(find.byTooltip('Menu'));
+    expect((toggleTop.dy - menuTop.dy).abs(), lessThanOrEqualTo(2));
 
     await tester.tap(toggle);
     expect(toggled, isTrue);

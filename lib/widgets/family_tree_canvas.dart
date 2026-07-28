@@ -26,6 +26,45 @@ import 'person_card.dart';
 import 'sync_status_badge.dart';
 import 'tutorial_floating_button.dart';
 
+bool shouldRecenterTreeAfterInitialDataUpdate({
+  required FamilyTreeData oldData,
+  required FamilyTreeData newData,
+  required bool hasAlreadyRecentered,
+}) {
+  if (hasAlreadyRecentered) return false;
+  return _treeLayoutFingerprint(oldData) != _treeLayoutFingerprint(newData);
+}
+
+String _treeLayoutFingerprint(FamilyTreeData data) {
+  final people = [...data.people]..sort((a, b) => a.id.compareTo(b.id));
+  return people
+      .map((person) {
+        final parents = {...person.parents}.toList()..sort();
+        final children = {...person.childrenIds, ...person.children}.toList()
+          ..sort();
+        return [
+          person.id,
+          person.fatherId,
+          person.motherId,
+          parents.join(','),
+          children.join(','),
+          '${person.generation}',
+        ].join('|');
+      })
+      .join(';');
+}
+
+(double, double) familyConnectorHorizontalSpan({
+  required double parentX,
+  required Iterable<double> childXs,
+}) {
+  final positions = childXs.toList();
+  if (positions.isEmpty) return (parentX, parentX);
+  final childMinX = positions.reduce(math.min);
+  final childMaxX = positions.reduce(math.max);
+  return (math.min(parentX, childMinX), math.max(parentX, childMaxX));
+}
+
 class FamilyTreeCanvas extends ConsumerStatefulWidget {
   const FamilyTreeCanvas({
     super.key,
@@ -61,6 +100,8 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   ContextMenuPreventerDisposer? _contextMenuPreventerDisposer;
   var _scale = 1.0;
   var _needsInitialView = true;
+  var _hasRecenteredAfterInitialDataUpdate = false;
+  var _hasUserInteractedWithView = false;
   var _isInteracting = false;
   var _hasPendingViewportCenter = false;
   Size? _lastViewport;
@@ -91,6 +132,15 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   @override
   void didUpdateWidget(covariant FamilyTreeCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!_hasUserInteractedWithView &&
+        shouldRecenterTreeAfterInitialDataUpdate(
+          oldData: oldWidget.data,
+          newData: widget.data,
+          hasAlreadyRecentered: _hasRecenteredAfterInitialDataUpdate,
+        )) {
+      _hasRecenteredAfterInitialDataUpdate = true;
+      _needsInitialView = true;
+    }
     if (oldWidget.resetToken != widget.resetToken &&
         widget.data.appSettings.treeSettings.resetViewOnStartup) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -194,7 +244,10 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
                 child: CustomPaint(painter: _TreeGridPainter()),
               ),
               Listener(
-                onPointerDown: (_) => _isInteracting = true,
+                onPointerDown: (_) {
+                  _isInteracting = true;
+                  _hasUserInteractedWithView = true;
+                },
                 onPointerUp: (_) => _endInteraction(),
                 onPointerCancel: (_) => _endInteraction(),
                 onPointerSignal: _handlePointerSignal,
@@ -352,6 +405,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   }
 
   void _applyScale(double factor) {
+    _hasUserInteractedWithView = true;
     final settings = widget.data.appSettings.treeSettings;
     final next = (_scale * factor).clamp(settings.minZoom, settings.maxZoom);
     setState(() => _scale = next.toDouble());
@@ -367,6 +421,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   }
 
   void _resetView() {
+    _hasUserInteractedWithView = true;
     final zoom = _initialZoomForViewport(widget.data.appSettings.treeSettings);
     setState(() => _scale = zoom);
     _controller.value = _centeredMatrix(zoom);
@@ -375,6 +430,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   }
 
   void _fitTreeView() {
+    _hasUserInteractedWithView = true;
     final viewport = _lastViewport;
     final layoutSize = _lastLayoutSize;
     if (viewport == null || layoutSize == null) {
@@ -407,11 +463,17 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
     _needsInitialView = false;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      final latestViewport = _lastViewport ?? viewport;
+      final latestContentRect = _lastContentRect ?? contentRect;
       final settings = widget.data.appSettings.treeSettings;
-      final zoom = _initialZoomForViewport(settings, viewport);
+      final zoom = _initialZoomForViewport(settings, latestViewport);
       setState(() => _scale = zoom);
-      _controller.value = _centeredMatrix(zoom, viewport, contentRect);
-      _lastCenteredViewport = viewport;
+      _controller.value = _centeredMatrix(
+        zoom,
+        latestViewport,
+        latestContentRect,
+      );
+      _lastCenteredViewport = latestViewport;
     });
   }
 
@@ -505,6 +567,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
 
   void _handlePointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
+    _hasUserInteractedWithView = true;
     final keys = HardwareKeyboard.instance.logicalKeysPressed;
     final shiftPressed =
         keys.contains(LogicalKeyboardKey.shiftLeft) ||
@@ -581,6 +644,7 @@ class _FamilyTreeCanvasState extends ConsumerState<FamilyTreeCanvas> {
   }
 
   void centerTreeOnPerson(Person person) {
+    _hasUserInteractedWithView = true;
     final viewport = _lastViewport;
     final offset = _lastCanvasOffset;
     final rect = _lastPersonRects[person.id];
@@ -1219,8 +1283,10 @@ class _TreeConnectorPainter extends CustomPainter {
       return;
     }
 
-    final minChildX = childTops.map((point) => point.dx).reduce(math.min);
-    final maxChildX = childTops.map((point) => point.dx).reduce(math.max);
+    final (minChildX, maxChildX) = familyConnectorHorizontalSpan(
+      parentX: parentAnchor.dx,
+      childXs: childTops.map((point) => point.dx),
+    );
     canvas.drawLine(
       Offset(minChildX, elbowY),
       Offset(maxChildX, elbowY),

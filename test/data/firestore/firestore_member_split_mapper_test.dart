@@ -31,6 +31,7 @@ void main() {
     gender: 'male',
     birthDate: '1950-04-12',
     birthCity: 'Lomé',
+    familyCode: 'AYIVON',
     fatherId: 'father_001',
     spouseIds: ['spouse_001'],
     currentAddress: 'Adresse complète',
@@ -52,6 +53,7 @@ void main() {
       expect(data['familyId'], 'ayivon');
       expect(data['birthYear'], 1950);
       expect(data['birthCity'], 'Lomé');
+      expect(data['familyCode'], 'AYIVON');
       expect(data['schemaVersion'], 2);
       expect(data.keys.toSet().intersection(sensitiveKeys), isEmpty);
     },
@@ -108,12 +110,14 @@ void main() {
       'firstName': 'Koffi',
       'lastName': 'Ayivon',
       'birthYear': 1950,
+      'familyCode': 'AYIVON',
       'email': 'injected@example.test',
       'privateNotes': 'injected',
       'ownerUid': 'injected-owner',
     }, documentId: 'member_001');
 
     expect(mapped['birthDate'], '1950');
+    expect(mapped['familyCode'], 'AYIVON');
     expect(
       mapped.keys.toSet().intersection(
         sensitiveKeys.difference(const {'birthDate'}),

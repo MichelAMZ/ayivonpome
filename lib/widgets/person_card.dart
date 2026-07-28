@@ -590,8 +590,8 @@ class _PersonCardState extends ConsumerState<PersonCard> {
                   ),
                 if (widget.hasDescendants && widget.onToggleBranch != null)
                   Positioned(
-                    left: -7,
-                    top: -7,
+                    left: 4,
+                    top: 0,
                     child: _BranchToggleBadge(
                       key: ValueKey('branch-toggle-${widget.person.id}'),
                       collapsed: widget.branchCollapsed,
@@ -601,8 +601,8 @@ class _PersonCardState extends ConsumerState<PersonCard> {
                     ),
                   ),
                 Positioned(
-                  right: -7,
-                  top: -7,
+                  right: 0,
+                  top: 0,
                   child: Builder(
                     builder: (buttonContext) => IconButton(
                       tooltip: 'Menu',
@@ -1234,7 +1234,7 @@ class _BranchToggleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actionLabel = collapsed
-        ? 'Afficher les descendants'
+        ? 'Réafficher les descendants'
         : 'Masquer les descendants';
     return Semantics(
       button: true,
@@ -1244,30 +1244,33 @@ class _BranchToggleBadge extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 onTap: onPressed,
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(15),
+                hoverColor: const Color(0x14315B22),
+                splashColor: const Color(0x1F315B22),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
                   width: 44,
-                  height: 26,
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  height: 30,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   decoration: BoxDecoration(
                     color: collapsed
-                        ? const Color(0xFFF1F5EA)
-                        : const Color(0xFFF8FAF4),
-                    borderRadius: BorderRadius.circular(9),
+                        ? const Color(0xFFF2F5EE)
+                        : Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(15),
                     border: Border.all(
-                      color: borderColor.withValues(alpha: 0.72),
+                      color: borderColor.withValues(alpha: 0.32),
                     ),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x12000000),
-                        blurRadius: 4,
+                        color: Color(0x0D000000),
+                        blurRadius: 3,
                         offset: Offset(0, 1),
                       ),
                     ],
@@ -1278,17 +1281,17 @@ class _BranchToggleBadge extends StatelessWidget {
                     children: [
                       AnimatedRotation(
                         turns: collapsed ? 0 : 0.25,
-                        duration: const Duration(milliseconds: 200),
+                        duration: const Duration(milliseconds: 180),
                         curve: Curves.easeOutCubic,
                         child: const Icon(
                           Icons.chevron_right,
-                          size: 15,
+                          size: 16,
                           color: Color(0xFF315B22),
                         ),
                       ),
-                      const SizedBox(width: 1),
+                      const SizedBox(width: 2),
                       SizedBox(
-                        width: 20,
+                        width: 14,
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: AnimatedSwitcher(
@@ -1299,9 +1302,9 @@ class _BranchToggleBadge extends StatelessWidget {
                               maxLines: 1,
                               style: const TextStyle(
                                 color: Color(0xFF315B22),
-                                fontSize: 10,
+                                fontSize: 12,
                                 height: 1,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),

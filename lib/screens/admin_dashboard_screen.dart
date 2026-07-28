@@ -697,15 +697,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   List<Widget> _settingsChildren(FamilyTreeData data) {
-    return [
-      _ApplicationSettingsSection(data: data),
-      const SizedBox(height: 24),
-      _InfoNewsManagementSection(data: data),
-      const SizedBox(height: 24),
-      _FamilyAnnouncementSection(data: data),
-      const SizedBox(height: 24),
-      _FamilyHonorSection(data: data),
-    ];
+    return [_AdminSettingsPage(data: data)];
   }
 
   List<Widget> _securityChildren(
@@ -2960,45 +2952,144 @@ String _friendlyPendingError(PendingSyncItem item) {
   };
 }
 
-class _ApplicationSettingsSection extends ConsumerWidget {
-  const _ApplicationSettingsSection({required this.data});
+class _AdminSettingsPage extends StatelessWidget {
+  const _AdminSettingsPage({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AdminSettingsHeader(data: data),
+        const SizedBox(height: 20),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final twoColumns = constraints.maxWidth >= 900;
+            final itemWidth = twoColumns
+                ? (constraints.maxWidth - 18) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: 18,
+              runSpacing: 18,
+              crossAxisAlignment: WrapCrossAlignment.start,
+              children: [
+                SizedBox(
+                  width: itemWidth,
+                  child: _ApplicationSettingsSection(data: data),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: _InterfaceDisplaySettingsSection(data: data),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: _VisualIdentitySettingsSection(data: data),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: _FamilyAnnouncementSection(data: data),
+                ),
+                SizedBox(
+                  width: itemWidth,
+                  child: _InfoNewsManagementSection(data: data),
+                ),
+                SizedBox(
+                  width: constraints.maxWidth,
+                  child: _FamilyHonorSection(data: data),
+                ),
+                SizedBox(
+                  width: constraints.maxWidth,
+                  child: _HistoryMaintenanceSettingsSection(data: data),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class AdminSettingsHeader extends ConsumerWidget {
+  const AdminSettingsHeader({super.key, required this.data});
 
   final FamilyTreeData data;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final auth = ref.watch(authSessionProvider);
-    final settings = data.appSettings;
-    final subtitle = settings.applicationSubtitle.trim();
-    final canEdit = auth.isAdmin;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        LayoutBuilder(
+    final canEdit = ref.watch(authSessionProvider).isAdmin;
+    final pending = data.pendingSyncQueue
+        .where((item) => item.status != 'synced' && item.status != 'resolved')
+        .length;
+    return Semantics(
+      container: true,
+      header: true,
+      label: 'Paramètres de l’application',
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFDDE4D6)),
+        ),
+        child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 760;
-            final title = Text(
-              l10n.applicationSettings,
-              maxLines: compact ? 2 : 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleLarge,
+            final compact = constraints.maxWidth < 720;
+            final title = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Paramètres de l’application',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1F3D2A),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Configurez l’identité, l’affichage et les informations de la famille.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            );
+            final status = Semantics(
+              label: pending == 0
+                  ? 'Synchronisé'
+                  : '$pending sauvegardes en attente',
+              child: Chip(
+                avatar: Icon(
+                  pending == 0
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_queue_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  pending == 0 ? 'Synchronisé' : '$pending en attente',
+                ),
+                backgroundColor: pending == 0
+                    ? const Color(0xFFEAF5E4)
+                    : const Color(0xFFFFF1D6),
+                side: BorderSide.none,
+              ),
             );
             final actions = Wrap(
               spacing: 8,
               runSpacing: 8,
+              direction: compact ? Axis.vertical : Axis.horizontal,
               children: [
                 OutlinedButton.icon(
                   onPressed: canEdit ? () => _edit(context, ref) : null,
                   icon: const Icon(Icons.edit_outlined),
-                  label: Text(l10n.editApplicationTitle),
+                  label: const Text('Modifier le titre'),
                 ),
                 OutlinedButton.icon(
                   onPressed: canEdit
                       ? () => _recalculateGenerations(context, ref)
                       : null,
                   icon: const Icon(Icons.family_restroom_outlined),
-                  label: Text(l10n.recalculateGenerations),
+                  label: const Text('Recalculer les générations'),
                 ),
                 FilledButton.icon(
                   onPressed: canEdit ? () => _reloadData(context, ref) : null,
@@ -3010,118 +3101,40 @@ class _ApplicationSettingsSection extends ConsumerWidget {
             if (compact) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [title, const SizedBox(height: 10), actions],
+                children: [
+                  title,
+                  const SizedBox(height: 12),
+                  status,
+                  const SizedBox(height: 12),
+                  actions,
+                ],
               );
             }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: title),
-                const SizedBox(width: 12),
-                Flexible(child: actions),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: title),
+                    const SizedBox(width: 16),
+                    status,
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: actions,
+                ),
               ],
             );
           },
         ),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.title_outlined),
-                  title: Text(l10n.applicationTitle),
-                  subtitle: Text(settings.applicationTitle),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.short_text_outlined),
-                  title: Text(l10n.applicationSubtitle),
-                  subtitle: Text(subtitle.isEmpty ? '-' : subtitle),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.home_work_outlined),
-                  title: Text(l10n.officialFamilyName),
-                  subtitle: Text(
-                    settings.officialFamilyName.trim().isEmpty
-                        ? '-'
-                        : settings.officialFamilyName.trim(),
-                  ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.zoom_out_map_outlined),
-                  title: Text(l10n.treeInitialZoom),
-                  subtitle: Text(
-                    '${(settings.treeSettings.initialZoom * 100).round()}%',
-                  ),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.history_toggle_off_outlined),
-                  value: settings.treeSettings.rememberLastZoom,
-                  onChanged: null,
-                  title: Text(l10n.rememberLastZoom),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.groups_2_outlined),
-                  value: settings.treeSettings.showMembersCounter,
-                  onChanged: null,
-                  title: Text(l10n.showMembersCounter),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.family_restroom_outlined),
-                  value: settings.treeSettings.showGenerationBadges,
-                  onChanged: null,
-                  title: Text(l10n.showGenerationBadges),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.school_outlined),
-                  value: settings.tutorialSettings.showFloatingHelpButton,
-                  onChanged: null,
-                  title: Text(l10n.showTutorial),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.auto_stories_outlined),
-                  value: settings.tutorialSettings.showTutorialOnFirstLaunch,
-                  onChanged: null,
-                  title: Text(l10n.firstLaunchTutorial),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.palette_outlined),
-            title: Text(l10n.visualIdentity),
-            subtitle: Text(l10n.familyLogo),
-            trailing: const Icon(Icons.chevron_right),
-            enabled: canEdit,
-            onTap: canEdit
-                ? () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const BrandingSettingsScreen(),
-                    ),
-                  )
-                : null,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
   Future<void> _edit(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context);
     final next = await showDialog<AppSettings>(
       context: context,
       builder: (context) =>
@@ -3136,10 +3149,6 @@ class _ApplicationSettingsSection extends ConsumerWidget {
           actorRole: auth.session?.role ?? 'viewer',
           adminId: auth.session?.familyCode ?? '',
         );
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(l10n.applicationSettings)));
   }
 
   Future<void> _recalculateGenerations(
@@ -3165,6 +3174,356 @@ class _ApplicationSettingsSection extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Données rechargées et arbre recentré')),
+    );
+  }
+}
+
+class AdminSettingsSectionCard extends StatelessWidget {
+  const AdminSettingsSectionCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.child,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFFDDE4D6)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF2E4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: const Color(0xFF4D742B)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        description,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+              ],
+            ),
+            const Divider(height: 28),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AdminSettingsRow extends StatelessWidget {
+  const AdminSettingsRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$title : $value',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: const Color(0xFF55705E)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title)),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AdminSettingsSwitchRow extends StatelessWidget {
+  const AdminSettingsSwitchRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      toggled: value,
+      enabled: false,
+      label: title,
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        secondary: Icon(icon, size: 20, color: const Color(0xFF55705E)),
+        value: value,
+        onChanged: null,
+        title: Text(title),
+      ),
+    );
+  }
+}
+
+class _VisualIdentitySettingsSection extends ConsumerWidget {
+  const _VisualIdentitySettingsSection({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final canEdit = ref.watch(authSessionProvider).isAdmin;
+    final branding = data.appSettings.branding;
+    return AdminSettingsSectionCard(
+      icon: Icons.palette_outlined,
+      title: l10n.visualIdentity,
+      description: 'Logo familial et présentation de la marque AYIVON.',
+      trailing: Tooltip(
+        message: l10n.visualIdentity,
+        child: IconButton(
+          onPressed: canEdit
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const BrandingSettingsScreen(),
+                  ),
+                )
+              : null,
+          icon: const Icon(Icons.edit_outlined),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F7F0),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.account_tree_outlined,
+              size: 32,
+              color: Color(0xFF4D742B),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.familyLogo,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  branding.logoFileName.trim().isEmpty
+                      ? 'Logo par défaut'
+                      : branding.logoFileName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InterfaceDisplaySettingsSection extends StatelessWidget {
+  const _InterfaceDisplaySettingsSection({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final settings = data.appSettings;
+    return AdminSettingsSectionCard(
+      icon: Icons.dashboard_customize_outlined,
+      title: 'Interface et affichage',
+      description: 'Personnalisez les éléments visibles dans l’application.',
+      child: Column(
+        children: [
+          AdminSettingsRow(
+            icon: Icons.zoom_out_map_outlined,
+            title: l10n.treeInitialZoom,
+            value: '${(settings.treeSettings.initialZoom * 100).round()}%',
+          ),
+          AdminSettingsSwitchRow(
+            icon: Icons.history_toggle_off_outlined,
+            title: l10n.rememberLastZoom,
+            value: settings.treeSettings.rememberLastZoom,
+          ),
+          AdminSettingsSwitchRow(
+            icon: Icons.groups_2_outlined,
+            title: l10n.showMembersCounter,
+            value: settings.treeSettings.showMembersCounter,
+          ),
+          AdminSettingsSwitchRow(
+            icon: Icons.family_restroom_outlined,
+            title: l10n.showGenerationBadges,
+            value: settings.treeSettings.showGenerationBadges,
+          ),
+          AdminSettingsSwitchRow(
+            icon: Icons.school_outlined,
+            title: l10n.showTutorial,
+            value: settings.tutorialSettings.showFloatingHelpButton,
+          ),
+          AdminSettingsSwitchRow(
+            icon: Icons.auto_stories_outlined,
+            title: l10n.firstLaunchTutorial,
+            value: settings.tutorialSettings.showTutorialOnFirstLaunch,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryMaintenanceSettingsSection extends StatelessWidget {
+  const _HistoryMaintenanceSettingsSection({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminSettingsSectionCard(
+      icon: Icons.history_outlined,
+      title: 'Historique et maintenance',
+      description:
+          'Suivez les historiques conservés et leur nettoyage automatique.',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final items = [
+            AdminSettingsRow(
+              icon: Icons.campaign_outlined,
+              title: 'Envois d’informations',
+              value: '${data.infoNewsSendLogs.length}',
+            ),
+            AdminSettingsRow(
+              icon: Icons.celebration_outlined,
+              title: 'Annonces familiales',
+              value: '${data.familyAnnouncementHistory.length}',
+            ),
+            AdminSettingsRow(
+              icon: Icons.workspace_premium_outlined,
+              title: 'Chronologie des chefs',
+              value: '${data.familyLeadershipHistory.length}',
+            ),
+          ];
+          if (compact) {
+            return Column(children: items);
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                Expanded(child: items[index]),
+                if (index < items.length - 1) const VerticalDivider(width: 24),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ApplicationSettingsSection extends ConsumerWidget {
+  const _ApplicationSettingsSection({required this.data});
+
+  final FamilyTreeData data;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final settings = data.appSettings;
+    final subtitle = settings.applicationSubtitle.trim();
+    return AdminSettingsSectionCard(
+      icon: Icons.tune_outlined,
+      title: 'Application',
+      description: 'Identité, affichage et comportement général.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AdminSettingsRow(
+            icon: Icons.title_outlined,
+            title: l10n.applicationTitle,
+            value: settings.applicationTitle,
+          ),
+          AdminSettingsRow(
+            icon: Icons.short_text_outlined,
+            title: l10n.applicationSubtitle,
+            value: subtitle.isEmpty ? '-' : subtitle,
+          ),
+          AdminSettingsRow(
+            icon: Icons.home_work_outlined,
+            title: l10n.officialFamilyName,
+            value: settings.officialFamilyName.trim().isEmpty
+                ? '-'
+                : settings.officialFamilyName.trim(),
+          ),
+        ],
+      ),
     );
   }
 }
