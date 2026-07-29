@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:ayivonpome/app.dart';
 import 'package:ayivonpome/core/logging/app_logger.dart';
 import 'package:ayivonpome/models/family_tree_data.dart';
+import 'package:ayivonpome/models/sync_state.dart';
 import 'package:ayivonpome/providers/family_tree_provider.dart';
 import 'package:ayivonpome/screens/tree_screen.dart';
+import 'package:ayivonpome/widgets/sync_status_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,9 +52,49 @@ void main() {
     expect(find.textContaining('Code d’assistance : AYV-UI-'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('sync status badge fits its actual narrow parent', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          familyTreeProvider.overrideWith(_AuthorizationRequiredController.new),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topRight,
+              child: SizedBox(width: 150, child: SyncStatusBadge()),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Autorisation requise'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _LoadingFamilyTreeController extends FamilyTreeController {
   @override
   Future<FamilyTreeData> build() => Completer<FamilyTreeData>().future;
+}
+
+class _AuthorizationRequiredController extends FamilyTreeController {
+  @override
+  Future<FamilyTreeData> build() async => const FamilyTreeData(
+    pendingSyncQueue: [
+      PendingSyncItem(
+        id: 'operation-1',
+        entityType: 'person',
+        entityId: 'person-1',
+        action: 'update',
+        status: 'authorizationRequired',
+        lastErrorCode: 'permission-denied',
+      ),
+    ],
+  );
 }

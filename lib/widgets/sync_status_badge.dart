@@ -104,49 +104,60 @@ class SyncStatusBadge extends ConsumerWidget {
           };
     final displayLabel = label;
 
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        child: Tooltip(
-          message: totalOpenCount == 0
-              ? label
-              : needsResolutionCount > 0
-              ? '$pendingCount en attente - $needsResolutionCount autorisation(s) requise(s)'
-              : label,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              border: Border.all(color: color.withValues(alpha: 0.28)),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: color),
-                  const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.sizeOf(context).width - 82,
-                    ),
-                    child: Text(
-                      displayLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const horizontalSpace = 70.0;
+        final availableLabelWidth = (constraints.maxWidth - horizontalSpace)
+            .clamp(0.0, double.infinity);
+        return Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Tooltip(
+              message: totalOpenCount == 0
+                  ? label
+                  : needsResolutionCount > 0
+                  ? '$pendingCount en attente - $needsResolutionCount autorisation(s) requise(s)'
+                  : label,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  border: Border.all(color: color.withValues(alpha: 0.28)),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 16, color: color),
+                      const SizedBox(width: 6),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: availableLabelWidth,
+                        ),
+                        child: Text(
+                          displayLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: color,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
