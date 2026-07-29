@@ -35,13 +35,13 @@ class JsonFamilyRepository implements FamilyRepository {
   Future<FamilyTreeData> loadFamilyTree() async {
     final raw = await storage.readRaw();
     if (raw == null || raw.trim().isEmpty) {
-      return FamilyTreeData.demo();
+      return const FamilyTreeData();
     }
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) {
         AppLogger.warning('Invalid local family cache type ignored');
-        return FamilyTreeData.demo();
+        return const FamilyTreeData();
       }
       return FamilyTreeData.fromJson(decoded);
     } catch (error, stackTrace) {
@@ -50,7 +50,7 @@ class JsonFamilyRepository implements FamilyRepository {
         error: error,
         stackTrace: stackTrace,
       );
-      return FamilyTreeData.demo();
+      return const FamilyTreeData();
     }
   }
 

@@ -266,10 +266,9 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     var raw = _selectNewestJson(storedRaw, sourceRaw);
     debugPrint('Family JSON reloaded');
     if (raw == null || raw.trim().isEmpty) {
-      final demo = _withFreshMetadata(FamilyTreeData.demo());
-      await storage.writeRaw(_encode(demo));
+      const fallback = FamilyTreeData();
       return recomputeTreeLayout(
-        recalculateGenerationsForStartup(rebuildRelationshipGraph(demo)),
+        recalculateGenerationsForStartup(rebuildRelationshipGraph(fallback)),
       );
     }
     var loaded = _tryDecodeFamilyTree(raw);
@@ -281,10 +280,9 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         raw = sourceRaw;
         await storage.writeRaw(sourceRaw);
       } else {
-        final demo = _withFreshMetadata(FamilyTreeData.demo());
-        await storage.writeRaw(_encode(demo));
+        const fallback = FamilyTreeData();
         return recomputeTreeLayout(
-          recalculateGenerationsForStartup(rebuildRelationshipGraph(demo)),
+          recalculateGenerationsForStartup(rebuildRelationshipGraph(fallback)),
         );
       }
     }
@@ -1406,6 +1404,51 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       codes[index] = familyCode;
     }
     await save(data.copyWith(familyCodes: codes));
+  }
+
+  Future<void> deleteFamilyCode(String familyCode) async {
+    final data = await future;
+    final normalized = familyCode.trim().toUpperCase();
+    if (normalized.isEmpty ||
+        normalized == data.mainFamilyCode.trim().toUpperCase()) {
+      throw StateError('main_family_cannot_be_deleted');
+    }
+    final familyCodeEntry = data.familyCodes
+        .where((item) => item.code.trim().toUpperCase() == normalized)
+        .firstOrNull;
+    if (familyCodeEntry == null) return;
+    if (familyCodeEntry.role == 'owner') {
+      throw StateError('main_family_cannot_be_deleted');
+    }
+
+    final removedFamilyIds = data.families
+        .where((family) => family.code.trim().toUpperCase() == normalized)
+        .map((family) => family.id)
+        .toSet();
+    await createBackup();
+    await save(
+      data.copyWith(
+        familyCodes: data.familyCodes
+            .where((item) => item.code.trim().toUpperCase() != normalized)
+            .toList(growable: false),
+        families: data.families
+            .where((family) => !removedFamilyIds.contains(family.id))
+            .toList(growable: false),
+        familyTreeLinks: data.familyTreeLinks
+            .where(
+              (link) =>
+                  !removedFamilyIds.contains(link.sourceFamilyId) &&
+                  !removedFamilyIds.contains(link.targetFamilyId),
+            )
+            .toList(growable: false),
+        familyLinks: data.familyLinks
+            .where(
+              (link) =>
+                  link.linkedFamilyCode.trim().toUpperCase() != normalized,
+            )
+            .toList(growable: false),
+      ),
+    );
   }
 
   Future<void> updateFamilyGeneralHistory(
@@ -2615,6 +2658,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   String? _selectNewestJson(String? storedRaw, String? sourceRaw) {
     if (storedRaw == null || storedRaw.trim().isEmpty) return sourceRaw;
     if (sourceRaw == null || sourceRaw.trim().isEmpty) return storedRaw;
+    if (_isLegacyDemoFallback(storedRaw)) return sourceRaw;
     final storedDate = _lastUpdatedFromRaw(storedRaw);
     final sourceDate = _lastUpdatedFromRaw(sourceRaw);
     if (sourceDate == null) return storedRaw;
@@ -2630,6 +2674,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     if (!sourceSelected || storedRaw == null || storedRaw.trim().isEmpty) {
       return loaded;
     }
+    if (_isLegacyDemoFallback(storedRaw)) return loaded;
     try {
       final stored = FamilyTreeData.fromJson(
         jsonDecode(storedRaw) as Map<String, dynamic>,
@@ -2656,6 +2701,30 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       );
     } catch (_) {
       return loaded;
+    }
+  }
+
+  bool _isLegacyDemoFallback(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return false;
+      final codes = (decoded['familyCodes'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => '${item['code']}'.trim().toUpperCase())
+          .toSet();
+      final familyIds = (decoded['families'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => '${item['id']}'.trim())
+          .toSet();
+      final treeLinkIds = (decoded['familyTreeLinks'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => '${item['id']}'.trim())
+          .toSet();
+      return codes.contains('KOFFI2026') &&
+          familyIds.contains('family-levonvi') &&
+          treeLinkIds.contains('tree-link-001');
+    } catch (_) {
+      return false;
     }
   }
 
@@ -2723,11 +2792,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
 
     visit(value);
     return latest;
-  }
-
-  FamilyTreeData _withFreshMetadata(FamilyTreeData data) {
-    final now = DateTime.now().toIso8601String();
-    return data.copyWith(lastUpdatedAt: now, dataVersion: now.substring(0, 10));
   }
 
   String _encode(FamilyTreeData data) =>

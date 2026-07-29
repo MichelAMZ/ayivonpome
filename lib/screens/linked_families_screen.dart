@@ -38,7 +38,17 @@ class LinkedFamiliesScreen extends ConsumerWidget {
               (family) => Card(
                 child: ListTile(
                   leading: const Icon(Icons.groups),
-                  title: Text(family.familyName),
+                  title: Row(
+                    children: [
+                      Expanded(child: Text(family.familyName)),
+                      if (auth.isAdmin && family.role != 'owner')
+                        IconButton(
+                          tooltip: l10n.delete,
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _confirmDelete(context, ref, family),
+                        ),
+                    ],
+                  ),
                   subtitle: Text(
                     '${family.code} · ${_label(l10n, family.role)}',
                   ),
@@ -133,6 +143,33 @@ class LinkedFamiliesScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    FamilyCode family,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.confirmDelete),
+        content: Text('${family.familyName} (${family.code})'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(familyTreeProvider.notifier).deleteFamilyCode(family.code);
   }
 
   String _label(AppLocalizations l10n, String value) => switch (value) {
