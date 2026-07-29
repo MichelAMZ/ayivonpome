@@ -135,66 +135,73 @@ class Person {
   }
 
   factory Person.fromJson(Map<String, dynamic> json) => Person(
-    id: json['id'] as String? ?? '',
-    firstName: json['firstName'] as String? ?? '',
-    lastName: json['lastName'] as String? ?? '',
-    birthLastName: json['birthLastName'] as String? ?? '',
-    originalLastName: json['originalLastName'] as String? ?? '',
-    gender: json['gender'] as String? ?? '',
-    birthDate: json['birthDate'] as String? ?? '',
-    birthPlace: json['birthPlace'] as String? ?? '',
-    deathDate: json['deathDate'] as String? ?? '',
-    deathPlace: json['deathPlace'] as String? ?? '',
-    publicMapLocation: json['publicMapLocation'] as String? ?? '',
-    currentAddress: json['currentAddress'] as String? ?? '',
-    currentCity: json['currentCity'] as String? ?? '',
-    currentRegion: json['currentRegion'] as String? ?? '',
-    currentCountry: json['currentCountry'] as String? ?? '',
-    birthCity: json['birthCity'] as String? ?? '',
-    birthCountry: json['birthCountry'] as String? ?? '',
-    burialPlace: json['burialPlace'] as String? ?? '',
-    latitude: (json['latitude'] as num?)?.toDouble(),
-    longitude: (json['longitude'] as num?)?.toDouble(),
-    importantPlaces: (json['importantPlaces'] as List? ?? const [])
+    id: _stringValue(json['id']),
+    firstName: _stringValue(json['firstName']),
+    lastName: _stringValue(json['lastName']),
+    birthLastName: _stringValue(json['birthLastName']),
+    originalLastName: _stringValue(json['originalLastName']),
+    gender: _stringValue(json['gender']),
+    birthDate: _stringValue(json['birthDate']),
+    birthPlace: _stringValue(json['birthPlace']),
+    deathDate: _stringValue(json['deathDate']),
+    deathPlace: _stringValue(json['deathPlace']),
+    publicMapLocation: _stringValue(json['publicMapLocation']),
+    currentAddress: _stringValue(json['currentAddress']),
+    currentCity: _stringValue(json['currentCity']),
+    currentRegion: _stringValue(json['currentRegion']),
+    currentCountry: _stringValue(json['currentCountry']),
+    birthCity: _stringValue(json['birthCity']),
+    birthCountry: _stringValue(json['birthCountry']),
+    burialPlace: _stringValue(json['burialPlace']),
+    latitude: _doubleValue(json['latitude']),
+    longitude: _doubleValue(json['longitude']),
+    importantPlaces: _listValue(json['importantPlaces'])
         .whereType<Map>()
         .map((item) => ImportantPlace.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
-    email: json['email'] as String? ?? '',
-    phoneNumber: json['phoneNumber'] as String? ?? '',
-    whatsappNumber: json['whatsappNumber'] as String? ?? '',
-    allowContact: json['allowContact'] as bool? ?? true,
-    emailVisibility: json['emailVisibility'] as String? ?? 'familyOnly',
-    phoneVisibility: json['phoneVisibility'] as String? ?? 'familyOnly',
-    whatsappVisibility: json['whatsappVisibility'] as String? ?? 'familyOnly',
-    privacy: PersonPrivacy.fromJson(
-      Map<String, dynamic>.from(json['privacy'] as Map? ?? const {}),
+    email: _stringValue(json['email']),
+    phoneNumber: _stringValue(json['phoneNumber']),
+    whatsappNumber: _stringValue(json['whatsappNumber']),
+    allowContact: _boolValue(json['allowContact'], fallback: true),
+    emailVisibility: _stringValue(
+      json['emailVisibility'],
+      fallback: 'familyOnly',
     ),
-    photo: json['photo'] as String? ?? '',
-    familyId: json['familyId'] as String? ?? '',
-    originFamilyId: json['originFamilyId'] as String? ?? '',
-    linkedTreeEnabled: json['linkedTreeEnabled'] as bool? ?? false,
-    familyCode: json['familyCode'] as String? ?? '',
-    fatherId: json['fatherId'] as String? ?? '',
-    motherId: json['motherId'] as String? ?? '',
-    spouseIds: List<String>.from(json['spouseIds'] as List? ?? const []),
-    childrenIds: List<String>.from(json['childrenIds'] as List? ?? const []),
-    marriageType: json['marriageType'] as String? ?? 'unknown',
-    parents: List<String>.from(json['parents'] as List? ?? const []),
-    spouses: List<String>.from(json['spouses'] as List? ?? const []),
-    children: List<String>.from(json['children'] as List? ?? const []),
-    history: (json['history'] as List? ?? const [])
+    phoneVisibility: _stringValue(
+      json['phoneVisibility'],
+      fallback: 'familyOnly',
+    ),
+    whatsappVisibility: _stringValue(
+      json['whatsappVisibility'],
+      fallback: 'familyOnly',
+    ),
+    privacy: PersonPrivacy.fromJson(_mapValue(json['privacy'])),
+    photo: _stringValue(json['photo']),
+    familyId: _stringValue(json['familyId']),
+    originFamilyId: _stringValue(json['originFamilyId']),
+    linkedTreeEnabled: _boolValue(json['linkedTreeEnabled']),
+    familyCode: _stringValue(json['familyCode']),
+    fatherId: _stringValue(json['fatherId']),
+    motherId: _stringValue(json['motherId']),
+    spouseIds: _stringList(json['spouseIds']),
+    childrenIds: _stringList(json['childrenIds']),
+    marriageType: _stringValue(json['marriageType'], fallback: 'unknown'),
+    parents: _stringList(json['parents']),
+    spouses: _stringList(json['spouses']),
+    children: _stringList(json['children']),
+    history: _listValue(json['history'])
         .whereType<Map>()
         .map((item) => HistoryEvent.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
-    notes: json['notes'] as String? ?? '',
-    generation: json['generation'] as int? ?? 0,
-    createdAt: json['createdAt'] as String? ?? '',
-    updatedAt: json['updatedAt'] as String? ?? '',
-    updatedBy: json['updatedBy'] as String? ?? '',
-    version: json['version'] as int? ?? 1,
-    deletedAt: json['deletedAt'] as String? ?? '',
-    isTemporaryProfile: json['isTemporaryProfile'] as bool? ?? false,
-    profileNeedsCompletion: json['profileNeedsCompletion'] as bool? ?? false,
+    notes: _stringValue(json['notes']),
+    generation: _intValue(json['generation']),
+    createdAt: _stringValue(json['createdAt']),
+    updatedAt: _stringValue(json['updatedAt']),
+    updatedBy: _stringValue(json['updatedBy']),
+    version: _intValue(json['version'], fallback: 1),
+    deletedAt: _stringValue(json['deletedAt']),
+    isTemporaryProfile: _boolValue(json['isTemporaryProfile']),
+    profileNeedsCompletion: _boolValue(json['profileNeedsCompletion']),
   );
 
   Map<String, dynamic> toJson() => {
@@ -402,3 +409,23 @@ class Person {
     );
   }
 }
+
+String _stringValue(Object? value, {String fallback = ''}) =>
+    value is String ? value : fallback;
+
+bool _boolValue(Object? value, {bool fallback = false}) =>
+    value is bool ? value : fallback;
+
+int _intValue(Object? value, {int fallback = 0}) =>
+    value is num ? value.toInt() : fallback;
+
+double? _doubleValue(Object? value) => value is num ? value.toDouble() : null;
+
+List<dynamic> _listValue(Object? value) =>
+    value is List ? value : const <dynamic>[];
+
+List<String> _stringList(Object? value) =>
+    _listValue(value).whereType<String>().toList(growable: false);
+
+Map<String, dynamic> _mapValue(Object? value) =>
+    value is Map ? Map<String, dynamic>.from(value) : const {};

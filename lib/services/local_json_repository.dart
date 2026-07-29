@@ -6,6 +6,7 @@ import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
 import '../models/sync_incident.dart';
+import '../core/logging/app_logger.dart';
 import 'family_repository.dart';
 import 'json_storage_service.dart';
 
@@ -36,7 +37,21 @@ class JsonFamilyRepository implements FamilyRepository {
     if (raw == null || raw.trim().isEmpty) {
       return FamilyTreeData.demo();
     }
-    return FamilyTreeData.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        AppLogger.warning('Invalid local family cache type ignored');
+        return FamilyTreeData.demo();
+      }
+      return FamilyTreeData.fromJson(decoded);
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Invalid local family cache ignored',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return FamilyTreeData.demo();
+    }
   }
 
   @override

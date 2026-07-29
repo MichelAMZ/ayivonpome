@@ -2,6 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ayivonpome/models/person.dart';
 
 void main() {
+  test('tolerates missing and incorrectly typed legacy fields', () {
+    final person = Person.fromJson({
+      'id': 'p1',
+      'firstName': 42,
+      'allowContact': 'yes',
+      'generation': 'unknown',
+      'spouseIds': [null, 3, 'p2'],
+      'privacy': 'legacy',
+      'importantPlaces': 'invalid',
+    });
+
+    expect(person.id, 'p1');
+    expect(person.firstName, '');
+    expect(person.allowContact, isTrue);
+    expect(person.generation, 0);
+    expect(person.spouseIds, ['p2']);
+    expect(person.importantPlaces, isEmpty);
+  });
+
   group('Person origin last name', () {
     test('shows birth last name for a female person when different', () {
       const person = Person(

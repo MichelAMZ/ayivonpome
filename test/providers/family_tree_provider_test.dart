@@ -302,7 +302,12 @@ void main() {
       source.indexOf('Future<void> initializeAppFresh()'),
     );
 
-    expect(buildSource, contains('Firebase.apps.isNotEmpty'));
+    expect(
+      buildSource,
+      contains('Future.microtask(_startRemoteWatchWhenFirebaseIsReady)'),
+    );
+    expect(buildSource, contains('FirebaseBootstrap.initialization'));
+    expect(buildSource, contains('Firebase.apps.isEmpty'));
     expect(buildSource, contains('startRemoteFamilyTreeWatch'));
   });
 

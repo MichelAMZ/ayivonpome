@@ -24,6 +24,7 @@ class FirebaseBootstrap {
 
   static FirebaseBootstrapStatus get status => _status;
   static Object? get lastError => _lastError;
+  static Future<FirebaseApp?>? get initialization => _initialization;
 
   Future<FirebaseApp?> initialize() async {
     if (!_config.enabled) {

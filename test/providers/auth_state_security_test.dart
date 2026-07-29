@@ -284,6 +284,15 @@ void main() {
     expect(shell, contains('_adminNavigationInProgress = false;'));
     expect(authProvider, contains('Future<bool> unlockAdmin(String code)'));
     expect(authProvider, contains('return state.canAccessKpi;'));
+    expect(authProvider, contains('_explicitAuthenticationInProgress = true;'));
+    expect(
+      authProvider,
+      contains('_explicitAuthenticationInProgress = false;'),
+    );
+    expect(
+      authProvider,
+      contains("latestStoredSession.authMethod == 'password'"),
+    );
   });
 
   test('viewer login starts the realtime tree listener', () {

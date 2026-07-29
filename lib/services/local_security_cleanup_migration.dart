@@ -20,12 +20,24 @@ class LocalSecurityCleanupMigration {
   final JsonStorageService _storage;
 
   Future<bool> run() async {
-    final preferences = await SharedPreferences.getInstance();
+    SharedPreferences? preferences;
+    try {
+      preferences = await SharedPreferences.getInstance();
+    } catch (_) {
+      // Le nettoyage local ne doit pas empêcher l'accès public lorsque le
+      // navigateur refuse localStorage (navigation privée, navigateur intégré).
+    }
     var changed = false;
-    for (final key in _legacyKeys) {
-      if (preferences.containsKey(key)) {
-        await preferences.remove(key);
-        changed = true;
+    if (preferences != null) {
+      try {
+        for (final key in _legacyKeys) {
+          if (preferences.containsKey(key)) {
+            await preferences.remove(key);
+            changed = true;
+          }
+        }
+      } catch (_) {
+        preferences = null;
       }
     }
 
@@ -45,7 +57,11 @@ class LocalSecurityCleanupMigration {
       }
     }
 
-    await preferences.setInt(_versionKey, version);
+    try {
+      await preferences?.setInt(_versionKey, version);
+    } catch (_) {
+      // Le stockage reste facultatif pour la consultation publique.
+    }
     return changed;
   }
 

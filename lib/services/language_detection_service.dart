@@ -8,9 +8,10 @@ class LanguageDetectionService {
   Future<String> detectLocale() async {
     final locales = PlatformDispatcher.instance.locales;
     for (final locale in locales) {
-      final byCountry = locale.countryCode == null
+      final countryCode = locale.countryCode;
+      final byCountry = countryCode == null
           ? null
-          : localeForCountry(locale.countryCode!);
+          : localeForCountry(countryCode);
       if (byCountry != null) return byCountry;
 
       final byLanguage = localeForLanguage(locale.languageCode);
@@ -24,8 +25,14 @@ class LanguageDetectionService {
     return supportedLocales.contains(value) ? value : null;
   }
 
-  String? localeForCountry(String countryCode) {
-    final country = countryCode.toUpperCase();
+  String normalizeCountryCode(String? value) {
+    final normalized = value?.trim().toUpperCase();
+    if (normalized == null || normalized.length != 2) return 'UNKNOWN';
+    return normalized;
+  }
+
+  String? localeForCountry(String? countryCode) {
+    final country = normalizeCountryCode(countryCode);
     if (const {
       'FR',
       'TG',

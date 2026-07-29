@@ -65,8 +65,7 @@ class LocaleController extends Notifier<Locale?> {
     state = _cachedLocale;
     debugPrint('Language selected: $locale');
     debugPrint('LocaleProvider updated: $state');
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_selectedLocaleKey, locale);
+    await _writePersistedLocale(locale);
     await ref.read(familyTreeProvider.notifier).setLanguage(locale);
   }
 
@@ -74,10 +73,7 @@ class LocaleController extends Notifier<Locale?> {
     if (_loadingPersistedLocale || _persistedLocaleLoaded) return;
     _loadingPersistedLocale = true;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final persistedLocale = _supported(
-        prefs.getString(_selectedLocaleKey) ?? '',
-      );
+      final persistedLocale = _supported(await _readPersistedLocale() ?? '');
       if (persistedLocale == null) return;
       final data = ref.read(familyTreeProvider).value;
       final manualLocale = data == null
@@ -112,8 +108,7 @@ class LocaleController extends Notifier<Locale?> {
           ? null
           : _supported(data.appSettings.languageSettings.manualLocale);
       if (manualLocale != null) return;
-      final prefs = await SharedPreferences.getInstance();
-      if (_supported(prefs.getString(_selectedLocaleKey) ?? '') != null) {
+      if (_supported(await _readPersistedLocale() ?? '') != null) {
         return;
       }
       final locale = _supported(detected) ?? 'fr';
@@ -132,5 +127,23 @@ class LocaleController extends Notifier<Locale?> {
     final locale = value.trim().toLowerCase();
     if (const {'fr', 'en', 'es', 'pt', 'de'}.contains(locale)) return locale;
     return null;
+  }
+
+  Future<String?> _readPersistedLocale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_selectedLocaleKey);
+    } on Exception {
+      return null;
+    }
+  }
+
+  Future<void> _writePersistedLocale(String locale) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_selectedLocaleKey, locale);
+    } on Exception {
+      // La langue reste active en mémoire si le stockage Web est indisponible.
+    }
   }
 }

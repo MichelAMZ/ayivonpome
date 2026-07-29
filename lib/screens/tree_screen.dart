@@ -18,7 +18,10 @@ class TreeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final data = ref.watch(familyTreeProvider).value!;
+    final data = ref.watch(familyTreeProvider).value;
+    if (data == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     final auth = ref.watch(authSessionProvider);
     final resetToken = ref.watch(treeViewResetProvider);
     final linkedTreeService = ref.watch(linkedFamilyTreeServiceProvider(data));

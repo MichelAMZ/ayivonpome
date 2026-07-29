@@ -7,17 +7,26 @@ JsonStorageService createJsonStorageService({String? storageDirectory}) =>
 
 class WebJsonStorageService implements JsonStorageService {
   static const _key = 'family_tree.json';
+  String? _memoryRaw;
 
   @override
   Future<bool> exists() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.containsKey(_key);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.containsKey(_key) || _memoryRaw != null;
+    } catch (_) {
+      return _memoryRaw != null;
+    }
   }
 
   @override
   Future<String?> readRaw() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_key);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_key) ?? _memoryRaw;
+    } catch (_) {
+      return _memoryRaw;
+    }
   }
 
   @override
@@ -25,16 +34,26 @@ class WebJsonStorageService implements JsonStorageService {
 
   @override
   Future<void> writeRaw(String contents) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, contents);
+    _memoryRaw = contents;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_key, contents);
+    } catch (_) {
+      // Certains navigateurs intégrés ou modes privés refusent le stockage.
+      // La copie mémoire garde l'application utilisable pendant la session.
+    }
   }
 
   @override
   Future<String> writeBackup(String contents) async {
-    final prefs = await SharedPreferences.getInstance();
     final stamp = DateTime.now().toIso8601String();
     final key = '$_key.backup.$stamp';
-    await prefs.setString(key, contents);
-    return 'browser-local-storage:$key';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, contents);
+      return 'browser-local-storage:$key';
+    } catch (_) {
+      return 'browser-memory:$key';
+    }
   }
 }

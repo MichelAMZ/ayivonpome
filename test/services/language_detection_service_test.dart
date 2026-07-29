@@ -17,6 +17,18 @@ void main() {
     expect(service.localeForCountry('PT'), 'pt');
     expect(service.localeForCountry('BR'), 'pt');
     expect(service.localeForCountry('DE'), 'de');
+    expect(service.localeForCountry(' de '), 'de');
+    expect(service.localeForCountry('JP'), isNull);
+    expect(service.localeForCountry(''), isNull);
+    expect(service.localeForCountry(null), isNull);
+  });
+
+  test('normalizes known, unknown and missing country codes', () {
+    expect(service.normalizeCountryCode(' fr '), 'FR');
+    expect(service.normalizeCountryCode('JP'), 'JP');
+    expect(service.normalizeCountryCode(''), 'UNKNOWN');
+    expect(service.normalizeCountryCode('DEU'), 'UNKNOWN');
+    expect(service.normalizeCountryCode(null), 'UNKNOWN');
   });
 
   test('maps browser language to supported locales', () {

@@ -82,6 +82,8 @@ final authSessionProvider = NotifierProvider<AuthController, AuthState>(
 );
 
 class AuthController extends Notifier<AuthState> {
+  var _explicitAuthenticationInProgress = false;
+
   @override
   AuthState build() {
     final service = ref.read(firebaseAccessCodeAuthServiceProvider);
@@ -106,7 +108,9 @@ class AuthController extends Notifier<AuthState> {
         );
         return;
       }
-      Future.microtask(restoreSession);
+      if (!_explicitAuthenticationInProgress) {
+        Future.microtask(restoreSession);
+      }
     });
     ref.onDispose(subscription.cancel);
     Future.microtask(restoreSession);
@@ -148,12 +152,29 @@ class AuthController extends Notifier<AuthState> {
         }
         return false;
       }
-      _applyFirebaseSession(firebaseSession);
-      await _saveSessionMetadata(firebaseSession);
+      final latestStoredSession = await ref
+          .read(sessionStorageServiceProvider)
+          .readSession();
+      final effectiveSession =
+          latestStoredSession != null &&
+              latestStoredSession.uid == firebaseSession.uid &&
+              latestStoredSession.authMethod == 'password' &&
+              firebaseSession.isAdmin
+          ? FirebaseAdminSession(
+              uid: firebaseSession.uid,
+              email: firebaseSession.email,
+              role: firebaseSession.role,
+              familyIds: firebaseSession.familyIds,
+              authMethod: 'password',
+              expiresAt: firebaseSession.expiresAt,
+            )
+          : firebaseSession;
+      _applyFirebaseSession(effectiveSession);
+      await _saveSessionMetadata(effectiveSession);
       await ref
           .read(familyTreeProvider.notifier)
           .startRemoteFamilyTreeWatch(
-            includeActivityLog: firebaseSession.isAdmin,
+            includeActivityLog: effectiveSession.isAdmin,
           );
       await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
       return true;
@@ -333,36 +354,38 @@ class AuthController extends Notifier<AuthState> {
     final service = ref.read(firebaseAccessCodeAuthServiceProvider);
     if (service == null) return false;
 
-    late final FirebaseAdminSession firebaseSession;
+    _explicitAuthenticationInProgress = true;
     try {
-      firebaseSession = await service.signInWithAdminCode(trimmedCode);
+      final firebaseSession = await service.signInWithAdminCode(trimmedCode);
       if (!firebaseSession.isAdmin) {
         await service.signOut();
         return false;
       }
+
+      _applyFirebaseSession(firebaseSession);
+      try {
+        await _saveSessionMetadata(firebaseSession);
+      } catch (_) {
+        // La session Firebase validée reste la source d'autorité.
+      }
+      try {
+        await ref
+            .read(familyTreeProvider.notifier)
+            .startRemoteFamilyTreeWatch(includeActivityLog: true);
+      } catch (_) {
+        // Le listener pourra être relancé sans annuler l'accès administrateur.
+      }
+      try {
+        await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
+      } catch (_) {
+        // Le nettoyage est secondaire à l'authentification.
+      }
+      return state.canAccessKpi;
     } catch (_) {
       return false;
+    } finally {
+      _explicitAuthenticationInProgress = false;
     }
-
-    _applyFirebaseSession(firebaseSession);
-    try {
-      await _saveSessionMetadata(firebaseSession);
-    } catch (_) {
-      // La session Firebase validée reste la source d'autorité.
-    }
-    try {
-      await ref
-          .read(familyTreeProvider.notifier)
-          .startRemoteFamilyTreeWatch(includeActivityLog: true);
-    } catch (_) {
-      // Le listener pourra être relancé sans annuler l'accès administrateur.
-    }
-    try {
-      await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
-    } catch (_) {
-      // Le nettoyage est secondaire à l'authentification.
-    }
-    return state.canAccessKpi;
   }
 
   Future<void> _recordModificationAccessAudit(

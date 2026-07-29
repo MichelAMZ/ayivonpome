@@ -32,15 +32,8 @@ class _InfoNewsBarState extends ConsumerState<InfoNewsBar> {
               .activeNews(data)
               .where((item) => !_dismissedIds.contains(item.id))
               .toList();
-    final hasPublishedNews = news.isNotEmpty;
-    if (news.isEmpty && data != null) {
-      news.add(
-        ref
-            .watch(infoNewsServiceProvider)
-            .defaultNews(data.appSettings.accessCodeContactName),
-      );
-    }
     if (news.isEmpty) return const SizedBox.shrink();
+    final hasPublishedNews = news.isNotEmpty;
     if (_index >= news.length) _index = 0;
     final current = news[_index];
     if (!_paused && hasPublishedNews && news.length > 1) {

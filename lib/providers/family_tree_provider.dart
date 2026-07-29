@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/family_tree/domain/use_cases/link_existing_father.dart';
+import '../core/firebase/firebase_bootstrap.dart';
+import '../core/logging/app_logger.dart';
 import '../models/audit_log.dart';
 import '../models/activity_log_deletion_result.dart';
 import '../models/access_code.dart';
@@ -30,6 +32,7 @@ import '../models/modification_code.dart';
 import '../models/person.dart';
 import '../models/sync_state.dart';
 import '../services/activity_log_service.dart';
+import '../services/json_storage_service.dart';
 import '../services/local_security_cleanup_migration.dart';
 import '../services/parent_auto_creation_service.dart';
 import 'app_providers.dart';
@@ -61,13 +64,28 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final data = await _loadFreshData();
     resetFilters();
     fitAndCenterTreeOnStart();
-    if (Firebase.apps.isNotEmpty) {
-      Future.microtask(() async {
-        if (!ref.mounted) return;
-        await startRemoteFamilyTreeWatch();
-      });
-    }
+    Future.microtask(_startRemoteWatchWhenFirebaseIsReady);
     return data;
+  }
+
+  Future<void> _startRemoteWatchWhenFirebaseIsReady() async {
+    if (!ref.mounted) return;
+    if (Firebase.apps.isEmpty) {
+      try {
+        await FirebaseBootstrap.initialization?.timeout(
+          const Duration(seconds: 4),
+        );
+      } catch (error, stackTrace) {
+        AppLogger.warning(
+          'Remote family watch unavailable; bundled data remains active',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        return;
+      }
+    }
+    if (!ref.mounted || Firebase.apps.isEmpty) return;
+    await startRemoteFamilyTreeWatch();
   }
 
   Future<void> initializeAppFresh() async {
@@ -203,11 +221,49 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   Future<FamilyTreeData> _loadFreshData({
     bool forceReloadSource = false,
   }) async {
+    AppLogger.startStep(BootstrapStep.localStorageInitialization);
     final storage = ref.read(jsonStorageServiceProvider);
-    await LocalSecurityCleanupMigration(storage).run();
-    final storedRaw = await storage.readRaw();
+    String? storedRaw;
+    try {
+      await LocalSecurityCleanupMigration(storage).run();
+      storedRaw = await storage.readRaw();
+    } catch (error, stackTrace) {
+      final incident = AppLogger.capture(
+        category: 'bootstrap',
+        error: error,
+        stackTrace: stackTrace,
+        step: BootstrapStep.localStorageInitialization,
+      );
+      throw AppInitializationFailure(incident);
+    }
+    AppLogger.completeStep(BootstrapStep.localStorageInitialization);
+    AppLogger.startStep(BootstrapStep.publicFamilyLoading);
+    try {
+      return await _loadPublicFamilyData(
+        storage: storage,
+        storedRaw: storedRaw,
+        forceReloadSource: forceReloadSource,
+      );
+    } on AppInitializationFailure {
+      rethrow;
+    } catch (error, stackTrace) {
+      final incident = AppLogger.capture(
+        category: 'bootstrap',
+        error: error,
+        stackTrace: stackTrace,
+        step: BootstrapStep.publicFamilyLoading,
+      );
+      throw AppInitializationFailure(incident);
+    }
+  }
+
+  Future<FamilyTreeData> _loadPublicFamilyData({
+    required JsonStorageService storage,
+    required String? storedRaw,
+    required bool forceReloadSource,
+  }) async {
     final sourceRaw = await _readBundledFamilyJson();
-    final raw = _selectNewestJson(storedRaw, sourceRaw);
+    var raw = _selectNewestJson(storedRaw, sourceRaw);
     debugPrint('Family JSON reloaded');
     if (raw == null || raw.trim().isEmpty) {
       final demo = _withFreshMetadata(FamilyTreeData.demo());
@@ -216,9 +272,22 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         recalculateGenerationsForStartup(rebuildRelationshipGraph(demo)),
       );
     }
-    final loaded = FamilyTreeData.fromJson(
-      jsonDecode(raw) as Map<String, dynamic>,
-    );
+    var loaded = _tryDecodeFamilyTree(raw);
+    if (loaded == null) {
+      AppLogger.warning('Invalid local family cache ignored');
+      final bundled = raw == sourceRaw ? null : _tryDecodeFamilyTree(sourceRaw);
+      if (bundled != null && sourceRaw != null) {
+        loaded = bundled;
+        raw = sourceRaw;
+        await storage.writeRaw(sourceRaw);
+      } else {
+        final demo = _withFreshMetadata(FamilyTreeData.demo());
+        await storage.writeRaw(_encode(demo));
+        return recomputeTreeLayout(
+          recalculateGenerationsForStartup(rebuildRelationshipGraph(demo)),
+        );
+      }
+    }
     final parsed = _preserveUsefulLocalData(
       loaded,
       storedRaw: storedRaw,
@@ -253,7 +322,25 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         forceReloadSource) {
       await storage.writeRaw(_encode(pruned));
     }
+    AppLogger.completeStep(BootstrapStep.publicFamilyLoading);
+    AppLogger.startStep(BootstrapStep.appReady);
     return pruned;
+  }
+
+  FamilyTreeData? _tryDecodeFamilyTree(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+      return FamilyTreeData.fromJson(decoded);
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Family data parsing failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
   }
 
   Future<void> startRemoteFamilyTreeWatch({
@@ -2512,14 +2599,15 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   Future<String?> _readBundledFamilyJson() async {
     const assetPath = 'assets/data/family_tree.json';
     try {
-      if (kIsWeb) {
-        final cacheBuster = DateTime.now().millisecondsSinceEpoch;
-        return NetworkAssetBundle(
-          Uri.base,
-        ).loadString('assets/$assetPath?v=$cacheBuster');
-      }
-      return rootBundle.loadString(assetPath);
-    } catch (_) {
+      return await rootBundle
+          .loadString(assetPath)
+          .timeout(const Duration(seconds: 4));
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Bundled family data unavailable; using safe fallback',
+        error: error,
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }
