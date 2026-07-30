@@ -108,7 +108,11 @@ class _MemberDeletionDialogState extends State<MemberDeletionDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.delete_forever),
-          label: const Text('Supprimer définitivement'),
+          label: Text(
+            _deleting
+                ? 'Suppression et enregistrement…'
+                : 'Supprimer et enregistrer',
+          ),
         ),
       ],
     );

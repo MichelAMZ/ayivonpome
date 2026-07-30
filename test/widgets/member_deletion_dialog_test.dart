@@ -58,7 +58,7 @@ void main() {
 
       final destructive = find.widgetWithText(
         FilledButton,
-        'Supprimer définitivement',
+        'Supprimer et enregistrer',
       );
       expect(tester.widget<FilledButton>(destructive).onPressed, isNull);
 
@@ -93,14 +93,18 @@ void main() {
     await tester.pump();
     final destructive = find.widgetWithText(
       FilledButton,
-      'Supprimer définitivement',
+      'Supprimer et enregistrer',
     );
 
     await tester.tap(destructive);
     await tester.tap(destructive);
     await tester.pump();
     expect(deleteCount, 1);
-    expect(tester.widget<FilledButton>(destructive).onPressed, isNull);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
+    expect(find.text('Suppression et enregistrement…'), findsOneWidget);
 
     completer.complete();
     await tester.pumpAndSettle();

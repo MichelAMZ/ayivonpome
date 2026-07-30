@@ -113,6 +113,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
   bool _linkParentsAsCouple = false;
   String _parentCoupleStatus = 'unknown';
   bool _isSaving = false;
+  bool _saveNeedsRetry = false;
   String? _draftPersonId;
   final List<_PendingUnionDraft> _pendingUnions = [];
   int _activeStep = 0;
@@ -1916,7 +1917,9 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       runSpacing: 8,
       children: [
         OutlinedButton.icon(
-          onPressed: _isSaving ? null : () => _save(draft: true),
+          onPressed: _isSaving || !_hasUnsavedChanges
+              ? null
+              : () => _save(draft: true),
           icon: const Icon(Icons.drafts_outlined),
           label: Text(l10n.saveDraft),
         ),
@@ -1928,7 +1931,9 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           label: Text(l10n.previous),
         ),
         FilledButton.icon(
-          onPressed: _isSaving || !canContinue ? null : _saveAndContinue,
+          onPressed: _isSaving || !canContinue || !_hasUnsavedChanges
+              ? null
+              : _saveAndContinue,
           icon: _isSaving
               ? const SizedBox(
                   width: 18,
@@ -1936,8 +1941,27 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.chevron_right),
-          label: Text(_isSaving ? 'Enregistrement...' : l10n.saveAndContinue),
+          label: Text(
+            _isSaving
+                ? 'Enregistrement...'
+                : _saveNeedsRetry
+                ? 'Réessayer'
+                : l10n.saveAndContinue,
+          ),
         ),
+        if (_hasUnsavedChanges)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Text(
+              '● Modifications non enregistrées',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: _saveNeedsRetry
+                    ? Theme.of(context).colorScheme.error
+                    : Colors.orange.shade800,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         if (_lastDraftSavedAt != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
@@ -2153,7 +2177,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
               button: true,
               child: IconButton.filled(
                 tooltip: l10n.save,
-                onPressed: _isSaving ? null : _save,
+                onPressed: _isSaving || !_hasUnsavedChanges ? null : _save,
                 icon: saveIcon,
               ),
             ),
@@ -2184,9 +2208,15 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           label: l10n.save,
           button: true,
           child: FilledButton.icon(
-            onPressed: _isSaving ? null : _save,
+            onPressed: _isSaving || !_hasUnsavedChanges ? null : _save,
             icon: saveIcon,
-            label: Text(_isSaving ? 'Enregistrement...' : l10n.save),
+            label: Text(
+              _isSaving
+                  ? 'Enregistrement...'
+                  : _saveNeedsRetry
+                  ? 'Réessayer'
+                  : l10n.save,
+            ),
             style: FilledButton.styleFrom(
               minimumSize: const Size(48, 48),
               backgroundColor: const Color(0xFF2F6FA3),
@@ -3196,6 +3226,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     }
     setState(() {
       _isSaving = true;
+      _saveNeedsRetry = false;
       if (!draft) {
         _showRequiredErrors = false;
         _highlightedRequiredFieldIds.clear();
@@ -3407,6 +3438,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       if (!mounted) return;
       if (saveResults.every((item) => item.isFirestoreConfirmed)) {
         _hasUnsavedChanges = false;
+        _saveNeedsRetry = false;
         if (draft) {
           setState(() => _lastDraftSavedAt = DateTime.now());
           _showSaveSnackBar(
@@ -3428,7 +3460,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       }
       if (saveResults.any((item) => item.isAuthorizationRequired)) {
         debugPrint('Save flow: result=authorizationRequired mounted=$mounted');
-        _hasUnsavedChanges = false;
         await _requestAuthorizationAndRetrySave(
           draft: draft,
           operationIds: saveResults
@@ -3440,23 +3471,22 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
       }
       if (saveResults.any((item) => item.isLocalPending)) {
         debugPrint('Save flow: result=localPending mounted=$mounted');
-        _hasUnsavedChanges = false;
+        setState(() => _saveNeedsRetry = true);
         if (draft) {
-          setState(() => _lastDraftSavedAt = DateTime.now());
           _showSaveSnackBar(
             color: Colors.orange.shade800,
             icon: Icons.sync_problem_outlined,
-            message: l10n.draftSavedNow,
+            message:
+                'Brouillon conservé sur cet appareil. Synchronisation non confirmée.',
             duration: const Duration(seconds: 5),
           );
           return;
         }
-        _returnToProfileAfterLocalSave(
-          personId: id,
+        _showSaveSnackBar(
           color: Colors.orange.shade800,
           icon: Icons.sync_problem_outlined,
           message:
-              'Modifications enregistrées sur cet appareil. Synchronisation en attente.',
+              'Échec de la synchronisation. Vérifiez la connexion puis réessayez.',
           duration: const Duration(seconds: 5),
         );
         return;
@@ -3469,6 +3499,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         ),
         duration: const Duration(seconds: 5),
       );
+      setState(() => _saveNeedsRetry = true);
     } on StateError catch (error) {
       if (mounted) {
         final message = switch (error.message) {
@@ -3501,6 +3532,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
           message: message,
           duration: const Duration(seconds: 5),
         );
+        setState(() => _saveNeedsRetry = true);
       }
     } catch (error) {
       if (!mounted) return;
@@ -3511,6 +3543,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             'Enregistrement impossible. Vos modifications ont été conservées.',
         duration: const Duration(seconds: 5),
       );
+      setState(() => _saveNeedsRetry = true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -3536,6 +3569,7 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     if (!mounted) return;
     if (unlocked != true) {
       debugPrint('Save flow: authorizationCancelled');
+      setState(() => _saveNeedsRetry = true);
       _showSaveSnackBar(
         color: Colors.orange.shade800,
         icon: Icons.lock_outline,
@@ -3543,10 +3577,11 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
             'Autorisation non validée. La sauvegarde reste en attente sur cet appareil.',
         duration: const Duration(seconds: 5),
       );
-      if (!draft) Navigator.pop(context);
       return;
     }
     debugPrint('Save flow: authorizationGranted remoteConfirmed');
+    _hasUnsavedChanges = false;
+    _saveNeedsRetry = false;
     _showSaveSnackBar(
       color: Colors.green,
       icon: Icons.check_circle,
