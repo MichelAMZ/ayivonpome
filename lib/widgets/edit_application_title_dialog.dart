@@ -67,6 +67,7 @@ class _EditApplicationTitleDialogState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return AlertDialog(
+      scrollable: true,
       title: Text(l10n.editApplicationTitle),
       content: SizedBox(
         width: 460,

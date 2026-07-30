@@ -42,5 +42,38 @@ void main() {
     expect(method, contains("actorRole != 'admin'"));
     expect(method, contains("StateError('family_leader_not_found')"));
     expect(method, contains('person.deletedAt.isEmpty'));
+    expect(method, contains('.updateFamilyLeadership(familyLeadership)'));
+  });
+
+  test('member deletion cleans remote branch links with allowed fields', () {
+    final source = File(
+      'lib/data/firestore/firestore_remote_database_client.dart',
+    ).readAsStringSync();
+    final method = source.substring(
+      source.indexOf('Future<void> deletePerson'),
+      source.indexOf('Future<User> _requireFirebaseAdminForFamily'),
+    );
+
+    expect(method, contains('affectedFamilyLinks'));
+    expect(method, contains('cleanedLeadership'));
+    expect(method, contains('_confirmPersonDeletionOnServer'));
+    expect(method, contains('GetOptions(source: Source.server)'));
+    expect(method, isNot(contains("'deletedBy': user.uid")));
+  });
+
+  test('JSON restoration is confirmed remotely before the local save', () {
+    final source = File(
+      'lib/providers/family_tree_provider.dart',
+    ).readAsStringSync();
+    final method = source.substring(
+      source.indexOf('Future<void> importData'),
+      source.indexOf('Future<String?> _readBundledFamilyJson'),
+    );
+
+    expect(method, contains('.restoreFamilyTree(restored)'));
+    expect(
+      method.indexOf('.restoreFamilyTree(restored)'),
+      lessThan(method.indexOf('await save(restored)')),
+    );
   });
 }

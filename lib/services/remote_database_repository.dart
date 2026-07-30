@@ -3,6 +3,7 @@ import 'dart:async';
 import '../models/audit_log.dart';
 import '../models/activity_log_deletion_result.dart';
 import '../models/family_link.dart';
+import '../models/family_leadership.dart';
 import '../models/family_tree_data.dart';
 import '../models/marriage_relation.dart';
 import '../models/person.dart';
@@ -23,6 +24,12 @@ class RemoteDatabaseFamilyRepository implements FamilyRepository {
 
   Future<Person> loadPersonDetails(Person publicPerson) =>
       _client.loadPersonDetails(publicPerson);
+
+  Future<void> updateFamilyLeadership(FamilyLeadership leadership) =>
+      _client.updateFamilyLeadership(leadership);
+
+  Future<void> restoreFamilyTree(FamilyTreeData data) =>
+      _client.restoreFamilyTree(data);
 
   @override
   Future<void> saveFamilyTree(FamilyTreeData data) =>
@@ -92,6 +99,8 @@ typedef DatabaseFamilyRepository = RemoteDatabaseFamilyRepository;
 
 abstract class RemoteDatabaseClient {
   Future<Person> loadPersonDetails(Person publicPerson) async => publicPerson;
+  Future<void> updateFamilyLeadership(FamilyLeadership leadership);
+  Future<void> restoreFamilyTree(FamilyTreeData data);
   Future<void> savePerson(Person person);
   Future<void> saveFamilyTree(FamilyTreeData data);
   Future<void> createPerson(Person person);
@@ -125,6 +134,13 @@ class UnconfiguredRemoteDatabaseClient implements RemoteDatabaseClient {
 
   @override
   Future<Person> loadPersonDetails(Person publicPerson) async => publicPerson;
+
+  @override
+  Future<void> updateFamilyLeadership(FamilyLeadership leadership) =>
+      _notConfigured();
+
+  @override
+  Future<void> restoreFamilyTree(FamilyTreeData data) => _notConfigured();
 
   @override
   Future<void> savePerson(Person person) => _notConfigured();

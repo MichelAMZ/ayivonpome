@@ -106,7 +106,7 @@ service cloud.firestore {
         'id', 'familyId', 'firstName', 'lastName', 'gender', 'fatherId',
         'motherId', 'spouseIds', 'childrenIds', 'parents', 'spouses',
         'children', 'birthYear', 'birthCity', 'isDeceased', 'photoUrl',
-        'generation', 'displayOrder', 'isPatriarch', 'publicBiography',
+        'familyCode', 'generation', 'displayOrder', 'isPatriarch', 'publicBiography',
         'createdAt', 'updatedAt', 'schemaVersion', 'deletedAt'
       ]) &&
         request.resource.data.keys().hasAll([
@@ -133,6 +133,8 @@ service cloud.firestore {
         isValidStringList(request.resource.data.spouses, 50) &&
         isValidStringList(request.resource.data.children, 200) &&
         isValidString(request.resource.data.birthCity, 160) &&
+        (!('familyCode' in request.resource.data) ||
+          isValidString(request.resource.data.familyCode, 128)) &&
         request.resource.data.isDeceased is bool &&
         request.resource.data.generation is int &&
         request.resource.data.generation >= 0 &&
@@ -391,7 +393,8 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
-      allow read: if isSuperAdmin() ||
+      allow read: if resource.data.isPublic == true ||
+        isSuperAdmin() ||
         (resource.data.familyId is string &&
           isFamilyAdmin(resource.data.familyId));
       allow create, update: if isSuperAdmin() ||

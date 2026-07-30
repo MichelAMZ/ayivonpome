@@ -446,6 +446,9 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final syncStatus = pendingQueue.isEmpty ? 'synced' : 'pending';
     var merged = current.copyWith(
       mainFamilyCode: remoteData.mainFamilyCode,
+      familyLeadership: remoteData.dataVersion == 'firestore-family-settings-v1'
+          ? remoteData.familyLeadership
+          : current.familyLeadership,
       people: _mergeRemotePeopleKeepingLocalChanges(current, remoteData),
       marriageRelations: _mergeRemoteMarriagesKeepingLocalChanges(
         current,
@@ -2606,6 +2609,9 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         ],
       ),
     );
+    await ref
+        .read(remoteDatabaseRepositoryProvider)
+        .updateFamilyLeadership(familyLeadership);
   }
 
   Future<void> markChangeNotificationsSeen(
@@ -2629,14 +2635,16 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final next = merge
         ? ref.read(importExportServiceProvider).merge(data, imported)
         : imported;
-    await save(
-      next.copyWith(
-        auditLog: [
-          ...next.auditLog,
-          _log('import_json', '', next.mainFamilyCode),
-        ],
-      ),
+    final restored = next.copyWith(
+      auditLog: [
+        ...next.auditLog,
+        _log('import_json', '', next.mainFamilyCode),
+      ],
     );
+    await ref
+        .read(remoteDatabaseRepositoryProvider)
+        .restoreFamilyTree(restored);
+    await save(restored);
   }
 
   Future<String?> _readBundledFamilyJson() async {

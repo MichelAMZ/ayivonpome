@@ -116,6 +116,7 @@ class SyncIncident {
       status: switch (item.status) {
         'inProgress' => 'inProgress',
         'resolved' => 'resolved',
+        'ignored' => 'ignored',
         _ => 'new',
       },
       severity: severity,

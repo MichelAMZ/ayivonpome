@@ -226,16 +226,17 @@ class _AppShellState extends ConsumerState<AppShell>
           backgroundColor: const Color(0xFFF7F6F2),
           appBar: AppBar(
             toolbarHeight: device == ResponsiveDevice.desktop
-                ? 102
+                ? 68
                 : device == ResponsiveDevice.tablet
-                ? 88
-                : 72,
+                ? 72
+                : 64,
             elevation: 0,
             scrolledUnderElevation: 0,
             backgroundColor: Colors.white,
             surfaceTintColor: Colors.transparent,
             shadowColor: const Color(0x1A000000),
-            titleSpacing: device == ResponsiveDevice.mobile ? 0 : 24,
+            shape: const Border(bottom: BorderSide(color: Color(0xFFE8EBF1))),
+            titleSpacing: device == ResponsiveDevice.mobile ? 0 : 16,
             title: const _BrandTitle(),
             actions: _topBarActions(context, device, auth, l10n, destinations),
           ),
@@ -910,18 +911,19 @@ class _TopbarGenerationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFFBFEF5),
+        color: const Color(0xFFF7F9FC),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFF7F9B62)),
+        border: Border.all(color: const Color(0xFFDDE3EC)),
       ),
       child: Text(
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: const Color(0xFF375620),
+          color: const Color(0xFF536176),
+          fontSize: 11,
           fontWeight: FontWeight.w800,
           letterSpacing: 0,
         ),
@@ -1008,11 +1010,16 @@ class _BrandTitle extends ConsumerWidget {
     final showHeaderLogoCounter =
         appSettings.treeSettings.showMembersCounter &&
         branding.memberCountDisplayMode == 'onLogo';
+    final familyPrefix = RegExp(
+      r'^(famille|family|familia|família|familie)\s+',
+      caseSensitive: false,
+    );
+    final familyName = title.replaceFirst(familyPrefix, '').trim();
     final headerLogoSize = desktop
-        ? 64.0
+        ? 46.0
         : mobile
-        ? 42.0
-        : 52.0;
+        ? 38.0
+        : 44.0;
     Widget headerLogo() {
       return SizedBox.square(
         dimension: headerLogoSize + (showHeaderLogoCounter ? 8 : 0),
@@ -1049,36 +1056,50 @@ class _BrandTitle extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          showSubtitle ? subtitle.toUpperCase() : 'FAMILLE',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: const Color(0xFF536176),
+            fontSize: mobile ? 8 : 9,
+            fontWeight: FontWeight.w800,
+            height: 1,
+            letterSpacing: 0.7,
+          ),
+        ),
+        SizedBox(height: mobile ? 2 : 3),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
               child: Text(
-                title,
+                familyName.isEmpty ? title : familyName.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: const Color(0xFF233A2A),
+                  color: const Color(0xFF2563D9),
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
+                  height: 1,
+                  letterSpacing: 0.2,
                   fontSize: desktop
-                      ? 34
+                      ? 19
                       : mobile
-                      ? 16
-                      : 24,
+                      ? 15
+                      : 18,
                 ),
               ),
             ),
             if (showTitleCounter) ...[
               const SizedBox(width: 6),
               Transform.translate(
-                offset: Offset(0, mobile ? -5 : -10),
+                offset: Offset(0, mobile ? -4 : -6),
                 child: Text(
                   membersCount.toString(),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: const Color(0xFF5E6F1F),
+                    color: const Color(0xFF2563D9),
                     fontWeight: FontWeight.w900,
-                    fontSize: mobile ? 10 : 13,
+                    fontSize: mobile ? 9 : 11,
                     letterSpacing: 0,
                   ),
                 ),
@@ -1109,17 +1130,6 @@ class _BrandTitle extends ConsumerWidget {
               fontSize: mobile ? 11 : null,
             ),
           ),
-        if (showSubtitle && !mobile)
-          Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0,
-            ),
-          ),
       ],
     );
 
@@ -1130,7 +1140,7 @@ class _BrandTitle extends ConsumerWidget {
         children: [
           if (branding.logoPosition == 'leftOfTitle') ...[
             headerLogo(),
-            SizedBox(width: mobile ? 8 : 14),
+            SizedBox(width: mobile ? 7 : 10),
           ],
           Expanded(
             child: Align(
@@ -1139,7 +1149,7 @@ class _BrandTitle extends ConsumerWidget {
             ),
           ),
           if (branding.logoPosition == 'rightOfTitle') ...[
-            SizedBox(width: mobile ? 8 : 14),
+            SizedBox(width: mobile ? 7 : 10),
             headerLogo(),
           ],
         ],
@@ -1152,11 +1162,11 @@ class _BrandTitle extends ConsumerWidget {
       children: [
         if (branding.logoPosition == 'leftOfTitle') ...[
           headerLogo(),
-          const SizedBox(width: 18),
+          const SizedBox(width: 10),
         ],
         Expanded(flex: 4, child: titleBlock),
         if (branding.logoPosition == 'rightOfTitle') ...[
-          const SizedBox(width: 18),
+          const SizedBox(width: 10),
           headerLogo(),
         ],
       ],

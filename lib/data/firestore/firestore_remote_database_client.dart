@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../../models/audit_log.dart';
 import '../../models/activity_log_deletion_result.dart';
 import '../../models/family_link.dart';
+import '../../models/family_leadership.dart';
 import '../../models/family_tree_data.dart';
 import '../../models/marriage_relation.dart';
 import '../../models/person.dart';
@@ -58,6 +59,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   CollectionReference<Map<String, dynamic>> get _syncIncidents =>
       _firestore.collection('sync_incidents');
 
+  DocumentReference<Map<String, dynamic>> get _familySettings =>
+      _firestore.collection('settings').doc('family_$_tenantFamilyId');
+
   @override
   Future<FamilyTreeData> loadFamilyTree() async {
     final publicPeople = await _activeMembers(_membersPublic).get();
@@ -66,12 +70,15 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         : null;
     final relationships = await _activeByFamily(_relationships).get();
     final links = await _activeByFamily(_familyLinks).get();
+    final settings = await _loadFamilySettings();
 
     return _treeFromSnapshots(
       publicPeople.docs.isNotEmpty ? publicPeople.docs : legacyPeople!.docs,
       relationships.docs,
       links.docs,
       legacyPeople: publicPeople.docs.isEmpty,
+      familyLeadership: _familyLeadershipFromSettings(settings?.data()),
+      hasFamilySettings: settings?.exists ?? false,
     );
   }
 
@@ -81,8 +88,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? people;
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? relationships;
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? links;
-    final subscriptions =
-        <StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>[];
+    FamilyLeadership? familyLeadership;
+    var hasFamilySettings = false;
+    final subscriptions = <StreamSubscription<dynamic>>[];
 
     void emitIfReady() {
       final currentPeople = people;
@@ -91,6 +99,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       if (currentPeople == null ||
           currentRelationships == null ||
           currentLinks == null ||
+          familyLeadership == null ||
           controller.isClosed) {
         return;
       }
@@ -100,6 +109,8 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           currentRelationships,
           currentLinks,
           legacyPeople: false,
+          familyLeadership: familyLeadership!,
+          hasFamilySettings: hasFamilySettings,
         ),
       );
     }
@@ -119,6 +130,24 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     listen(_activeMembers(_membersPublic), (docs) => people = docs);
     listen(_activeByFamily(_relationships), (docs) => relationships = docs);
     listen(_activeByFamily(_familyLinks), (docs) => links = docs);
+    subscriptions.add(
+      _familySettings.snapshots().listen(
+        (snapshot) {
+          familyLeadership = _familyLeadershipFromSettings(snapshot.data());
+          hasFamilySettings = snapshot.exists;
+          emitIfReady();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (error is FirebaseException && error.code == 'permission-denied') {
+            familyLeadership = const FamilyLeadership();
+            hasFamilySettings = false;
+            emitIfReady();
+            return;
+          }
+          controller.addError(error, stackTrace);
+        },
+      ),
+    );
 
     controller.onCancel = () async {
       for (final subscription in subscriptions) {
@@ -164,9 +193,13 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     List<QueryDocumentSnapshot<Map<String, dynamic>>> relationships,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> links, {
     required bool legacyPeople,
+    required FamilyLeadership familyLeadership,
+    required bool hasFamilySettings,
   }) {
     return FamilyTreeData(
       mainFamilyCode: _familyId,
+      dataVersion: hasFamilySettings ? 'firestore-family-settings-v1' : '',
+      familyLeadership: familyLeadership,
       people: people
           .map(
             (doc) => Person.fromJson(
@@ -189,6 +222,180 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           .map((doc) => FamilyLink.fromJson(_mapper.fromSnapshot(doc)))
           .toList(),
     );
+  }
+
+  FamilyLeadership _familyLeadershipFromSettings(
+    Map<String, dynamic>? settings,
+  ) {
+    final raw = settings?['familyLeadership'];
+    if (raw is! Map) return const FamilyLeadership();
+    return FamilyLeadership.fromJson(Map<String, dynamic>.from(raw));
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>?> _loadFamilySettings() async {
+    try {
+      return await _familySettings.get();
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> updateFamilyLeadership(FamilyLeadership leadership) async {
+    final user = await _ensureFirebaseUser(
+      'updateFamilyLeadership',
+      _familySettings.path,
+    );
+    await _ensureFamilyDocument(user);
+    await _familySettings.set({
+      'familyId': _tenantFamilyId,
+      'isPublic': true,
+      'familyLeadership': leadership.toJson(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> restoreFamilyTree(FamilyTreeData data) async {
+    if (data.mainFamilyCode.trim().toLowerCase() !=
+        _tenantFamilyId.trim().toLowerCase()) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'invalid-argument',
+        message: 'La sauvegarde appartient à une autre famille.',
+      );
+    }
+    final user = await _ensureFirebaseUser(
+      'restoreFamilyTree',
+      'families/$_tenantFamilyId',
+    );
+    await _ensureFamilyDocument(user);
+
+    final currentMembers = await _activeMembers(
+      _membersPublic,
+    ).get(const GetOptions(source: Source.server));
+    final currentRelationships = await _activeByFamily(
+      _relationships,
+    ).get(const GetOptions(source: Source.server));
+    final currentLinks = await _activeByFamily(
+      _familyLinks,
+    ).get(const GetOptions(source: Source.server));
+    final restoredPersonIds = data.people.map((person) => person.id).toSet();
+    final restoredRelationshipIds = data.marriageRelations
+        .map((relation) => relation.id)
+        .toSet();
+    final restoredLinkIds = data.familyLinks.map((link) => link.id).toSet();
+    final removedMembers = currentMembers.docs
+        .where((doc) => !restoredPersonIds.contains(doc.id))
+        .toList(growable: false);
+    final removedRelationships = currentRelationships.docs
+        .where((doc) => !restoredRelationshipIds.contains(doc.id))
+        .toList(growable: false);
+    final removedLinks = currentLinks.docs
+        .where((doc) => !restoredLinkIds.contains(doc.id))
+        .toList(growable: false);
+    final operationCount =
+        data.people.length * 2 +
+        removedMembers.length * 2 +
+        data.marriageRelations.length +
+        removedRelationships.length +
+        data.familyLinks.length +
+        removedLinks.length +
+        2;
+    if (operationCount > 450) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'resource-exhausted',
+        message:
+            'La sauvegarde contient trop d’éléments pour une restauration atomique.',
+      );
+    }
+
+    final batch = _firestore.batch();
+    for (final person in data.people) {
+      batch.set(
+        _membersPublic.doc(person.id),
+        _mapper.toMemberPublic(person, familyId: _tenantFamilyId),
+        SetOptions(merge: true),
+      );
+      final privateData = _mapper.toMemberPrivate(
+        person,
+        familyId: _tenantFamilyId,
+        actorUid: user.uid,
+      )..remove('ownerUid');
+      batch.set(
+        _membersPrivate.doc(person.id),
+        privateData,
+        SetOptions(merge: true),
+      );
+    }
+    final deletedAt = DateTime.now().toUtc().toIso8601String();
+    for (final snapshot in removedMembers) {
+      final remoteVersion = _safeVersion(snapshot.data()['version']);
+      batch.set(snapshot.reference, {
+        'deletedAt': deletedAt,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'version': remoteVersion + 1,
+      }, SetOptions(merge: true));
+      batch.set(_membersPrivate.doc(snapshot.id), {
+        'memberId': snapshot.id,
+        'familyId': _tenantFamilyId,
+        'deletedAt': deletedAt,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+        'schemaVersion': FirestoreDocumentMapper.memberSchemaVersion,
+      }, SetOptions(merge: true));
+    }
+    for (final relation in data.marriageRelations) {
+      batch.set(
+        _relationships.doc(relation.id),
+        _mapper.toFirestore(
+          relation.toJson(),
+          id: relation.id,
+          familyId: _tenantFamilyId,
+        ),
+      );
+    }
+    for (final snapshot in removedRelationships) {
+      batch.set(snapshot.reference, {
+        'deletedAt': deletedAt,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    for (final link in data.familyLinks) {
+      batch.set(
+        _familyLinks.doc(link.id),
+        _mapper.toFirestore(
+          link.toJson(),
+          id: link.id,
+          familyId: _tenantFamilyId,
+        ),
+      );
+    }
+    for (final snapshot in removedLinks) {
+      batch.set(snapshot.reference, {
+        'deletedAt': deletedAt,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    batch.set(_familySettings, {
+      'familyId': _tenantFamilyId,
+      'isPublic': true,
+      'familyLeadership': data.familyLeadership.toJson(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    }, SetOptions(merge: true));
+    batch.set(_activityLogs.doc(), {
+      'familyId': _tenantFamilyId,
+      'personId': '',
+      'action': 'family_tree_restored',
+      'actorUid': user.uid,
+      'result': 'confirmed',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
   }
 
   @override
@@ -453,6 +660,12 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final relationshipsSnapshot = await _relationships
         .where('familyId', isEqualTo: _tenantFamilyId)
         .get(const GetOptions(source: Source.server));
+    final familyLinksSnapshot = await _familyLinks
+        .where('familyId', isEqualTo: _tenantFamilyId)
+        .get(const GetOptions(source: Source.server));
+    final settingsSnapshot = await _familySettings.get(
+      const GetOptions(source: Source.server),
+    );
     final affectedMembers = membersSnapshot.docs
         .where(
           (doc) =>
@@ -468,7 +681,30 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
               data['partner2Id'] == personId;
         })
         .toList(growable: false);
-    if (affectedMembers.length + affectedRelationships.length > 450) {
+    final affectedFamilyLinks = familyLinksSnapshot.docs
+        .where((doc) {
+          final data = doc.data();
+          return data['fromPersonId'] == personId ||
+              data['toPersonId'] == personId;
+        })
+        .toList(growable: false);
+    final settingsLeadership = _familyLeadershipFromSettings(
+      settingsSnapshot.data(),
+    );
+    if (settingsSnapshot.exists &&
+        settingsLeadership.currentLeaderPersonId == personId) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'failed-precondition',
+        message: 'Désignez d’abord un nouveau chef de famille.',
+      );
+    }
+    final operationCount =
+        affectedMembers.length +
+        affectedRelationships.length +
+        affectedFamilyLinks.length +
+        4;
+    if (operationCount > 450) {
       throw FirebaseException(
         plugin: 'cloud_firestore',
         code: 'resource-exhausted',
@@ -499,11 +735,30 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     }
+    for (final snapshot in affectedFamilyLinks) {
+      batch.set(snapshot.reference, {
+        'deletedAt': deletedAt,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    if (settingsSnapshot.exists) {
+      final cleanedLeadership = settingsLeadership.copyWith(
+        formerLeaderPersonId:
+            settingsLeadership.formerLeaderPersonId == personId ? '' : null,
+        successorPersonId: settingsLeadership.successorPersonId == personId
+            ? ''
+            : null,
+      );
+      batch.set(_familySettings, {
+        'familyLeadership': cleanedLeadership.toJson(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+      }, SetOptions(merge: true));
+    }
     batch.set(memberDoc, {
       'deletedAt': deletedAt,
       'updatedAt': FieldValue.serverTimestamp(),
       'version': _safeVersion(memberData['version']) + 1,
-      'deletedBy': user.uid,
     }, SetOptions(merge: true));
     batch.set(privateMemberDoc, {
       'memberId': personId,
@@ -522,6 +777,71 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       'createdAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
+    await _confirmPersonDeletionOnServer(
+      personId: personId,
+      affectedMembers: affectedMembers,
+      affectedRelationships: affectedRelationships,
+      affectedFamilyLinks: affectedFamilyLinks,
+    );
+  }
+
+  Future<void> _confirmPersonDeletionOnServer({
+    required String personId,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> affectedMembers,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    affectedRelationships,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    affectedFamilyLinks,
+  }) async {
+    final member = await _membersPublic
+        .doc(personId)
+        .get(const GetOptions(source: Source.server));
+    final privateMember = await _membersPrivate
+        .doc(personId)
+        .get(const GetOptions(source: Source.server));
+    final memberDeletedAt = _stringValue(member.data()?['deletedAt']);
+    final privateDeletedAt = _stringValue(privateMember.data()?['deletedAt']);
+    if (!member.exists ||
+        memberDeletedAt.isEmpty ||
+        !privateMember.exists ||
+        privateDeletedAt.isEmpty) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'failed-precondition',
+        message:
+            'La suppression du membre n’a pas été confirmée par le serveur.',
+      );
+    }
+
+    for (final snapshot in affectedMembers) {
+      final confirmed = await snapshot.reference.get(
+        const GetOptions(source: Source.server),
+      );
+      final data = confirmed.data();
+      if (confirmed.exists &&
+          data != null &&
+          _referencesPerson(data, personId)) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'failed-precondition',
+          message:
+              'Une référence vers le membre supprimé subsiste sur le serveur.',
+        );
+      }
+    }
+    for (final snapshot in [...affectedRelationships, ...affectedFamilyLinks]) {
+      final confirmed = await snapshot.reference.get(
+        const GetOptions(source: Source.server),
+      );
+      if (confirmed.exists &&
+          _stringValue(confirmed.data()?['deletedAt']).isEmpty) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'failed-precondition',
+          message: 'Une relation du membre supprimé subsiste sur le serveur.',
+        );
+      }
+    }
   }
 
   Future<User> _requireFirebaseAdminForFamily() async {
