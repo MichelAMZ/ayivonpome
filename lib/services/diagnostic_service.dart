@@ -92,6 +92,29 @@ class DiagnosticService {
     };
   }
 
+  @visibleForTesting
+  static String familyReadPermissionMessage({
+    required String familyId,
+    required bool connected,
+    required String role,
+    required List<String> familyIds,
+  }) {
+    final normalizedRole = role.trim().isEmpty ? 'indisponible' : role.trim();
+    final belongsToFamily = familyIds.contains(familyId);
+    return [
+      'Impossible de lire families/$familyId.',
+      'Contrôles :',
+      '${connected ? '✓' : '✗'} Utilisateur connecté',
+      '${normalizedRole == 'admin' || normalizedRole == 'superAdmin' ? '✓' : '✗'} '
+          'Rôle administrateur ($normalizedRole)',
+      '${belongsToFamily ? '✓' : '✗'} familyIds contient $familyId',
+      '? Existence du document et champ isPublic indéterminés tant que la lecture est refusée',
+      '✗ Règle Firestore refusée',
+      'Correction proposée : vérifiez families/$familyId, son champ isPublic, '
+          'le document user_roles de ce compte et les règles déployées, puis relancez le test.',
+    ].join('\n');
+  }
+
   String buildTextReport(DiagnosticReport report) {
     final buffer = StringBuffer()
       ..writeln('========================================')
@@ -319,10 +342,43 @@ class DiagnosticService {
             message: 'Firestore non initialisé.',
           );
         }
-        final doc = await _withRemoteTimeout(
-          firestore.collection('families').doc(normalizedFamilyId).get(),
-          code: 'local-timeout',
-        );
+        late final DocumentSnapshot<Map<String, dynamic>> doc;
+        try {
+          doc = await _withRemoteTimeout(
+            firestore.collection('families').doc(normalizedFamilyId).get(),
+            code: 'local-timeout',
+          );
+        } on FirebaseException catch (error) {
+          if (error.code != 'permission-denied') rethrow;
+          final user = _auth?.currentUser;
+          var role = '';
+          var familyIds = const <String>[];
+          if (user != null) {
+            try {
+              final roleSnapshot = await _withRemoteTimeout(
+                firestore.collection('user_roles').doc(user.uid).get(),
+                code: 'local-timeout',
+              );
+              final roleData = roleSnapshot.data();
+              role = roleData?['role'] as String? ?? '';
+              familyIds = (roleData?['familyIds'] as List<dynamic>? ?? const [])
+                  .whereType<String>()
+                  .toList(growable: false);
+            } catch (_) {
+              // Le refus principal reste exploitable même si le rôle ne peut
+              // pas être relu pendant ce diagnostic.
+            }
+          }
+          throw _DiagnosticFailure(
+            code: error.code,
+            message: familyReadPermissionMessage(
+              familyId: normalizedFamilyId,
+              connected: user != null && !user.isAnonymous,
+              role: role,
+              familyIds: familyIds,
+            ),
+          );
+        }
         return doc.exists
             ? 'families/${doc.id} lu.'
             : 'warning:not-found|Firestore accessible, families/$normalizedFamilyId absent.';

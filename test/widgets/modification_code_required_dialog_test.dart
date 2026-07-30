@@ -1,4 +1,6 @@
 import 'package:ayivonpome/widgets/modification_code_required_dialog.dart';
+import 'package:ayivonpome/providers/auth_provider.dart';
+import 'package:ayivonpome/services/auth_code_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -26,7 +28,7 @@ void main() {
       expect(ModificationAuthorizationStep.savedLocally.isProcessing, isFalse);
       expect(
         ModificationAuthorizationStep.failed.statusLabel,
-        'Code incorrect ou accès non autorisé.',
+        'Code administrateur incorrect. Vérifiez le code puis réessayez.',
       );
       expect(
         ModificationAuthorizationStep.savedLocally.statusLabel,
@@ -34,4 +36,32 @@ void main() {
       );
     },
   );
+
+  test('keeps the administration authorization mode inside KPI', () {
+    const admin = AuthState(
+      mode: AuthMode.authenticated,
+      restoreStatus: SessionRestoreStatus.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
+      firebaseUid: 'admin-uid',
+      firebaseRole: 'admin',
+      firebaseAuthMethod: 'password',
+    );
+    const editor = AuthState(
+      mode: AuthMode.authenticated,
+      restoreStatus: SessionRestoreStatus.authenticated,
+      session: AuthSession(familyCode: 'ayivon', role: 'editor'),
+      firebaseUid: 'editor-uid',
+      firebaseRole: 'editor',
+      firebaseAuthMethod: 'accessCode',
+    );
+
+    expect(
+      modificationAuthorizationModeFor(admin),
+      ModificationAuthorizationMode.administration,
+    );
+    expect(
+      modificationAuthorizationModeFor(editor),
+      ModificationAuthorizationMode.modification,
+    );
+  });
 }

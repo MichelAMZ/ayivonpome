@@ -112,6 +112,13 @@ async function seed() {
         active,
       });
     }
+    // Les rôles créés par la fonction serveur utilisent déjà l'UID comme
+    // identifiant du document et ne dupliquent pas ce champ dans les données.
+    await setDoc(doc(database, 'user_roles/adminWithoutEmbeddedUid'), {
+      role: 'admin',
+      familyIds: ['familyA'],
+      active: true,
+    });
     await setDoc(doc(database, 'families/familyA'), {
       id: 'familyA', name: 'Famille A', active: true, schemaVersion: 2,
       isPublic: true, updatedAt: Timestamp.fromMillis(1000),
@@ -219,6 +226,12 @@ describe('members_public', () => {
 });
 
 describe('members_private', () => {
+  it('accepte un rôle serveur dont l’UID est porté par le chemin du document', async () => {
+    await assertSucceeds(
+      getDoc(privateRef(db('adminWithoutEmbeddedUid'))),
+    );
+  });
+
   it('refuse anonyme, rôle absent, rôle inactif et membre non propriétaire', async () => {
     await assertFails(getDoc(privateRef(db())));
     await assertFails(getDoc(privateRef(db('userWithoutRole'))));

@@ -73,7 +73,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Autorisation requise'), findsOneWidget);
+    expect(find.text('Administration verrouillée'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -41,6 +41,23 @@ void main() {
     );
   });
 
+  test('explains a family document permission refusal without guessing', () {
+    final message = DiagnosticService.familyReadPermissionMessage(
+      familyId: 'ayivon',
+      connected: true,
+      role: 'admin',
+      familyIds: const ['ayivon'],
+    );
+
+    expect(message, contains('Impossible de lire families/ayivon'));
+    expect(message, contains('✓ Utilisateur connecté'));
+    expect(message, contains('✓ Rôle administrateur (admin)'));
+    expect(message, contains('✓ familyIds contient ayivon'));
+    expect(message, contains('champ isPublic indéterminés'));
+    expect(message, contains('✗ Règle Firestore refusée'));
+    expect(message, contains('Correction proposée'));
+  });
+
   test('diagnostic write check no longer depends on Cloud Functions', () {
     final source = File(
       'lib/services/diagnostic_service.dart',

@@ -138,6 +138,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             ),
             maxWidth: 1180,
             children: [
+              AdminAuthorizationBanner(
+                authorized: auth.canEdit,
+                onUnlock: () => _showAdministrationUnlock(context),
+              ),
+              const SizedBox(height: 16),
               if (constraints.maxWidth < 1000)
                 _AdminSectionSelector(
                   selected: _selectedSection,
@@ -237,6 +242,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         subtitle: 'Vue d’ensemble de la famille AYIVON',
         syncStatus: _syncStatusLabel(data),
         syncHealthy: pendingSyncCount == 0 && criticalCount == 0,
+      ),
+      const SizedBox(height: 18),
+      AdminAuthorizationStatusCard(
+        auth: ref.watch(authSessionProvider),
+        familyId: data.mainFamilyCode,
+        projectId: _firebaseProjectLabel(),
+        onUnlock: () => _showAdministrationUnlock(context),
       ),
       if (!_adminInfoDismissed) ...[
         const SizedBox(height: 18),
@@ -389,6 +401,30 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         },
       ),
     ];
+  }
+
+  Future<void> _showAdministrationUnlock(BuildContext context) async {
+    final unlocked = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const ModificationCodeRequiredDialog(),
+    );
+    if (!context.mounted) return;
+    if (unlocked == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Administration déverrouillée avec succès.'),
+        ),
+      );
+    }
+  }
+
+  String _firebaseProjectLabel() {
+    try {
+      return FirebaseFirestore.instance.app.options.projectId;
+    } catch (_) {
+      return 'Non initialisé';
+    }
   }
 
   Future<void> _quickSynchronize(BuildContext context) async {
@@ -1255,6 +1291,303 @@ class _FirebaseRoleTile extends StatelessWidget {
             tooltip: 'Supprimer',
             onPressed: canManage ? onDelete : null,
             icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+@visibleForTesting
+class AdminAuthorizationBanner extends StatelessWidget {
+  const AdminAuthorizationBanner({
+    required this.authorized,
+    required this.onUnlock,
+    super.key,
+  });
+
+  final bool authorized;
+  final VoidCallback onUnlock;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = authorized
+        ? const Color(0xFF2E7D32)
+        : const Color(0xFF9A6A00);
+    final background = authorized
+        ? const Color(0xFFE8F5E9)
+        : const Color(0xFFFFF4D8);
+    final title = authorized
+        ? 'Administration déverrouillée'
+        : 'Autorisation administrateur requise';
+    final tooltip = authorized
+        ? 'L’administration est actuellement active.'
+        : 'L’administration n’est pas encore autorisée.';
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: title,
+      child: Tooltip(
+        message: tooltip,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final message = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    authorized
+                        ? Icons.check_circle_outline
+                        : Icons.admin_panel_settings_outlined,
+                    color: color,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: color,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          authorized
+                              ? 'Les fonctions d’administration sont disponibles pour cette session.'
+                              : 'Pour accéder aux fonctions d’administration, saisissez votre code secret administrateur.',
+                        ),
+                        if (!authorized) ...[
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Vous pourrez modifier les membres, gérer les utilisateurs et les codes d’accès, administrer les paramètres, consulter les statistiques et gérer les sauvegardes.',
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              );
+              final button = authorized
+                  ? null
+                  : FilledButton.icon(
+                      onPressed: onUnlock,
+                      icon: const Icon(Icons.key_outlined),
+                      label: const Text('Déverrouiller l’administration'),
+                    );
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    message,
+                    if (button != null) ...[const SizedBox(height: 14), button],
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: message),
+                  if (button != null) ...[const SizedBox(width: 18), button],
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+@visibleForTesting
+class AdminAuthorizationStatusCard extends StatelessWidget {
+  const AdminAuthorizationStatusCard({
+    required this.auth,
+    required this.familyId,
+    required this.projectId,
+    required this.onUnlock,
+    super.key,
+  });
+
+  final AuthState auth;
+  final String familyId;
+  final String projectId;
+  final VoidCallback onUnlock;
+
+  @override
+  Widget build(BuildContext context) {
+    final authorized = auth.canEdit;
+    final color = authorized
+        ? const Color(0xFF2E7D32)
+        : const Color(0xFF9A6A00);
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.verified_user_outlined, color: color),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Autorisation administrateur',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                _AdministrationStateBadge(authorized: authorized),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 28,
+              runSpacing: 14,
+              children: [
+                _AuthorizationDetail(
+                  label: 'Utilisateur connecté',
+                  value:
+                      auth.firebaseEmail ??
+                      auth.firebaseUid ??
+                      'Non authentifié',
+                ),
+                _AuthorizationDetail(
+                  label: 'Rôle actuel',
+                  value:
+                      auth.firebaseRole ??
+                      auth.session?.role ??
+                      'Aucun rôle actif',
+                ),
+                _AuthorizationDetail(
+                  label: 'Dernière authentification',
+                  value: authorized ? 'Session actuelle' : 'Non disponible',
+                ),
+                _AuthorizationDetail(
+                  label: 'Projet Firebase',
+                  value: projectId,
+                ),
+                _AuthorizationDetail(
+                  label: 'Famille',
+                  value: familyId.isEmpty ? 'Non renseignée' : familyId,
+                ),
+              ],
+            ),
+            if (!authorized) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onUnlock,
+                icon: const Icon(Icons.key_outlined),
+                label: const Text('Déverrouiller l’administration'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Vous ne connaissez pas le code ? Contactez le Conseil de Famille ou le Super Administrateur.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdministrationStateBadge extends StatelessWidget {
+  const _AdministrationStateBadge({required this.authorized});
+
+  final bool authorized;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = authorized
+        ? const Color(0xFF2E7D32)
+        : const Color(0xFF9A6A00);
+    final label = authorized
+        ? 'Administration active'
+        : 'Administration verrouillée';
+    return Semantics(
+      label: label,
+      child: Tooltip(
+        message: authorized
+            ? 'L’administration est actuellement active.'
+            : 'L’administration n’est pas encore autorisée.',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                authorized ? Icons.check_circle : Icons.lock_outline,
+                size: 16,
+                color: color,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthorizationDetail extends StatelessWidget {
+  const _AuthorizationDetail({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 190,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -2870,7 +3203,16 @@ Future<bool> _requestSyncAuthorizationIfNeeded(
     builder: (context) => const ModificationCodeRequiredDialog(),
   );
   if (!context.mounted) return false;
-  if (unlocked == true) return true;
+  if (unlocked == true) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Autorisation accordée. La synchronisation peut reprendre.',
+        ),
+      ),
+    );
+    return true;
+  }
   _showAuthorizationRequiredSnackBar(context, blocked.length);
   return false;
 }

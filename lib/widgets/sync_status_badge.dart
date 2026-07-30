@@ -32,16 +32,6 @@ class SyncStatusBadge extends ConsumerWidget {
     final conflictCount = openItems
         .where((item) => item.status == 'conflict')
         .length;
-    final pendingCount = openItems
-        .where(
-          (item) =>
-              item.status != 'needsResolution' &&
-              item.status != 'authorizationRequired' &&
-              item.status != 'conflict' &&
-              item.lastErrorCode != 'permission-denied' &&
-              item.lastErrorCode != 'unauthenticated',
-        )
-        .length;
     final totalOpenCount = openItems.length;
     final rawStatus =
         totalOpenCount > 0 && data.syncSettings.syncStatus == 'synced'
@@ -53,7 +43,7 @@ class SyncStatusBadge extends ConsumerWidget {
     final label = conflictCount > 0
         ? 'Conflit à résoudre'
         : needsResolutionCount > 0
-        ? 'Autorisation requise'
+        ? 'Administration verrouillée'
         : totalOpenCount > 0
         ? (totalOpenCount == 1
               ? '1 sauvegarde en attente'
@@ -63,7 +53,7 @@ class SyncStatusBadge extends ConsumerWidget {
             'offline' => 'Hors ligne',
             'syncing' => 'Synchronisation en cours',
             'pending' => 'Synchronisation en attente',
-            'authorizationRequired' => 'Autorisation requise',
+            'authorizationRequired' => 'Administration verrouillée',
             'error' => 'Synchronisation indisponible',
             _ =>
               totalOpenCount > 0 ? 'Synchronisation en attente' : 'Synchronisé',
@@ -114,10 +104,11 @@ class SyncStatusBadge extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: Tooltip(
-              message: totalOpenCount == 0
+              message: needsResolutionCount > 0
+                  ? 'L’administration n’est pas encore autorisée. '
+                        '$needsResolutionCount opération(s) suspendue(s).'
+                  : totalOpenCount == 0
                   ? label
-                  : needsResolutionCount > 0
-                  ? '$pendingCount en attente - $needsResolutionCount autorisation(s) requise(s)'
                   : label,
               child: DecoratedBox(
                 decoration: BoxDecoration(

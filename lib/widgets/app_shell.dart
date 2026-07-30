@@ -149,11 +149,12 @@ class _AppShellState extends ConsumerState<AppShell>
       const TreeScreen(),
       const FamilyHonorHallScreen(),
       const DashboardScreen(),
-      if (authenticated) const LinkedFamiliesScreen(),
+      if (auth.canAccessKpi) const LinkedFamiliesScreen(),
       if (authenticated) const FamilyLinkRequestsScreen(),
       if (authenticated) const NotificationsScreen(),
       if (authenticated) const ModificationHistoryScreen(),
       if (auth.canAccessKpi) const AdminDashboardScreen(),
+      if (authenticated && !auth.canAccessKpi) const SizedBox.shrink(),
       const SettingsScreen(),
     ];
     final destinations = [
@@ -219,6 +220,7 @@ class _AppShellState extends ConsumerState<AppShell>
         );
         final mobileIndices = _mobileDestinationIndices(
           authenticated: authenticated,
+          canAccessKpi: auth.canAccessKpi,
           destinationCount: destinations.length,
         );
         final mobileSelectedIndex = mobileIndices.indexOf(_index);
@@ -287,11 +289,13 @@ class _AppShellState extends ConsumerState<AppShell>
 
   List<int> _mobileDestinationIndices({
     required bool authenticated,
+    required bool canAccessKpi,
     required int destinationCount,
   }) {
     final last = destinationCount - 1;
     if (!authenticated) return [0, 2, last].where((i) => i <= last).toList();
-    return [0, 2, 5, last].where((i) => i <= last).toList();
+    final notificationsIndex = canAccessKpi ? 5 : 4;
+    return [0, 2, notificationsIndex, last].where((i) => i <= last).toList();
   }
 
   List<Widget> _topBarActions(
@@ -303,7 +307,7 @@ class _AppShellState extends ConsumerState<AppShell>
   ) {
     final authenticated = auth.isAuthenticated;
     final compact = device != ResponsiveDevice.desktop;
-    final notificationsIndex = authenticated ? 5 : -1;
+    final notificationsIndex = authenticated ? (auth.canAccessKpi ? 5 : 4) : -1;
     final notificationCount = _notificationCount(auth);
     final authAction = authenticated
         ? () => ref.read(authSessionProvider.notifier).logout()

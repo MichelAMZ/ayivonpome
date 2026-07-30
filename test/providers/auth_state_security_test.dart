@@ -282,6 +282,18 @@ void main() {
     expect(shell, contains('_adminNavigationInProgress'));
     expect(shell, contains('if (_adminNavigationInProgress) return;'));
     expect(shell, contains('_adminNavigationInProgress = false;'));
+    expect(
+      shell,
+      contains(
+        'if (authenticated && !auth.canAccessKpi) const SizedBox.shrink()',
+      ),
+    );
+    expect(
+      shell,
+      contains('if (auth.canAccessKpi) const LinkedFamiliesScreen()'),
+    );
+    expect(shell, contains('final notificationsIndex = canAccessKpi ? 5 : 4;'));
+    expect(shell, contains('(auth.canAccessKpi ? 5 : 4)'));
     expect(authProvider, contains('Future<bool> unlockAdmin(String code)'));
     expect(authProvider, contains('return state.canAccessKpi;'));
     expect(authProvider, contains('_explicitAuthenticationInProgress = true;'));

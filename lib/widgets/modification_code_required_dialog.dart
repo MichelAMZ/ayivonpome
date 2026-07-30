@@ -11,6 +11,15 @@ import '../providers/family_tree_provider.dart';
 import 'admin_contact_card.dart';
 import 'secure_code_text_field.dart';
 
+enum ModificationAuthorizationMode { modification, administration }
+
+@visibleForTesting
+ModificationAuthorizationMode modificationAuthorizationModeFor(AuthState auth) {
+  return auth.canAccessKpi
+      ? ModificationAuthorizationMode.administration
+      : ModificationAuthorizationMode.modification;
+}
+
 enum ModificationAuthorizationStep {
   idle,
   preparingFirebase,
@@ -69,7 +78,7 @@ extension ModificationAuthorizationStepUi on ModificationAuthorizationStep {
     ModificationAuthorizationStep.savedLocally =>
       'Modifications sauvegardées sur cet appareil. Synchronisation en attente.',
     ModificationAuthorizationStep.failed =>
-      'Code incorrect ou accès non autorisé.',
+      'Code administrateur incorrect. Vérifiez le code puis réessayez.',
     ModificationAuthorizationStep.idle => '',
   };
 }
@@ -77,10 +86,12 @@ extension ModificationAuthorizationStepUi on ModificationAuthorizationStep {
 class ModificationCodeRequiredDialog extends ConsumerStatefulWidget {
   const ModificationCodeRequiredDialog({
     this.operationIds = const [],
+    this.requiredMode,
     super.key,
   });
 
   final List<String> operationIds;
+  final ModificationAuthorizationMode? requiredMode;
 
   @override
   ConsumerState<ModificationCodeRequiredDialog> createState() =>
@@ -120,7 +131,7 @@ class _ModificationCodeRequiredDialogState
         ? const []
         : ref.read(adminServiceProvider).activeAdmins(data);
     return AlertDialog(
-      title: const Text('Autorisation requise'),
+      title: const Text('Déverrouiller l’administration'),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: SingleChildScrollView(
@@ -202,15 +213,24 @@ class _ModificationCodeRequiredDialogState
     try {
       await _prepareFirebase();
       _setStep(ModificationAuthorizationStep.verifyingCode);
-      final ok = await ref
-          .read(authSessionProvider.notifier)
-          .unlockModification(code)
-          .timeout(_remoteTimeout);
+      final auth = ref.read(authSessionProvider);
+      final controller = ref.read(authSessionProvider.notifier);
+      final mode =
+          widget.requiredMode ?? modificationAuthorizationModeFor(auth);
+      final authorization = switch (mode) {
+        ModificationAuthorizationMode.administration => controller.unlockAdmin(
+          code,
+        ),
+        ModificationAuthorizationMode.modification =>
+          controller.unlockModification(code),
+      };
+      final ok = await authorization.timeout(_remoteTimeout);
       if (!mounted) return;
       if (!ok) {
         setState(() {
           _step = ModificationAuthorizationStep.failed;
-          _error = 'Code incorrect ou accès non autorisé.';
+          _error =
+              'Code administrateur incorrect. Vérifiez le code puis réessayez.';
         });
         _focusNode.requestFocus();
         return;
@@ -244,7 +264,8 @@ class _ModificationCodeRequiredDialogState
         if (result.remoteStatus == RemoteSaveStatus.permissionRequired) {
           setState(() {
             _step = ModificationAuthorizationStep.failed;
-            _error = 'Code incorrect ou accès Firebase non autorisé.';
+            _error =
+                'Code administrateur incorrect. Vérifiez le code puis réessayez.';
           });
         } else {
           await _finishAsLocalPending(
@@ -267,11 +288,11 @@ class _ModificationCodeRequiredDialogState
       );
     } on TimeoutException {
       await _finishAsLocalPending(
-        'Firebase met plus de temps que prévu à répondre. Vos modifications sont sauvegardées sur cet appareil.',
+        'Connexion au serveur impossible. Vérifiez votre connexion Internet.',
       );
     } catch (error) {
       await _finishAsLocalPending(
-        'Modifications sauvegardées sur cet appareil. Synchronisation en attente.',
+        'Connexion au serveur impossible. Vérifiez votre connexion Internet.',
       );
     }
   }
