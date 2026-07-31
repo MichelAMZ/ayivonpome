@@ -12,6 +12,8 @@ void main() {
       restoreStatus: SessionRestoreStatus.error,
       firebaseUid: 'test-uid',
       firebaseRole: 'superAdmin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
 
     expect(state.hasFirebaseWriteAccess, isFalse);
@@ -27,6 +29,8 @@ void main() {
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'test-uid',
       firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
 
     expect(state.hasFirebaseWriteAccess, isTrue);
@@ -42,11 +46,47 @@ void main() {
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'test-uid',
       firebaseRole: 'superAdmin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
 
     expect(state.isAdmin, isTrue);
     expect(state.isSuperAdmin, isTrue);
   });
+
+  test(
+    'effective family authorization uses active role and family membership',
+    () {
+      AuthState authorized(String role) => AuthState(
+        mode: AuthMode.authenticated,
+        session: AuthSession(familyCode: 'ayivon', role: role),
+        restoreStatus: SessionRestoreStatus.authenticated,
+        firebaseUid: '$role-uid',
+        firebaseRole: role,
+        firebaseRoleActive: true,
+        firebaseFamilyIds: const {'ayivon'},
+      );
+
+      for (final role in ['editor', 'admin', 'superAdmin']) {
+        expect(authorized(role).canWriteFamily('AYIVON'), isTrue);
+      }
+      expect(authorized('viewer').canWriteFamily('ayivon'), isFalse);
+      expect(authorized('admin').canWriteFamily('another-family'), isFalse);
+      expect(
+        const AuthState(
+          mode: AuthMode.authenticated,
+          session: AuthSession(familyCode: 'ayivon', role: 'admin'),
+          restoreStatus: SessionRestoreStatus.authenticated,
+          firebaseUid: 'inactive-admin',
+          firebaseRole: 'admin',
+          firebaseFamilyIds: {'ayivon'},
+        ).canWriteFamily('ayivon'),
+        isFalse,
+      );
+      expect(authorized('editor').canAccessAdminKpi('ayivon'), isFalse);
+      expect(authorized('admin').canAccessAdminKpi('ayivon'), isTrue);
+    },
+  );
 
   test('expired or signed-out session denies KPI and writes', () {
     for (final status in [
@@ -60,6 +100,8 @@ void main() {
         restoreStatus: status,
         firebaseUid: 'stale-uid',
         firebaseRole: 'admin',
+        firebaseRoleActive: true,
+        firebaseFamilyIds: const {'ayivon'},
       );
 
       expect(state.hasFirebaseWriteAccess, isFalse);
@@ -74,6 +116,8 @@ void main() {
       session: AuthSession(familyCode: 'ayivon', role: 'admin'),
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
     const missingRole = AuthState(
       mode: AuthMode.authenticated,
@@ -99,6 +143,8 @@ void main() {
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'editor-uid',
       firebaseRole: 'editor',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
     const adminState = AuthState(
       mode: AuthMode.authenticated,
@@ -106,6 +152,8 @@ void main() {
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'admin-uid',
       firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
 
     expect(publicState.accessLevel, AccessLevel.public);
@@ -126,7 +174,7 @@ void main() {
     expect(editorState.canViewMemberDetails, isTrue);
     expect(editorState.canEdit, isTrue);
     expect(editorState.canShowEditButton, isTrue);
-    expect(editorState.canDelete, isTrue);
+    expect(editorState.canDelete, isFalse);
     expect(editorState.canAccessKpi, isFalse);
 
     expect(adminState.accessLevel, AccessLevel.admin);
@@ -137,38 +185,49 @@ void main() {
     expect(adminState.canAccessKpi, isTrue);
   });
 
-  test('access-code admin identity is limited to editor capabilities', () {
-    const modificationSession = AuthState(
-      mode: AuthMode.authenticated,
-      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
-      restoreStatus: SessionRestoreStatus.authenticated,
-      firebaseUid: 'admin-uid',
-      firebaseRole: 'admin',
-      firebaseAuthMethod: 'accessCode',
-    );
-    const explicitAdminSession = AuthState(
-      mode: AuthMode.authenticated,
-      session: AuthSession(familyCode: 'ayivon', role: 'admin'),
-      restoreStatus: SessionRestoreStatus.authenticated,
-      firebaseUid: 'admin-uid',
-      firebaseRole: 'admin',
-      firebaseAuthMethod: 'password',
-    );
+  test(
+    'modification code keeps writes but never grants KPI administration',
+    () {
+      const modificationSession = AuthState(
+        mode: AuthMode.authenticated,
+        session: AuthSession(familyCode: 'ayivon', role: 'admin'),
+        restoreStatus: SessionRestoreStatus.authenticated,
+        firebaseUid: 'admin-uid',
+        firebaseRole: 'admin',
+        firebaseRoleActive: true,
+        firebaseFamilyIds: {'ayivon'},
+        firebaseAuthMethod: 'accessCode',
+      );
+      const explicitAdminSession = AuthState(
+        mode: AuthMode.authenticated,
+        session: AuthSession(familyCode: 'ayivon', role: 'admin'),
+        restoreStatus: SessionRestoreStatus.authenticated,
+        firebaseUid: 'admin-uid',
+        firebaseRole: 'admin',
+        firebaseRoleActive: true,
+        firebaseFamilyIds: {'ayivon'},
+        firebaseAuthMethod: 'password',
+      );
 
-    expect(modificationSession.accessLevel, AccessLevel.editor);
-    expect(modificationSession.canEdit, isTrue);
-    expect(modificationSession.canAccessKpi, isFalse);
-    expect(explicitAdminSession.accessLevel, AccessLevel.admin);
-    expect(explicitAdminSession.canAccessKpi, isTrue);
-  });
+      expect(modificationSession.accessLevel, AccessLevel.editor);
+      expect(modificationSession.canEdit, isTrue);
+      expect(modificationSession.canDelete, isFalse);
+      expect(modificationSession.canAccessKpi, isFalse);
+      expect(explicitAdminSession.accessLevel, AccessLevel.admin);
+      expect(explicitAdminSession.canDelete, isTrue);
+      expect(explicitAdminSession.canAccessKpi, isTrue);
+    },
+  );
 
-  test('viewer and cached identities never inherit editor or admin rights', () {
+  test('verified Firebase role overrides stale local viewer metadata', () {
     const viewerWithStaleAdminMetadata = AuthState(
       mode: AuthMode.authenticated,
       session: AuthSession(familyCode: 'ayivon', role: 'viewer'),
       restoreStatus: SessionRestoreStatus.authenticated,
       firebaseUid: 'stale-uid',
       firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
     const cachedEditor = AuthState(
       mode: AuthMode.authenticated,
@@ -178,9 +237,9 @@ void main() {
       firebaseRole: 'editor',
     );
 
-    expect(viewerWithStaleAdminMetadata.accessLevel, AccessLevel.viewer);
-    expect(viewerWithStaleAdminMetadata.canEdit, isFalse);
-    expect(viewerWithStaleAdminMetadata.canAccessKpi, isFalse);
+    expect(viewerWithStaleAdminMetadata.accessLevel, AccessLevel.admin);
+    expect(viewerWithStaleAdminMetadata.canEdit, isTrue);
+    expect(viewerWithStaleAdminMetadata.canAccessKpi, isTrue);
     expect(cachedEditor.accessLevel, AccessLevel.public);
     expect(cachedEditor.canEdit, isFalse);
   });

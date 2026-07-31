@@ -239,10 +239,18 @@ class _ModificationCodeRequiredDialogState
       await Future<void>.delayed(const Duration(milliseconds: 80));
       if (!mounted) return;
       _setStep(ModificationAuthorizationStep.checkingPermissions);
-      if (!ref.read(authSessionProvider).canEdit) {
+      final effectiveAuth = ref.read(authSessionProvider);
+      final hasRequiredAccess = switch (mode) {
+        ModificationAuthorizationMode.administration =>
+          effectiveAuth.canAccessKpi,
+        ModificationAuthorizationMode.modification => effectiveAuth.canEdit,
+      };
+      if (!hasRequiredAccess) {
         setState(() {
           _step = ModificationAuthorizationStep.failed;
-          _error = 'Session Firebase sans droit de modification.';
+          _error = mode == ModificationAuthorizationMode.administration
+              ? 'La session est ouverte, mais ce compte ne possède pas les droits administrateur nécessaires.'
+              : 'Session Firebase sans droit de modification.';
         });
         return;
       }

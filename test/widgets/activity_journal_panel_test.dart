@@ -39,6 +39,8 @@ void main() {
           restoreStatus: SessionRestoreStatus.authenticated,
           firebaseUid: 'admin-uid',
           firebaseRole: 'admin',
+          firebaseRoleActive: true,
+          firebaseFamilyIds: {'ayivon'},
         ),
       ),
     );
@@ -59,6 +61,8 @@ void main() {
           restoreStatus: SessionRestoreStatus.authenticated,
           firebaseUid: 'editor-uid',
           firebaseRole: 'editor',
+          firebaseRoleActive: true,
+          firebaseFamilyIds: {'ayivon'},
         ),
       ),
     );

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/family_tree_provider.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/modification_code_required_dialog.dart';
 
 class SyncStatusBadge extends ConsumerWidget {
   const SyncStatusBadge({super.key});
@@ -12,6 +14,8 @@ class SyncStatusBadge extends ConsumerWidget {
     if (data == null || !data.syncSettings.databaseEnabled) {
       return const SizedBox.shrink();
     }
+    final auth = ref.watch(authSessionProvider);
+    final hasEffectiveWriteAccess = auth.canWriteFamily(data.mainFamilyCode);
     final openItems = data.pendingSyncQueue
         .where(
           (item) =>
@@ -21,7 +25,7 @@ class SyncStatusBadge extends ConsumerWidget {
               item.status != 'discarded',
         )
         .toList();
-    final needsResolutionCount = openItems
+    final storedAuthorizationFailures = openItems
         .where(
           (item) =>
               item.status == 'authorizationRequired' ||
@@ -29,6 +33,9 @@ class SyncStatusBadge extends ConsumerWidget {
               item.lastErrorCode == 'unauthenticated',
         )
         .length;
+    final needsResolutionCount = hasEffectiveWriteAccess
+        ? 0
+        : storedAuthorizationFailures;
     final conflictCount = openItems
         .where((item) => item.status == 'conflict')
         .length;
@@ -37,7 +44,10 @@ class SyncStatusBadge extends ConsumerWidget {
         totalOpenCount > 0 && data.syncSettings.syncStatus == 'synced'
         ? 'pending'
         : data.syncSettings.syncStatus;
-    final status = rawStatus == 'error' && totalOpenCount > 0
+    final status =
+        hasEffectiveWriteAccess && rawStatus == 'authorizationRequired'
+        ? (totalOpenCount > 0 ? 'pending' : 'synced')
+        : rawStatus == 'error' && totalOpenCount > 0
         ? 'pending'
         : rawStatus;
     final label = conflictCount > 0
@@ -105,43 +115,57 @@ class SyncStatusBadge extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: Tooltip(
               message: needsResolutionCount > 0
-                  ? 'L’administration n’est pas encore autorisée. '
+                  ? 'Cliquez pour déverrouiller les opérations administratives. '
                         '$needsResolutionCount opération(s) suspendue(s).'
                   : totalOpenCount == 0
                   ? label
                   : label,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.10),
-                  border: Border.all(color: color.withValues(alpha: 0.28)),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
+              child: InkWell(
+                onTap: needsResolutionCount > 0
+                    ? () => showDialog<bool>(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) =>
+                            const ModificationCodeRequiredDialog(
+                              requiredMode:
+                                  ModificationAuthorizationMode.administration,
+                            ),
+                      )
+                    : null,
+                borderRadius: BorderRadius.circular(999),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.10),
+                    border: Border.all(color: color.withValues(alpha: 0.28)),
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 16, color: color),
-                      const SizedBox(width: 6),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: availableLabelWidth,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 16, color: color),
+                        const SizedBox(width: 6),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: availableLabelWidth,
+                          ),
+                          child: Text(
+                            displayLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: color,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
                         ),
-                        child: Text(
-                          displayLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: color,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

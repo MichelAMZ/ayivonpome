@@ -29,6 +29,8 @@ class AuthState {
     this.firebaseUid,
     this.firebaseEmail,
     this.firebaseRole,
+    this.firebaseRoleActive = false,
+    this.firebaseFamilyIds = const <String>{},
     this.firebaseAuthMethod,
     this.lastSessionError,
   });
@@ -40,6 +42,8 @@ class AuthState {
   final String? firebaseUid;
   final String? firebaseEmail;
   final String? firebaseRole;
+  final bool firebaseRoleActive;
+  final Set<String> firebaseFamilyIds;
   final String? firebaseAuthMethod;
   final String? lastSessionError;
 
@@ -49,12 +53,13 @@ class AuthState {
       restoreStatus == SessionRestoreStatus.authenticated &&
       firebaseUid != null &&
       firebaseUid!.isNotEmpty &&
+      firebaseRoleActive &&
       (firebaseRole == 'editor' ||
           firebaseRole == 'admin' ||
           firebaseRole == 'superAdmin');
   AccessLevel get accessLevel {
     if (!isAuthenticated) return AccessLevel.public;
-    if (session?.role == 'viewer') {
+    if (!hasFirebaseWriteAccess && session?.role == 'viewer') {
       return AccessLevel.viewer;
     }
     if (!hasFirebaseWriteAccess) return AccessLevel.public;
@@ -67,14 +72,33 @@ class AuthState {
 
   bool get canViewMemberDetails => accessLevel != AccessLevel.public;
   bool get canEdit =>
-      accessLevel == AccessLevel.editor || accessLevel == AccessLevel.admin;
+      session != null &&
+      canWriteFamily(session!.familyCode) &&
+      (accessLevel == AccessLevel.editor || accessLevel == AccessLevel.admin);
   bool get canShowEditButton => canViewMemberDetails;
-  bool get canDelete => canEdit;
-  bool get canAccessKpi => accessLevel == AccessLevel.admin;
+  bool get canDelete => session != null && canDeleteFamily(session!.familyCode);
+  bool get canAccessKpi =>
+      session != null && canAccessAdminKpi(session!.familyCode);
   bool get canModify => canEdit;
   bool get isSuperAdmin => canAccessKpi && firebaseRole == 'superAdmin';
   bool get isAdmin => canAccessKpi;
   bool get canSecurelyDeleteMember => canDelete;
+
+  bool canWriteFamily(String familyId) {
+    final normalizedFamilyId = familyId.trim().toLowerCase();
+    return hasFirebaseWriteAccess &&
+        firebaseFamilyIds.any(
+          (candidate) => candidate.trim().toLowerCase() == normalizedFamilyId,
+        );
+  }
+
+  bool canAccessAdminKpi(String familyId) {
+    return canWriteFamily(familyId) &&
+        firebaseAuthMethod != 'accessCode' &&
+        (firebaseRole == 'admin' || firebaseRole == 'superAdmin');
+  }
+
+  bool canDeleteFamily(String familyId) => canAccessAdminKpi(familyId);
 }
 
 final authSessionProvider = NotifierProvider<AuthController, AuthState>(
@@ -173,9 +197,7 @@ class AuthController extends Notifier<AuthState> {
       await _saveSessionMetadata(effectiveSession);
       await ref
           .read(familyTreeProvider.notifier)
-          .startRemoteFamilyTreeWatch(
-            includeActivityLog: effectiveSession.isAdmin,
-          );
+          .startRemoteFamilyTreeWatch(includeActivityLog: state.canAccessKpi);
       await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
       return true;
     } catch (error) {
@@ -262,9 +284,7 @@ class AuthController extends Notifier<AuthState> {
     await _saveSessionMetadata(firebaseSession);
     await ref
         .read(familyTreeProvider.notifier)
-        .startRemoteFamilyTreeWatch(
-          includeActivityLog: firebaseSession.isAdmin,
-        );
+        .startRemoteFamilyTreeWatch(includeActivityLog: state.canAccessKpi);
     await ref.read(familyTreeProvider.notifier).runAutomaticDataCleanup();
   }
 
@@ -327,9 +347,7 @@ class AuthController extends Notifier<AuthState> {
     try {
       await ref
           .read(familyTreeProvider.notifier)
-          .startRemoteFamilyTreeWatch(
-            includeActivityLog: firebaseSession.isAdmin,
-          );
+          .startRemoteFamilyTreeWatch(includeActivityLog: state.canAccessKpi);
     } catch (_) {
       // Le listener pourra être relancé sans invalider l'authentification.
     }
@@ -388,6 +406,25 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Relit la session Firebase et le document `user_roles/{uid}` avant de
+  /// confirmer un droit administratif sensible.
+  Future<bool> refreshEffectiveAdminAuthorization({
+    required String familyId,
+  }) async {
+    final service = ref.read(firebaseAccessCodeAuthServiceProvider);
+    if (service == null) return false;
+    try {
+      final firebaseSession = await service.restoreCurrentSession();
+      if (firebaseSession == null) {
+        return false;
+      }
+      _applyFirebaseSession(firebaseSession);
+      return state.canDeleteFamily(familyId);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _recordModificationAccessAudit(
     String action, {
     required String description,
@@ -427,9 +464,7 @@ class AuthController extends Notifier<AuthState> {
       await _saveSessionMetadata(firebaseSession);
       await ref
           .read(familyTreeProvider.notifier)
-          .startRemoteFamilyTreeWatch(
-            includeActivityLog: firebaseSession.isAdmin,
-          );
+          .startRemoteFamilyTreeWatch(includeActivityLog: state.canAccessKpi);
       return firebaseSession;
     } catch (_) {
       return null;
@@ -449,6 +484,8 @@ class AuthController extends Notifier<AuthState> {
       firebaseUid: firebaseSession.uid,
       firebaseEmail: firebaseSession.email,
       firebaseRole: firebaseSession.role,
+      firebaseRoleActive: true,
+      firebaseFamilyIds: firebaseSession.familyIds.toSet(),
       firebaseAuthMethod: firebaseSession.authMethod,
     );
   }
@@ -470,6 +507,8 @@ class AuthController extends Notifier<AuthState> {
       hasModificationAccess: _isEditorRole(sessionMetadata.role),
       firebaseUid: sessionMetadata.uid,
       firebaseRole: sessionMetadata.role,
+      firebaseRoleActive: false,
+      firebaseFamilyIds: {sessionMetadata.familyId},
       firebaseAuthMethod: sessionMetadata.authMethod,
       lastSessionError: lastSessionError,
     );

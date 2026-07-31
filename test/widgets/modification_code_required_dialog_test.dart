@@ -44,6 +44,8 @@ void main() {
       session: AuthSession(familyCode: 'ayivon', role: 'admin'),
       firebaseUid: 'admin-uid',
       firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
       firebaseAuthMethod: 'password',
     );
     const editor = AuthState(
@@ -52,6 +54,8 @@ void main() {
       session: AuthSession(familyCode: 'ayivon', role: 'editor'),
       firebaseUid: 'editor-uid',
       firebaseRole: 'editor',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
       firebaseAuthMethod: 'accessCode',
     );
 

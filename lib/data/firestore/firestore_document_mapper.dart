@@ -83,6 +83,7 @@ class FirestoreDocumentMapper {
       'profileNeedsCompletion': person.profileNeedsCompletion,
       'version': person.version,
       'schemaVersion': memberSchemaVersion,
+      'deletedAt': person.deletedAt,
       'updatedBy': _nullableIdentifier(actorUid ?? person.updatedBy),
       'updatedAt': FieldValue.serverTimestamp(),
     };

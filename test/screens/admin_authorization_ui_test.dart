@@ -8,6 +8,7 @@ void main() {
   testWidgets('locked administration exposes status and unlock action', (
     tester,
   ) async {
+    var unlockCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -20,7 +21,7 @@ void main() {
                 ),
                 familyId: 'AYIVON',
                 projectId: 'ayivon-test',
-                onUnlock: () {},
+                onUnlock: () => unlockCount++,
               ),
             ],
           ),
@@ -33,6 +34,8 @@ void main() {
     expect(find.text('Déverrouiller l’administration'), findsNWidgets(2));
     expect(find.text('Non authentifié'), findsOneWidget);
     expect(find.text('ayivon-test'), findsOneWidget);
+    await tester.tap(find.text('Administration verrouillée'));
+    expect(unlockCount, 1);
     expect(tester.takeException(), isNull);
   });
 
@@ -46,6 +49,8 @@ void main() {
       firebaseUid: 'admin-id',
       firebaseEmail: 'admin@example.test',
       firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
       firebaseAuthMethod: 'password',
     );
 

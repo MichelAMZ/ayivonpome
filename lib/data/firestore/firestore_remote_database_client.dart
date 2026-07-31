@@ -632,7 +632,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   @override
   Future<void> deletePerson(String personId) async {
     _validatePersonId(personId, 'supprimer');
-    final user = await _requireFirebaseAdminForFamily();
+    final user = await _requireFirebaseAdminForFamily(allowEditor: false);
     final memberDoc = _membersPublic.doc(personId);
     final privateMemberDoc = _membersPrivate.doc(personId);
     final memberSnapshot = await memberDoc.get(
@@ -771,7 +771,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     batch.set(_firestore.collection('activity_logs').doc(), {
       'familyId': _tenantFamilyId,
       'personId': personId,
-      'action': 'person_deleted',
+      'action': 'member_soft_deleted',
       'actorUid': user.uid,
       'result': 'confirmed',
       'createdAt': FieldValue.serverTimestamp(),
@@ -844,7 +844,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     }
   }
 
-  Future<User> _requireFirebaseAdminForFamily() async {
+  Future<User> _requireFirebaseAdminForFamily({bool allowEditor = true}) async {
     if (Firebase.apps.isEmpty) {
       throw FirebaseException(
         plugin: 'firebase_core',
@@ -871,7 +871,10 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         .toSet();
     if (!roleSnapshot.exists ||
         role?['active'] != true ||
-        !{'admin', 'superAdmin'}.contains(role?['role']) ||
+        !(allowEditor
+                ? {'editor', 'admin', 'superAdmin'}
+                : {'admin', 'superAdmin'})
+            .contains(role?['role']) ||
         !familyIds.contains(_tenantFamilyId)) {
       throw FirebaseException(
         plugin: 'cloud_firestore',

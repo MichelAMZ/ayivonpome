@@ -11,12 +11,14 @@ class MemberDeletionDialog extends ConsumerStatefulWidget {
     required this.person,
     required this.data,
     required this.onDelete,
+    this.showUnlockDialog,
     super.key,
   });
 
   final Person person;
   final FamilyTreeData data;
   final Future<void> Function() onDelete;
+  final Future<bool?> Function(BuildContext context)? showUnlockDialog;
 
   @override
   ConsumerState<MemberDeletionDialog> createState() =>
@@ -27,7 +29,8 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
   final _confirmationController = TextEditingController();
   bool _deleting = false;
   bool _unlocking = false;
-  bool _authorizationRejected = false;
+  bool _resumingAfterUnlock = false;
+  bool _isAuthorizationPopupOpen = false;
   String? _error;
   String? _authorizationMessage;
 
@@ -55,6 +58,13 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
     return memberReferences + unions;
   }
 
+  bool get _memberExists =>
+      widget.data.people.any((person) => person.id == widget.person.id);
+
+  String get _familyId => widget.person.familyCode.isEmpty
+      ? widget.data.mainFamilyCode
+      : widget.person.familyCode;
+
   @override
   void dispose() {
     _confirmationController.dispose();
@@ -64,8 +74,10 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authSessionProvider);
-    final authorized = auth.canSecurelyDeleteMember && !_authorizationRejected;
-    final deleteDisabledReason = !authorized
+    final authorized = auth.canDeleteFamily(_familyId);
+    final deleteDisabledReason = !_memberExists
+        ? 'Ce membre n’existe plus dans l’arbre. Fermez cette boîte et actualisez la page.'
+        : !authorized
         ? 'Déverrouillez d’abord l’administration.'
         : !_isConfirmed
         ? 'Saisissez le nom complet du membre ou SUPPRIMER.'
@@ -84,9 +96,7 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
               ),
               const SizedBox(height: 16),
               Text('Membre : ${widget.person.fullName}'),
-              Text(
-                'Famille ou branche : ${widget.person.familyCode.isEmpty ? widget.data.mainFamilyCode : widget.person.familyCode}',
-              ),
+              Text('Famille ou branche : $_familyId'),
               Text('Relations pouvant être affectées : $_affectedRelations'),
               const SizedBox(height: 16),
               const Text(
@@ -143,7 +153,8 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
                           message:
                               'Ouvrir la saisie du code administrateur sans quitter cette suppression.',
                           child: FilledButton.icon(
-                            onPressed: _deleting || _unlocking
+                            onPressed:
+                                _deleting || _unlocking || _resumingAfterUnlock
                                 ? null
                                 : _unlockAdministration,
                             icon: _unlocking
@@ -187,7 +198,11 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _deleting ? null : () => Navigator.pop(context, false),
+          onPressed: _deleting
+              ? null
+              : () {
+                  Navigator.pop(context, false);
+                },
           child: const Text('Annuler'),
         ),
         FilledButton.icon(
@@ -195,7 +210,9 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
             backgroundColor: Theme.of(context).colorScheme.error,
             foregroundColor: Theme.of(context).colorScheme.onError,
           ),
-          onPressed: !_isConfirmed || !authorized || _deleting ? null : _delete,
+          onPressed: !_isConfirmed || !authorized || !_memberExists || _deleting
+              ? null
+              : _delete,
           icon: _deleting
               ? const SizedBox.square(
                   dimension: 16,
@@ -215,8 +232,8 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
   Future<void> _delete() async {
     if (_deleting ||
         !_isConfirmed ||
-        !ref.read(authSessionProvider).canSecurelyDeleteMember ||
-        _authorizationRejected) {
+        !_memberExists ||
+        !ref.read(authSessionProvider).canDeleteFamily(_familyId)) {
       return;
     }
     setState(() {
@@ -231,7 +248,6 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
       final authorizationFailure = _isAuthorizationFailure(error);
       setState(() {
         _deleting = false;
-        _authorizationRejected = authorizationFailure;
         if (authorizationFailure) {
           _authorizationMessage = null;
         }
@@ -241,28 +257,67 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
   }
 
   Future<void> _unlockAdministration() async {
-    if (_unlocking || _deleting) return;
+    if (_unlocking || _resumingAfterUnlock || _deleting) return;
+    var retryRequested = false;
     setState(() {
       _unlocking = true;
       _error = null;
       _authorizationMessage = null;
     });
-    final unlocked = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const ModificationCodeRequiredDialog(
-        requiredMode: ModificationAuthorizationMode.administration,
-      ),
-    );
-    if (!mounted) return;
-    setState(() {
-      _unlocking = false;
-      if (unlocked == true) {
-        _authorizationRejected = false;
+    try {
+      final unlocked =
+          await (widget.showUnlockDialog?.call(context) ??
+              showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const ModificationCodeRequiredDialog(
+                  requiredMode: ModificationAuthorizationMode.administration,
+                ),
+              ));
+      if (!mounted || unlocked != true) return;
+      setState(() {
+        _resumingAfterUnlock = true;
         _authorizationMessage =
-            'Administration déverrouillée. Vous pouvez maintenant confirmer la suppression.';
+            'Vérification de l’autorisation administrateur…';
+      });
+      final authorized = await ref
+          .read(authSessionProvider.notifier)
+          .refreshEffectiveAdminAuthorization(familyId: _familyId);
+      if (!mounted) return;
+      setState(() {
+        _authorizationMessage = authorized
+            ? 'Administration déverrouillée. Vous pouvez maintenant confirmer la suppression.'
+            : 'La session est ouverte, mais ce compte ne possède pas les droits nécessaires pour supprimer ce membre.';
+      });
+      if (!authorized) {
+        retryRequested = await _showInsufficientAuthorizationPopup();
       }
-    });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _unlocking = false;
+          _resumingAfterUnlock = false;
+        });
+      }
+    }
+    if (retryRequested && mounted) {
+      await _unlockAdministration();
+    }
+  }
+
+  Future<bool> _showInsufficientAuthorizationPopup() async {
+    if (_isAuthorizationPopupOpen || !mounted) return false;
+    _isAuthorizationPopupOpen = true;
+    try {
+      final unlock = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => const _InsufficientAuthorizationDialog(),
+      );
+      return unlock == true;
+    } finally {
+      _isAuthorizationPopupOpen = false;
+    }
   }
 
   bool _isAuthorizationFailure(Object error) {
@@ -285,5 +340,68 @@ class _MemberDeletionDialogState extends ConsumerState<MemberDeletionDialog> {
       return 'La suppression nécessite une connexion sécurisée à Firebase. Réessayez lorsque la connexion sera disponible.';
     }
     return 'La suppression n’a pas été confirmée par Firebase. Le membre a été conservé.';
+  }
+}
+
+class _InsufficientAuthorizationDialog extends StatelessWidget {
+  const _InsufficientAuthorizationDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFC58A17);
+    return AlertDialog(
+      icon: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.admin_panel_settings_outlined, color: accent),
+      ),
+      title: const Text(
+        'Autorisation administrateur requise',
+        textAlign: TextAlign.center,
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: accent.withValues(alpha: 0.32)),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'La session est ouverte, mais ce compte ne possède pas les droits nécessaires pour supprimer ce membre.',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Déverrouillez l’administration avec un code administrateur valide, puis revenez confirmer la suppression.',
+              ),
+            ],
+          ),
+        ),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Annuler'),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.pop(context, true),
+          icon: const Icon(Icons.key_outlined),
+          label: const Text('Déverrouiller l’administration'),
+        ),
+      ],
+    );
   }
 }

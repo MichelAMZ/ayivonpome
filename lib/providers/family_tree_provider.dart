@@ -586,23 +586,57 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return locallySaved;
   }
 
-  Future<MemberSaveResult> _saveMemberOperations(
-    FamilyTreeData data,
-    List<PendingSyncItem> operations,
-  ) async {
-    final locallySaved = await save(
-      data,
-      syncOperations: operations,
-      syncInBackground: false,
-    );
-    final attempt = await ref
-        .read(syncServiceProvider)
-        .attemptCurrentOperations(locallySaved, operations: operations);
-    if (_encode(attempt.data) != _encode(locallySaved)) {
-      await ref.read(localJsonRepositoryProvider).saveFamilyTree(attempt.data);
-      if (ref.mounted) state = AsyncData(attempt.data);
+  Future<MemberSaveResult> _saveMemberOperations(FamilyTreeData data) async {
+    try {
+      await ref.read(memberFirestoreServiceProvider).upsertMemberGraph(data);
+      final committed = data.copyWith(
+        pendingSyncQueue: const [],
+        syncSettings: data.syncSettings.copyWith(syncStatus: 'synced'),
+        appSettings: data.appSettings.copyWith(
+          storageSettings: data.appSettings.storageSettings.copyWith(
+            syncStatus: 'synced',
+          ),
+        ),
+      );
+      await ref.read(localJsonRepositoryProvider).saveFamilyTree(committed);
+      if (ref.mounted) state = AsyncData(committed);
+      return const MemberSaveResult(
+        localSaved: true,
+        remoteStatus: RemoteSaveStatus.confirmed,
+      );
+    } catch (error) {
+      final message = '$error'.toLowerCase();
+      final status =
+          message.contains('permission-denied') ||
+              message.contains('unauthenticated')
+          ? RemoteSaveStatus.permissionRequired
+          : message.contains('unavailable') || message.contains('network')
+          ? RemoteSaveStatus.unavailable
+          : RemoteSaveStatus.failed;
+      return MemberSaveResult(
+        localSaved: false,
+        remoteStatus: status,
+        lastError: _memberWriteErrorMessage(message),
+      );
     }
-    return attempt.result;
+  }
+
+  String _memberWriteErrorMessage(String message) {
+    if (message.contains('permission-denied')) {
+      return 'Vous n’avez pas l’autorisation d’effectuer cette opération.';
+    }
+    if (message.contains('unauthenticated')) {
+      return 'Veuillez saisir le code de modification.';
+    }
+    if (message.contains('unavailable')) {
+      return 'Le serveur est momentanément indisponible.';
+    }
+    if (message.contains('network')) {
+      return 'Vérifiez votre connexion Internet.';
+    }
+    if (message.contains('already-exists')) return 'Ce membre existe déjà.';
+    if (message.contains('not-found')) return 'Ce membre n’existe plus.';
+    return 'L’enregistrement n’a pas été confirmé par le serveur.';
   }
 
   FamilyTreeData _queueLocalSyncOperations(
@@ -725,38 +759,13 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       people: preparedPeople,
       marriageRelations: preparedRelations,
     );
-    final peopleById = {
-      for (final person in prepared.people) person.id: person,
-    };
-    final relationsById = {
-      for (final relation in prepared.marriageRelations) relation.id: relation,
-    };
-    final operations = <PendingSyncItem>[
-      for (final id in changedPeopleIds)
-        ref
-            .read(syncServiceProvider)
-            .personOperation(
-              person: peopleById[id]!,
-              action: previousPeople.containsKey(id) ? 'update' : 'create',
-              updatedBy: relationship,
-            ),
-      for (final id in changedRelationIds)
-        ref
-            .read(syncServiceProvider)
-            .marriageOperation(
-              relation: relationsById[id]!,
-              action: previousRelations.containsKey(id) ? 'update' : 'create',
-              updatedBy: relationship,
-            ),
-    ];
-
     debugPrint(
       'RELATION LINK relationship=$relationship actorRole=$actorRole '
       'changedPeople=${changedPeopleIds.join(',')} '
       'changedRelations=${changedRelationIds.join(',')} '
-      'operations=${operations.length}',
+      'writes=${changedPeopleIds.length + changedRelationIds.length}',
     );
-    return _saveMemberOperations(prepared, operations);
+    return _saveMemberOperations(prepared);
   }
 
   Future<MemberSaveResult> linkExistingFather({
@@ -980,11 +989,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final updated = ref
         .read(marriageServiceProvider)
         .declareDivorce(data, relation, divorceDate: divorceDate, notes: notes);
-    final updatedRelation = updated.marriageRelations.firstWhere(
-      (item) => item.id == relation.id,
-      orElse: () => relation,
-    );
-    await save(
+    await _saveMemberOperations(
       updated.copyWith(
         auditLog: [
           ...updated.auditLog,
@@ -998,13 +1003,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
-      syncOperation: ref
-          .read(syncServiceProvider)
-          .marriageOperation(
-            relation: updatedRelation,
-            action: 'update',
-            updatedBy: adminId,
-          ),
     );
   }
 
@@ -1020,11 +1018,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final updated = ref
         .read(marriageServiceProvider)
         .restoreMarriage(data, relation);
-    final updatedRelation = updated.marriageRelations.firstWhere(
-      (item) => item.id == relation.id,
-      orElse: () => relation,
-    );
-    await save(
+    await _saveMemberOperations(
       updated.copyWith(
         auditLog: [
           ...updated.auditLog,
@@ -1038,13 +1032,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
-      syncOperation: ref
-          .read(syncServiceProvider)
-          .marriageOperation(
-            relation: updatedRelation,
-            action: 'restore',
-            updatedBy: adminId,
-          ),
     );
   }
 
@@ -1065,16 +1052,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final updated = ref
         .read(marriageServiceProvider)
         .upsertUnion(data, draft, updatedBy: adminId);
-    final updatedRelation = updated.marriageRelations.firstWhere(
-      (item) => item.involves(draft.personId) && item.involves(draft.spouseId),
-    );
-    final operation = ref
-        .read(syncServiceProvider)
-        .marriageOperation(
-          relation: updatedRelation,
-          action: existing == null ? 'create' : 'update',
-          updatedBy: adminId,
-        );
     return _saveMemberOperations(
       updated.copyWith(
         auditLog: [
@@ -1089,7 +1066,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
-      [operation],
     );
   }
 
@@ -1107,17 +1083,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     final updated = ref
         .read(marriageServiceProvider)
         .deleteUnion(data, relation, deletedBy: adminId);
-    final updatedRelation = updated.marriageRelations.firstWhere(
-      (item) => item.id == relation.id,
-      orElse: () => relation,
-    );
-    final operation = ref
-        .read(syncServiceProvider)
-        .marriageOperation(
-          relation: updatedRelation,
-          action: 'update',
-          updatedBy: adminId,
-        );
     return _saveMemberOperations(
       updated.copyWith(
         auditLog: [
@@ -1132,7 +1097,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           ),
         ],
       ),
-      [operation],
     );
   }
 
@@ -1184,14 +1148,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           .read(familyAnnouncementServiceProvider)
           .addBirthAnnouncementIfNeeded(nextData, preparedPerson);
     }
-    final operation = ref
-        .read(syncServiceProvider)
-        .personOperation(
-          person: preparedPerson,
-          action: index == -1 ? 'create' : 'update',
-          updatedBy: action,
-        );
-    return _saveMemberOperations(nextData, [operation]);
+    return _saveMemberOperations(nextData);
   }
 
   Future<MemberSaveResult> upsertPersonWithParents(
@@ -1279,48 +1236,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           .addBirthAnnouncementIfNeeded(nextData, updatedChild);
     }
 
-    final updatedChild = nextData.people.firstWhere(
-      (item) => item.id == preparedPerson.id,
-      orElse: () => preparedPerson,
-    );
-    final operations = [
-      ref
-          .read(syncServiceProvider)
-          .personOperation(
-            person: updatedChild,
-            action: index == -1 ? 'create' : 'update',
-            updatedBy: updatedBy.isEmpty ? action : updatedBy,
-          ),
-      ...parentResult.createdParents.map(
-        (parent) => ref
-            .read(syncServiceProvider)
-            .personOperation(
-              person: parent,
-              action: 'create',
-              updatedBy: updatedBy.isEmpty ? 'auto_parent_creation' : updatedBy,
-            ),
-      ),
-      ...parentResult.updatedParents.map(
-        (parent) => ref
-            .read(syncServiceProvider)
-            .personOperation(
-              person: parent,
-              action: 'update',
-              updatedBy: updatedBy.isEmpty ? 'parent_link' : updatedBy,
-            ),
-      ),
-      ...parentResult.createdMarriageRelations.map(
-        (relation) => ref
-            .read(syncServiceProvider)
-            .marriageOperation(
-              relation: relation,
-              action: 'create',
-              updatedBy: 'auto_parent_creation',
-            ),
-      ),
-    ];
-
-    return _saveMemberOperations(nextData, operations);
+    return _saveMemberOperations(nextData);
   }
 
   Future<void> deletePerson(String id) async {
@@ -1331,69 +1247,7 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       throw StateError('family_leader_replacement_required');
     }
 
-    await ref.read(remoteDatabaseRepositoryProvider).deletePerson(id);
-    await createBackup();
-    final cleanedPeople = data.people
-        .where((item) => item.id != id)
-        .map(
-          (item) => item.copyWith(
-            fatherId: item.fatherId == id ? '' : item.fatherId,
-            motherId: item.motherId == id ? '' : item.motherId,
-            spouseIds: item.spouseIds.where((value) => value != id).toList(),
-            childrenIds: item.childrenIds
-                .where((value) => value != id)
-                .toList(),
-            parents: item.parents.where((value) => value != id).toList(),
-            spouses: item.spouses.where((value) => value != id).toList(),
-            children: item.children.where((value) => value != id).toList(),
-          ),
-        )
-        .toList(growable: false);
-    final cleaned = rebuildRelationshipGraph(
-      data.copyWith(
-        people: cleanedPeople,
-        marriageRelations: data.marriageRelations
-            .where((relation) => !relation.involves(id))
-            .toList(growable: false),
-        familyLinks: data.familyLinks
-            .where((link) => link.fromPersonId != id && link.toPersonId != id)
-            .toList(growable: false),
-        familyCouncil: data.familyCouncil.copyWith(
-          members: data.familyCouncil.members
-              .where((member) => member.personId != id)
-              .toList(growable: false),
-        ),
-        familyHonor: data.familyHonor.patriarchPersonId == id
-            ? data.familyHonor.copyWith(patriarchPersonId: '')
-            : data.familyHonor,
-        familyLeadership: data.familyLeadership.copyWith(
-          formerLeaderPersonId: data.familyLeadership.formerLeaderPersonId == id
-              ? ''
-              : null,
-          successorPersonId: data.familyLeadership.successorPersonId == id
-              ? ''
-              : null,
-        ),
-        pendingSyncQueue: data.pendingSyncQueue
-            .where(
-              (operation) =>
-                  !(operation.entityType == 'person' &&
-                      operation.entityId == id),
-            )
-            .toList(growable: false),
-        auditLog: [
-          ...data.auditLog,
-          _log(
-            'delete_person_confirmed',
-            id,
-            person.familyCode,
-            description: 'Suppression Firebase confirmée.',
-          ),
-        ],
-      ),
-    );
-    await ref.read(localJsonRepositoryProvider).saveFamilyTree(cleaned);
-    state = AsyncData(cleaned);
+    await ref.read(memberFirestoreServiceProvider).softDeleteMember(id);
   }
 
   Future<void> upsertFamilyCode(FamilyCode familyCode) async {

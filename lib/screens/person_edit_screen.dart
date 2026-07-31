@@ -3384,7 +3384,27 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         }
         return;
       }
-      final auth = ref.read(authSessionProvider);
+      if (!mounted) return;
+      var auth = ref.read(authSessionProvider);
+      if (!auth.canEdit) {
+        final unlocked = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const ModificationCodeRequiredDialog(),
+        );
+        if (!mounted || unlocked != true) return;
+        auth = ref.read(authSessionProvider);
+        if (!auth.canEdit) {
+          _showSaveSnackBar(
+            color: Colors.red,
+            icon: Icons.lock_outline,
+            message:
+                'La session est ouverte, mais ce compte ne possède pas les droits nécessaires.',
+            duration: const Duration(seconds: 5),
+          );
+          return;
+        }
+      }
       final actorRole = auth.firebaseRole ?? auth.session?.role ?? 'viewer';
       final adminId = auth.firebaseUid ?? auth.firebaseEmail ?? actorRole;
       final result = await ref
@@ -3459,34 +3479,24 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
         return;
       }
       if (saveResults.any((item) => item.isAuthorizationRequired)) {
-        debugPrint('Save flow: result=authorizationRequired mounted=$mounted');
-        await _requestAuthorizationAndRetrySave(
-          draft: draft,
-          operationIds: saveResults
-              .expand((item) => item.operationIds)
-              .toSet()
-              .toList(growable: false),
+        _showSaveSnackBar(
+          color: Colors.red,
+          icon: Icons.lock_outline,
+          message:
+              'Vous n’avez pas l’autorisation d’effectuer cette opération.',
+          duration: const Duration(seconds: 5),
         );
         return;
       }
       if (saveResults.any((item) => item.isLocalPending)) {
-        debugPrint('Save flow: result=localPending mounted=$mounted');
         setState(() => _saveNeedsRetry = true);
-        if (draft) {
-          _showSaveSnackBar(
-            color: Colors.orange.shade800,
-            icon: Icons.sync_problem_outlined,
-            message:
-                'Brouillon conservé sur cet appareil. Synchronisation non confirmée.',
-            duration: const Duration(seconds: 5),
-          );
-          return;
-        }
         _showSaveSnackBar(
-          color: Colors.orange.shade800,
+          color: Colors.red,
           icon: Icons.sync_problem_outlined,
-          message:
-              'Échec de la synchronisation. Vérifiez la connexion puis réessayez.',
+          message: saveResults
+              .map((item) => item.lastError)
+              .where((message) => message.isNotEmpty)
+              .join('\n'),
           duration: const Duration(seconds: 5),
         );
         return;
@@ -3547,52 +3557,6 @@ class _PersonEditScreenState extends ConsumerState<PersonEditScreen> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
-  }
-
-  Future<void> _requestAuthorizationAndRetrySave({
-    required bool draft,
-    required List<String> operationIds,
-  }) async {
-    _showSaveSnackBar(
-      color: const Color(0xFF2F6FA3),
-      icon: Icons.lock_outline,
-      message: 'Autorisation requise pour synchroniser ces modifications.',
-      duration: const Duration(seconds: 4),
-    );
-    debugPrint('Save flow: dialogOpened mounted=$mounted');
-    final unlocked = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) =>
-          ModificationCodeRequiredDialog(operationIds: operationIds),
-    );
-    if (!mounted) return;
-    if (unlocked != true) {
-      debugPrint('Save flow: authorizationCancelled');
-      setState(() => _saveNeedsRetry = true);
-      _showSaveSnackBar(
-        color: Colors.orange.shade800,
-        icon: Icons.lock_outline,
-        message:
-            'Autorisation non validée. La sauvegarde reste en attente sur cet appareil.',
-        duration: const Duration(seconds: 5),
-      );
-      return;
-    }
-    debugPrint('Save flow: authorizationGranted remoteConfirmed');
-    _hasUnsavedChanges = false;
-    _saveNeedsRetry = false;
-    _showSaveSnackBar(
-      color: Colors.green,
-      icon: Icons.check_circle,
-      message: 'Code validé. Les modifications ont été enregistrées.',
-      duration: const Duration(seconds: 3),
-    );
-    if (draft) {
-      setState(() => _lastDraftSavedAt = DateTime.now());
-      return;
-    }
-    Navigator.pop(context);
   }
 
   bool _allRequiredFieldsComplete() =>

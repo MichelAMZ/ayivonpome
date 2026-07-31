@@ -38,6 +38,7 @@ import '../services/local_json_repository.dart';
 import '../services/kpi_service.dart';
 import '../services/language_detection_service.dart';
 import '../services/map_service.dart';
+import '../services/member_firestore_service.dart';
 import '../services/marriage_service.dart';
 import '../services/modification_history_service.dart';
 import '../services/modification_code_service.dart';
@@ -77,6 +78,10 @@ final remoteDatabaseRepositoryProvider = Provider<DatabaseFamilyRepository>((
   }
   return const DatabaseFamilyRepository();
 });
+
+final memberFirestoreServiceProvider = Provider<MemberFirestoreService>(
+  (ref) => MemberFirestoreService(ref.watch(remoteDatabaseRepositoryProvider)),
+);
 
 final hybridFamilyRepositoryProvider = Provider<HybridFamilyRepository>(
   (ref) => HybridFamilyRepository(

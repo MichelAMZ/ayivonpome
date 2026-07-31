@@ -1426,7 +1426,7 @@ class AdminAuthorizationStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authorized = auth.canEdit;
+    final authorized = auth.canAccessKpi;
     final color = authorized
         ? const Color(0xFF2E7D32)
         : const Color(0xFF9A6A00);
@@ -1453,7 +1453,10 @@ class AdminAuthorizationStatusCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                _AdministrationStateBadge(authorized: authorized),
+                _AdministrationStateBadge(
+                  authorized: authorized,
+                  onUnlock: onUnlock,
+                ),
               ],
             ),
             const SizedBox(height: 18),
@@ -1512,9 +1515,13 @@ class AdminAuthorizationStatusCard extends StatelessWidget {
 }
 
 class _AdministrationStateBadge extends StatelessWidget {
-  const _AdministrationStateBadge({required this.authorized});
+  const _AdministrationStateBadge({
+    required this.authorized,
+    required this.onUnlock,
+  });
 
   final bool authorized;
+  final VoidCallback onUnlock;
 
   @override
   Widget build(BuildContext context) {
@@ -1526,34 +1533,39 @@ class _AdministrationStateBadge extends StatelessWidget {
         : 'Administration verrouillée';
     return Semantics(
       label: label,
+      button: !authorized,
       child: Tooltip(
         message: authorized
             ? 'L’administration est actuellement active.'
-            : 'L’administration n’est pas encore autorisée.',
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: color.withValues(alpha: 0.28)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                authorized ? Icons.check_circle : Icons.lock_outline,
-                size: 16,
-                color: color,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            : 'Cliquez pour déverrouiller les opérations administratives.',
+        child: InkWell(
+          onTap: authorized ? null : onUnlock,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withValues(alpha: 0.28)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  authorized ? Icons.check_circle : Icons.lock_outline,
+                  size: 16,
                   color: color,
-                  fontWeight: FontWeight.w800,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

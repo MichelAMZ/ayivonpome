@@ -24,6 +24,8 @@ void main() {
       session: AuthSession(familyCode: 'ayivon', role: 'editor'),
       firebaseUid: 'editor-uid',
       firebaseRole: 'editor',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
     const firebaseAdmin = AuthState(
       mode: AuthMode.authenticated,
@@ -31,10 +33,12 @@ void main() {
       session: AuthSession(familyCode: 'ayivon', role: 'admin'),
       firebaseUid: 'admin-uid',
       firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {'ayivon'},
     );
 
     expect(localAdmin.canSecurelyDeleteMember, isFalse);
-    expect(editor.canSecurelyDeleteMember, isTrue);
+    expect(editor.canSecurelyDeleteMember, isFalse);
     expect(firebaseAdmin.canSecurelyDeleteMember, isTrue);
   });
 
@@ -56,7 +60,17 @@ void main() {
                   lastName: 'Test',
                   familyCode: 'ayivon',
                 ),
-                data: const FamilyTreeData(mainFamilyCode: 'ayivon'),
+                data: const FamilyTreeData(
+                  mainFamilyCode: 'ayivon',
+                  people: [
+                    Person(
+                      id: 'test-member',
+                      firstName: 'Membre',
+                      lastName: 'Test',
+                      familyCode: 'ayivon',
+                    ),
+                  ],
+                ),
                 onDelete: () async => deleteCount++,
               ),
             ),
@@ -92,7 +106,9 @@ void main() {
           home: Scaffold(
             body: MemberDeletionDialog(
               person: const Person(id: 'test-member', firstName: 'Test'),
-              data: const FamilyTreeData(),
+              data: const FamilyTreeData(
+                people: [Person(id: 'test-member', firstName: 'Test')],
+              ),
               onDelete: () {
                 deleteCount++;
                 return completer.future;
@@ -144,7 +160,15 @@ void main() {
                   firstName: 'Membre',
                   lastName: 'Test',
                 ),
-                data: const FamilyTreeData(),
+                data: const FamilyTreeData(
+                  people: [
+                    Person(
+                      id: 'test-member',
+                      firstName: 'Membre',
+                      lastName: 'Test',
+                    ),
+                  ],
+                ),
                 onDelete: () async => deleteCount++,
               ),
             ),
@@ -183,6 +207,184 @@ void main() {
       expect(deleteCount, 0);
     },
   );
+
+  testWidgets('successful unlock resumes once without reopening or deleting', (
+    tester,
+  ) async {
+    final unlockResult = Completer<bool?>();
+    var unlockDialogOpenCount = 0;
+    var deleteCount = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(_RefreshableAuthController.new),
+          familyTreeProvider.overrideWith(_TestFamilyTreeController.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('fr'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: MemberDeletionDialog(
+              person: const Person(
+                id: 'test-member',
+                firstName: 'Membre',
+                lastName: 'Test',
+                familyCode: 'ayivon',
+              ),
+              data: const FamilyTreeData(
+                mainFamilyCode: 'ayivon',
+                people: [
+                  Person(
+                    id: 'test-member',
+                    firstName: 'Membre',
+                    lastName: 'Test',
+                    familyCode: 'ayivon',
+                  ),
+                ],
+              ),
+              showUnlockDialog: (_) {
+                unlockDialogOpenCount++;
+                return unlockResult.future;
+              },
+              onDelete: () async => deleteCount++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'SUPPRIMER');
+    await tester.ensureVisible(find.text('Déverrouiller l’administration'));
+    await tester.tap(find.text('Déverrouiller l’administration'));
+    await tester.tap(find.text('Déverrouiller l’administration'));
+    await tester.pump();
+    expect(unlockDialogOpenCount, 1);
+
+    unlockResult.complete(true);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Supprimer ce membre ?'), findsOneWidget);
+    expect(find.text('Déverrouiller l’administration'), findsNothing);
+    expect(
+      find.text(
+        'Administration déverrouillée. Vous pouvez maintenant confirmer la suppression.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      'SUPPRIMER',
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Supprimer et enregistrer'),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    expect(unlockDialogOpenCount, 1);
+    expect(deleteCount, 0);
+  });
+
+  testWidgets('insufficient rights popup is actionable once and preserves deletion', (
+    tester,
+  ) async {
+    var unlockDialogOpenCount = 0;
+    var deleteCount = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(_RejectedAuthController.new),
+          familyTreeProvider.overrideWith(_TestFamilyTreeController.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('fr'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: MemberDeletionDialog(
+              person: const Person(
+                id: 'test-member',
+                firstName: 'Membre',
+                lastName: 'Test',
+                familyCode: 'ayivon',
+              ),
+              data: const FamilyTreeData(
+                mainFamilyCode: 'ayivon',
+                people: [
+                  Person(
+                    id: 'test-member',
+                    firstName: 'Membre',
+                    lastName: 'Test',
+                    familyCode: 'ayivon',
+                  ),
+                ],
+              ),
+              showUnlockDialog: (_) async {
+                unlockDialogOpenCount++;
+                return unlockDialogOpenCount < 3 ? true : null;
+              },
+              onDelete: () async => deleteCount++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'SUPPRIMER');
+    await tester.ensureVisible(find.text('Déverrouiller l’administration'));
+    await tester.tap(find.text('Déverrouiller l’administration'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.text(
+        'La session est ouverte, mais ce compte ne possède pas les droits nécessaires pour supprimer ce membre.',
+      ),
+      findsWidgets,
+    );
+    expect(
+      find.text(
+        'Déverrouillez l’administration avec un code administrateur valide, puis revenez confirmer la suppression.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Annuler'), findsWidgets);
+    expect(unlockDialogOpenCount, 1);
+    expect(deleteCount, 0);
+
+    await tester.tap(find.text('Annuler').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Déverrouillez l’administration avec un code administrateur valide, puis revenez confirmer la suppression.',
+      ),
+      findsNothing,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      'SUPPRIMER',
+    );
+
+    await tester.ensureVisible(find.text('Déverrouiller l’administration'));
+    await tester.tap(find.text('Déverrouiller l’administration'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Déverrouiller l’administration').last);
+    await tester.pumpAndSettle();
+
+    expect(unlockDialogOpenCount, 3);
+    expect(find.text('Supprimer ce membre ?'), findsOneWidget);
+    expect(
+      find.text(
+        'Déverrouillez l’administration avec un code administrateur valide, puis revenez confirmer la suppression.',
+      ),
+      findsNothing,
+    );
+    expect(deleteCount, 0);
+  });
 }
 
 class _AuthorizedAdminController extends AuthController {
@@ -193,6 +395,8 @@ class _AuthorizedAdminController extends AuthController {
     session: AuthSession(familyCode: 'ayivon', role: 'admin'),
     firebaseUid: 'admin-uid',
     firebaseRole: 'admin',
+    firebaseRoleActive: true,
+    firebaseFamilyIds: {'ayivon'},
     firebaseAuthMethod: 'password',
   );
 }
@@ -201,6 +405,46 @@ class _LockedAuthController extends AuthController {
   @override
   AuthState build() =>
       const AuthState(restoreStatus: SessionRestoreStatus.unauthenticated);
+}
+
+class _RefreshableAuthController extends AuthController {
+  @override
+  AuthState build() =>
+      const AuthState(restoreStatus: SessionRestoreStatus.unauthenticated);
+
+  @override
+  Future<bool> refreshEffectiveAdminAuthorization({
+    required String familyId,
+  }) async {
+    state = AuthState(
+      mode: AuthMode.authenticated,
+      restoreStatus: SessionRestoreStatus.authenticated,
+      session: AuthSession(familyCode: familyId, role: 'admin'),
+      firebaseUid: 'admin-uid',
+      firebaseRole: 'admin',
+      firebaseRoleActive: true,
+      firebaseFamilyIds: {familyId},
+      firebaseAuthMethod: 'password',
+    );
+    return true;
+  }
+}
+
+class _RejectedAuthController extends AuthController {
+  @override
+  AuthState build() => const AuthState(
+    mode: AuthMode.authenticated,
+    restoreStatus: SessionRestoreStatus.authenticated,
+    session: AuthSession(familyCode: 'ayivon', role: 'viewer'),
+    firebaseUid: 'viewer-uid',
+    firebaseRole: 'viewer',
+    firebaseAuthMethod: 'password',
+  );
+
+  @override
+  Future<bool> refreshEffectiveAdminAuthorization({
+    required String familyId,
+  }) async => false;
 }
 
 class _TestFamilyTreeController extends FamilyTreeController {
