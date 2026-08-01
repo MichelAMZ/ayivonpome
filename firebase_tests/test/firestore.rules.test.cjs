@@ -31,6 +31,7 @@ let testEnv;
 const users = {
   memberA: ['member', ['familyA'], true],
   ownerA: ['member', ['familyA'], true],
+  editorA: ['editor', ['familyA'], true],
   adminA: ['admin', ['familyA'], true],
   memberB: ['member', ['familyB'], true],
   adminB: ['admin', ['familyB'], true],
@@ -99,6 +100,34 @@ function publicRef(database, familyId = 'familyA', memberId = 'publicMemberA') {
 
 function privateRef(database, familyId = 'familyA', memberId = 'privateMemberA') {
   return doc(database, `families/${familyId}/members_private/${memberId}`);
+}
+
+function errorLog(uid = 'editorA', overrides = {}) {
+  return {
+    familyId: 'familyA',
+    environment: 'development',
+    severity: 'error',
+    feature: 'member_update',
+    methodName: 'updateMember',
+    sourceFile: 'lib/services/family_firestore_repository.dart',
+    sourceLine: 142,
+    sourceColumn: 9,
+    errorType: 'FirebaseException',
+    errorCode: 'permission-denied',
+    errorMessage: 'Accès refusé.',
+    stackTrace: 'trace nettoyée',
+    operation: 'update',
+    entityType: 'member',
+    entityId: 'publicMemberA',
+    uid,
+    role: uid === 'adminA' ? 'admin' : 'editor',
+    route: '/member/edit',
+    appVersion: '1.0.0+1',
+    platform: 'web',
+    createdAt: serverTimestamp(),
+    resolved: false,
+    ...overrides,
+  };
 }
 
 async function seed() {
@@ -192,6 +221,13 @@ describe('members_public', () => {
     await assertFails(updateDoc(publicRef(db('adminB')), { firstName: 'Interdit', updatedAt: serverTimestamp() }));
   });
 
+  it('autorise un éditeur de la famille à créer et modifier sans supprimer', async () => {
+    await assertSucceeds(setDoc(publicRef(db('editorA'), 'familyA', 'editorCreated'), publicMember('familyA', 'editorCreated', { updatedAt: serverTimestamp() })));
+    await assertSucceeds(updateDoc(publicRef(db('editorA')), { firstName: 'Édité', updatedAt: serverTimestamp() }));
+    await assertFails(deleteDoc(publicRef(db('editorA'))));
+    await assertFails(setDoc(publicRef(db('editorA'), 'familyB', 'crossFamily'), publicMember('familyB', 'crossFamily', { updatedAt: serverTimestamp() })));
+  });
+
   it('impose la cohérence entre familyId, id et le chemin', async () => {
     await assertFails(setDoc(publicRef(db('adminA'), 'familyA', 'wrongFamily'), publicMember('familyB', 'wrongFamily', { updatedAt: serverTimestamp() })));
     await assertFails(setDoc(publicRef(db('adminA'), 'familyA', 'wrongId'), publicMember('familyA', 'otherId', { updatedAt: serverTimestamp() })));
@@ -218,10 +254,16 @@ describe('members_public', () => {
     await assertFails(updateDoc(publicRef(db('adminA')), { schemaVersion: 1, updatedAt: serverTimestamp() }));
   });
 
-  it('réserve la suppression aux admins autorisés', async () => {
+  it('interdit toute suppression physique, y compris aux admins', async () => {
     await assertFails(deleteDoc(publicRef(db('memberA'))));
     await assertFails(deleteDoc(publicRef(db('adminB'))));
-    await assertSucceeds(deleteDoc(publicRef(db('adminA'))));
+    await assertFails(deleteDoc(publicRef(db('adminA'))));
+  });
+
+  it('réserve la suppression logique à l’admin de la famille', async () => {
+    await assertFails(updateDoc(publicRef(db('editorA')), { deletedAt: '2026-08-01T00:00:00.000Z', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(publicRef(db('adminB')), { deletedAt: '2026-08-01T00:00:00.000Z', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(publicRef(db('adminA')), { deletedAt: '2026-08-01T00:00:00.000Z', updatedAt: serverTimestamp() }));
   });
 });
 
@@ -273,15 +315,27 @@ describe('members_private', () => {
     await assertFails(updateDoc(privateRef(db('adminA'), 'familyB', 'privateMemberB'), { privateNotes: 'Cross', updatedAt: serverTimestamp() }));
   });
 
+  it('autorise un éditeur à créer et modifier le privé sans supprimer', async () => {
+    await assertSucceeds(setDoc(privateRef(db('editorA'), 'familyA', 'editorCreated'), privateMember('familyA', 'editorCreated', null, { updatedAt: serverTimestamp() })));
+    await assertSucceeds(updateDoc(privateRef(db('editorA')), { privateNotes: 'Éditeur', updatedAt: serverTimestamp() }));
+    await assertFails(deleteDoc(privateRef(db('editorA'))));
+    await assertFails(setDoc(privateRef(db('editorA'), 'familyB', 'crossFamily'), privateMember('familyB', 'crossFamily', null, { updatedAt: serverTimestamp() })));
+  });
+
   it('interdit ownerUid même à adminA depuis le client', async () => {
     await assertFails(updateDoc(privateRef(db('adminA')), { ownerUid: 'memberA', updatedAt: serverTimestamp() }));
     await assertFails(setDoc(privateRef(db('adminA'), 'familyA', 'claimed'), privateMember('familyA', 'claimed', 'ownerA', { updatedAt: serverTimestamp() })));
   });
 
-  it('refuse suppression standard et autorise admin de la famille', async () => {
+  it('refuse toute suppression physique privée', async () => {
     await assertFails(deleteDoc(privateRef(db('ownerA'))));
     await assertFails(deleteDoc(privateRef(db('adminB'))));
-    await assertSucceeds(deleteDoc(privateRef(db('adminA'))));
+    await assertFails(deleteDoc(privateRef(db('adminA'))));
+  });
+
+  it('réserve la suppression logique privée à l’admin', async () => {
+    await assertFails(updateDoc(privateRef(db('editorA')), { deletedAt: '2026-08-01T00:00:00.000Z', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(privateRef(db('adminA')), { deletedAt: '2026-08-01T00:00:00.000Z', updatedAt: serverTimestamp() }));
   });
 
   for (const [field, value] of [['role', 'admin'], ['secret', 'x'], ['unknownField', true]]) {
@@ -313,6 +367,30 @@ describe('user_roles', () => {
     await assertFails(updateDoc(doc(db('superAdmin'), 'user_roles/superAdmin'), { active: false }));
     await assertFails(setDoc(doc(db('superAdmin'), 'user_roles/unknown'), { uid: 'unknown', role: 'root', familyIds: ['wrong'], active: 'yes' }));
     await assertFails(deleteDoc(doc(db('superAdmin'), 'user_roles/memberA')));
+  });
+});
+
+describe('app_error_logs', () => {
+  it('autorise editor/admin à créer un log valide sans permettre l’usurpation', async () => {
+    await assertSucceeds(setDoc(doc(db('editorA'), 'app_error_logs/editorLog'), errorLog()));
+    await assertSucceeds(setDoc(doc(db('adminA'), 'app_error_logs/adminLog'), errorLog('adminA')));
+    await assertFails(setDoc(doc(db('memberA'), 'app_error_logs/memberLog'), errorLog('memberA', { role: 'member' })));
+    await assertFails(setDoc(doc(db('editorA'), 'app_error_logs/spoofedLog'), errorLog('adminA')));
+  });
+
+  it('réserve la lecture et la résolution à l’administrateur', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'app_error_logs/existing'), {
+        ...errorLog(),
+        createdAt: Timestamp.now(),
+      });
+    });
+    const path = 'app_error_logs/existing';
+    await assertFails(getDoc(doc(db('editorA'), path)));
+    await assertSucceeds(getDoc(doc(db('adminA'), path)));
+    await assertFails(updateDoc(doc(db('editorA'), path), { resolved: true, resolvedAt: serverTimestamp(), resolvedBy: 'editorA' }));
+    await assertSucceeds(updateDoc(doc(db('adminA'), path), { resolved: true, resolvedAt: serverTimestamp(), resolvedBy: 'adminA' }));
+    await assertFails(deleteDoc(doc(db('adminA'), path)));
   });
 });
 

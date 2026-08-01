@@ -2,11 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../core/firebase/firebase_runtime_config.dart';
 import '../data/firestore/firestore_remote_database_client.dart';
 import '../models/family_tree_data.dart';
 import '../models/firebase_user_role.dart';
+import '../models/sync_incident.dart';
 import '../services/auth_code_service.dart';
 import '../services/backup_service.dart';
 import '../services/change_notification_service.dart';
@@ -21,6 +23,7 @@ import '../services/admin_access_service.dart';
 import '../services/access_code_service.dart';
 import '../services/activity_log_service.dart';
 import '../services/app_settings_service.dart';
+import '../services/app_error_logger.dart';
 import '../services/family_relation_service.dart';
 import '../services/family_council_service.dart';
 import '../services/family_announcement_service.dart';
@@ -73,14 +76,48 @@ final remoteDatabaseRepositoryProvider = Provider<DatabaseFamilyRepository>((
       client: FirestoreRemoteDatabaseClient(
         firestore: FirebaseFirestore.instance,
         familyId: config.familyId,
+        errorLogger: ref.watch(appErrorLoggerProvider),
       ),
     );
   }
   return const DatabaseFamilyRepository();
 });
 
+final appErrorLoggerProvider = Provider<AppErrorLogger?>((ref) {
+  final config = FirebaseRuntimeConfig.fromEnvironment();
+  final firebaseReady = config.enabled && Firebase.apps.isNotEmpty;
+  if (!firebaseReady) return null;
+  return AppErrorLogger(
+    firestore: FirebaseFirestore.instance,
+    auth: FirebaseAuth.instance,
+    familyId: config.familyId,
+    environment: kReleaseMode ? 'production' : 'development',
+  );
+});
+
+final appErrorLogsProvider = StreamProvider<List<SyncIncident>>((ref) {
+  final logger = ref.watch(appErrorLoggerProvider);
+  if (logger == null || FirebaseAuth.instance.currentUser == null) {
+    return Stream.value(const <SyncIncident>[]);
+  }
+  final familyId = FirebaseRuntimeConfig.fromEnvironment().familyId;
+  return FirebaseFirestore.instance
+      .collection('app_error_logs')
+      .where('familyId', isEqualTo: familyId)
+      .limit(200)
+      .snapshots()
+      .map(
+        (snapshot) => snapshot.docs
+            .map((doc) => SyncIncident.fromAppErrorLog(doc.id, doc.data()))
+            .toList(growable: false),
+      );
+});
+
 final memberFirestoreServiceProvider = Provider<MemberFirestoreService>(
-  (ref) => MemberFirestoreService(ref.watch(remoteDatabaseRepositoryProvider)),
+  (ref) => MemberFirestoreService(
+    ref.watch(remoteDatabaseRepositoryProvider),
+    errorLogger: ref.watch(appErrorLoggerProvider),
+  ),
 );
 
 final hybridFamilyRepositoryProvider = Provider<HybridFamilyRepository>(

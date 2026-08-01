@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ayivonpome/models/family_tree_data.dart';
 import 'package:ayivonpome/models/person.dart';
 import 'package:ayivonpome/services/member_firestore_service.dart';
@@ -21,6 +23,20 @@ void main() {
     expect(client.updateCount, 1);
     expect(client.softDeleteCount, 1);
     expect(client.graphCommitCount, 1);
+  });
+
+  test('member CRUD keeps unrelated pending operations intact', () {
+    final source = File(
+      'lib/providers/family_tree_provider.dart',
+    ).readAsStringSync();
+    final method = source.substring(
+      source.indexOf('Future<MemberSaveResult> _saveMemberOperations'),
+      source.indexOf('String _memberWriteErrorMessage'),
+    );
+
+    expect(method, contains('memberService.updateMember(directMember)'));
+    expect(method, contains("hasPendingOperations ? 'pending' : 'synced'"));
+    expect(method, isNot(contains('pendingSyncQueue: const []')));
   });
 }
 

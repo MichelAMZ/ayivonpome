@@ -586,15 +586,37 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     return locallySaved;
   }
 
-  Future<MemberSaveResult> _saveMemberOperations(FamilyTreeData data) async {
+  Future<MemberSaveResult> _saveMemberOperations(
+    FamilyTreeData data, {
+    Person? directMember,
+    bool createMember = false,
+  }) async {
     try {
-      await ref.read(memberFirestoreServiceProvider).upsertMemberGraph(data);
+      final memberService = ref.read(memberFirestoreServiceProvider);
+      if (directMember != null) {
+        if (createMember) {
+          await memberService.createMember(directMember);
+        } else {
+          await memberService.updateMember(directMember);
+        }
+      } else {
+        await memberService.upsertMemberGraph(data);
+      }
+      final hasPendingOperations = data.pendingSyncQueue.any(
+        (item) =>
+            item.status != 'synced' &&
+            item.status != 'completed' &&
+            item.status != 'resolved' &&
+            item.status != 'discarded',
+      );
+      final effectiveSyncStatus = hasPendingOperations ? 'pending' : 'synced';
       final committed = data.copyWith(
-        pendingSyncQueue: const [],
-        syncSettings: data.syncSettings.copyWith(syncStatus: 'synced'),
+        syncSettings: data.syncSettings.copyWith(
+          syncStatus: effectiveSyncStatus,
+        ),
         appSettings: data.appSettings.copyWith(
           storageSettings: data.appSettings.storageSettings.copyWith(
-            syncStatus: 'synced',
+            syncStatus: effectiveSyncStatus,
           ),
         ),
       );
@@ -619,6 +641,37 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
         lastError: _memberWriteErrorMessage(message),
       );
     }
+  }
+
+  Person? _directlyWritableMember({
+    required FamilyTreeData previous,
+    required FamilyTreeData next,
+    required String memberId,
+  }) {
+    final previousOthers = previous.people
+        .where((person) => person.id != memberId)
+        .map((person) => person.toJson())
+        .toList(growable: false);
+    final nextOthers = next.people
+        .where((person) => person.id != memberId)
+        .map((person) => person.toJson())
+        .toList(growable: false);
+    final sameRelatedMembers =
+        jsonEncode(previousOthers) == jsonEncode(nextOthers);
+    final sameRelations =
+        jsonEncode(
+          previous.marriageRelations.map((item) => item.toJson()).toList(),
+        ) ==
+        jsonEncode(
+          next.marriageRelations.map((item) => item.toJson()).toList(),
+        );
+    final sameFamilyLinks =
+        jsonEncode(
+          previous.familyLinks.map((item) => item.toJson()).toList(),
+        ) ==
+        jsonEncode(next.familyLinks.map((item) => item.toJson()).toList());
+    if (!sameRelatedMembers || !sameRelations || !sameFamilyLinks) return null;
+    return next.people.where((person) => person.id == memberId).firstOrNull;
   }
 
   String _memberWriteErrorMessage(String message) {
@@ -1148,7 +1201,15 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           .read(familyAnnouncementServiceProvider)
           .addBirthAnnouncementIfNeeded(nextData, preparedPerson);
     }
-    return _saveMemberOperations(nextData);
+    return _saveMemberOperations(
+      nextData,
+      directMember: _directlyWritableMember(
+        previous: data,
+        next: nextData,
+        memberId: preparedPerson.id,
+      ),
+      createMember: index == -1,
+    );
   }
 
   Future<MemberSaveResult> upsertPersonWithParents(
@@ -1236,7 +1297,15 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
           .addBirthAnnouncementIfNeeded(nextData, updatedChild);
     }
 
-    return _saveMemberOperations(nextData);
+    return _saveMemberOperations(
+      nextData,
+      directMember: _directlyWritableMember(
+        previous: data,
+        next: nextData,
+        memberId: preparedPerson.id,
+      ),
+      createMember: index == -1,
+    );
   }
 
   Future<void> deletePerson(String id) async {

@@ -3,6 +3,8 @@ import 'package:ayivonpome/services/local_json_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('missing local cache falls back to demo data', () async {
     final repository = JsonFamilyRepository(_MemoryStorage());
 

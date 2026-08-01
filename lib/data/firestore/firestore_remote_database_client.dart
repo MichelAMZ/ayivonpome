@@ -14,6 +14,7 @@ import '../../models/marriage_relation.dart';
 import '../../models/person.dart';
 import '../../models/sync_incident.dart';
 import '../../services/remote_database_repository.dart';
+import '../../services/app_error_logger.dart';
 import 'firestore_document_mapper.dart';
 
 class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
@@ -21,13 +22,16 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     required FirebaseFirestore firestore,
     required String familyId,
     FirestoreDocumentMapper mapper = const FirestoreDocumentMapper(),
+    AppErrorLogger? errorLogger,
   }) : _firestore = firestore,
        _familyId = familyId,
-       _mapper = mapper;
+       _mapper = mapper,
+       _errorLogger = errorLogger;
 
   final FirebaseFirestore _firestore;
   final String _familyId;
   final FirestoreDocumentMapper _mapper;
+  final AppErrorLogger? _errorLogger;
 
   CollectionReference<Map<String, dynamic>> get _legacyMembers =>
       _firestore.collection('members');
@@ -120,10 +124,24 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       void Function(List<QueryDocumentSnapshot<Map<String, dynamic>>>) assign,
     ) {
       subscriptions.add(
-        query.snapshots().listen((snapshot) {
-          assign(snapshot.docs);
-          emitIfReady();
-        }, onError: controller.addError),
+        query.snapshots().listen(
+          (snapshot) {
+            assign(snapshot.docs);
+            emitIfReady();
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            unawaited(
+              _errorLogger?.capture(
+                error: error,
+                stackTrace: stackTrace,
+                feature: 'family_tree_listener',
+                operation: 'listen',
+                entityType: 'family_tree',
+              ),
+            );
+            controller.addError(error, stackTrace);
+          },
+        ),
       );
     }
 
@@ -144,6 +162,15 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
             emitIfReady();
             return;
           }
+          unawaited(
+            _errorLogger?.capture(
+              error: error,
+              stackTrace: stackTrace,
+              feature: 'family_settings_listener',
+              operation: 'listen',
+              entityType: 'settings',
+            ),
+          );
           controller.addError(error, stackTrace);
         },
       ),
@@ -510,6 +537,14 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         ),
         SetOptions(merge: true),
       );
+      batch.set(_activityLogs.doc(), {
+        'familyId': _tenantFamilyId,
+        'action': 'member_created',
+        'entityType': 'member',
+        'entityId': personId,
+        'performedByUid': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
       await batch.commit();
       _debugFirestoreWriteSuccess('createPerson', doc.path);
     } on FirebaseException catch (error, stackTrace) {
@@ -601,6 +636,14 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         ),
         SetOptions(merge: true),
       );
+      batch.set(_activityLogs.doc(), {
+        'familyId': _tenantFamilyId,
+        'action': 'member_updated',
+        'entityType': 'member',
+        'entityId': personId,
+        'performedByUid': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
       await batch.commit();
       _debugFirestoreWriteSuccess('updatePerson', doc.path);
     } on FirebaseException catch (error, stackTrace) {
@@ -663,9 +706,6 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final familyLinksSnapshot = await _familyLinks
         .where('familyId', isEqualTo: _tenantFamilyId)
         .get(const GetOptions(source: Source.server));
-    final settingsSnapshot = await _familySettings.get(
-      const GetOptions(source: Source.server),
-    );
     final affectedMembers = membersSnapshot.docs
         .where(
           (doc) =>
@@ -688,22 +728,11 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
               data['toPersonId'] == personId;
         })
         .toList(growable: false);
-    final settingsLeadership = _familyLeadershipFromSettings(
-      settingsSnapshot.data(),
-    );
-    if (settingsSnapshot.exists &&
-        settingsLeadership.currentLeaderPersonId == personId) {
-      throw FirebaseException(
-        plugin: 'cloud_firestore',
-        code: 'failed-precondition',
-        message: 'Désignez d’abord un nouveau chef de famille.',
-      );
-    }
     final operationCount =
         affectedMembers.length +
         affectedRelationships.length +
         affectedFamilyLinks.length +
-        4;
+        3;
     if (operationCount > 450) {
       throw FirebaseException(
         plugin: 'cloud_firestore',
@@ -725,55 +754,49 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         'spouses': _withoutId(data['spouses'], personId),
         'children': _withoutId(data['children'], personId),
         'updatedAt': FieldValue.serverTimestamp(),
-        'version': _safeVersion(data['version']) + 1,
       }, SetOptions(merge: true));
     }
     final deletedAt = DateTime.now().toUtc().toIso8601String();
     for (final snapshot in affectedRelationships) {
       batch.set(snapshot.reference, {
         'deletedAt': deletedAt,
+        'isActive': false,
+        'isVisible': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     }
     for (final snapshot in affectedFamilyLinks) {
       batch.set(snapshot.reference, {
         'deletedAt': deletedAt,
+        'isActive': false,
+        'isVisible': false,
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-    if (settingsSnapshot.exists) {
-      final cleanedLeadership = settingsLeadership.copyWith(
-        formerLeaderPersonId:
-            settingsLeadership.formerLeaderPersonId == personId ? '' : null,
-        successorPersonId: settingsLeadership.successorPersonId == personId
-            ? ''
-            : null,
-      );
-      batch.set(_familySettings, {
-        'familyLeadership': cleanedLeadership.toJson(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
       }, SetOptions(merge: true));
     }
     batch.set(memberDoc, {
       'deletedAt': deletedAt,
+      'isDeleted': true,
+      'deletedBy': user.uid,
+      'visibility': 'hidden',
       'updatedAt': FieldValue.serverTimestamp(),
-      'version': _safeVersion(memberData['version']) + 1,
     }, SetOptions(merge: true));
     batch.set(privateMemberDoc, {
       'memberId': personId,
       'familyId': _tenantFamilyId,
       'deletedAt': deletedAt,
+      'isDeleted': true,
+      'deletedBy': user.uid,
+      'visibility': 'hidden',
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': user.uid,
       'schemaVersion': FirestoreDocumentMapper.memberSchemaVersion,
     }, SetOptions(merge: true));
     batch.set(_firestore.collection('activity_logs').doc(), {
       'familyId': _tenantFamilyId,
-      'personId': personId,
       'action': 'member_soft_deleted',
-      'actorUid': user.uid,
-      'result': 'confirmed',
+      'entityType': 'member',
+      'entityId': personId,
+      'performedByUid': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
@@ -913,7 +936,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   @override
   Future<void> createMarriage(MarriageRelation relation) async {
     final doc = _relationships.doc(relation.id);
-    await _ensureFirebaseUser('createMarriage', doc.path);
+    final user = await _ensureFirebaseUser('createMarriage', doc.path);
     final snapshot = await doc.get();
     final remoteData = snapshot.data();
     final now = DateTime.now().toIso8601String();
@@ -926,7 +949,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       updatedAt: now,
       version: nextVersion,
     );
-    await doc.set(
+    final batch = _firestore.batch();
+    batch.set(
+      doc,
       _mapper.toFirestore(
         prepared.toJson(),
         id: prepared.id,
@@ -934,6 +959,17 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       ),
       SetOptions(merge: true),
     );
+    batch.set(_activityLogs.doc(), {
+      'familyId': _tenantFamilyId,
+      'action': snapshot.exists
+          ? 'relationship_updated'
+          : 'relationship_created',
+      'entityType': 'relationship',
+      'entityId': relation.id,
+      'performedByUid': user.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
   }
 
   @override
@@ -947,11 +983,23 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   @override
   Future<void> createFamilyLink(FamilyLink link) async {
     final doc = _familyLinks.doc(link.id);
-    await _ensureFirebaseUser('createFamilyLink', doc.path);
-    await doc.set(
+    final user = await _ensureFirebaseUser('createFamilyLink', doc.path);
+    final snapshot = await doc.get();
+    final batch = _firestore.batch();
+    batch.set(
+      doc,
       _mapper.toFirestore(link.toJson(), id: link.id, familyId: _familyId),
       SetOptions(merge: true),
     );
+    batch.set(_activityLogs.doc(), {
+      'familyId': _tenantFamilyId,
+      'action': snapshot.exists ? 'tree_link_updated' : 'tree_link_created',
+      'entityType': 'family_tree_link',
+      'entityId': link.id,
+      'performedByUid': user.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
   }
 
   @override
@@ -1186,7 +1234,11 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     String id,
   ) async {
     final doc = collection.doc(id);
-    await _ensureFirebaseUser('softDelete', doc.path, personId: id);
+    final user = await _ensureFirebaseUser(
+      'softDelete',
+      doc.path,
+      personId: id,
+    );
     if (collection.path == _membersPublic.path) {
       final snapshot = await doc.get();
       final remoteVersion = _safeVersion(snapshot.data()?['version']);
@@ -1198,11 +1250,25 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       }, SetOptions(merge: true));
       return;
     }
-    await doc.set({
+    final batch = _firestore.batch();
+    batch.set(doc, {
       'familyId': _familyId,
       'deletedAt': DateTime.now().toUtc().toIso8601String(),
+      'isActive': false,
+      'isVisible': false,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    batch.set(_activityLogs.doc(), {
+      'familyId': _tenantFamilyId,
+      'action': 'relationship_deactivated',
+      'entityType': collection.path == _relationships.path
+          ? 'relationship'
+          : 'family_tree_link',
+      'entityId': id,
+      'performedByUid': user.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
   }
 
   String get _tenantFamilyId => _familyId;

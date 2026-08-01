@@ -859,13 +859,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   List<SyncIncident> _syncIncidents(FamilyTreeData data) {
-    return data.pendingSyncQueue
+    final legacyIncidents = data.pendingSyncQueue
         .where((item) => item.status == 'failed' || item.lastError.isNotEmpty)
         .map(
           (item) =>
               SyncIncident.fromPendingItem(item, familyId: data.mainFamilyCode),
         )
         .toList();
+    final technicalLogs = ref.watch(appErrorLogsProvider).value ?? const [];
+    return [...technicalLogs, ...legacyIncidents];
   }
 
   Future<void> _showChangeAdminCodeDialog(
@@ -5102,6 +5104,17 @@ class _SyncIncidentsPanel extends ConsumerWidget {
     String status,
   ) async {
     final auth = ref.read(authSessionProvider);
+    if (incident.sourceOperationId.startsWith('app_error:')) {
+      final logId = incident.sourceOperationId.substring('app_error:'.length);
+      await ref
+          .read(appErrorLoggerProvider)
+          ?.setResolved(logId, resolved: status == 'resolved');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Incident marqué $status.')));
+      return;
+    }
     await ref
         .read(familyTreeProvider.notifier)
         .updateSyncOperationStatus(

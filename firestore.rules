@@ -106,7 +106,8 @@ service cloud.firestore {
         'motherId', 'spouseIds', 'childrenIds', 'parents', 'spouses',
         'children', 'birthYear', 'birthCity', 'isDeceased', 'photoUrl',
         'familyCode', 'generation', 'displayOrder', 'isPatriarch', 'publicBiography',
-        'createdAt', 'updatedAt', 'schemaVersion', 'deletedAt'
+        'createdAt', 'updatedAt', 'schemaVersion', 'deletedAt', 'isDeleted',
+        'deletedBy', 'visibility'
       ]) &&
         request.resource.data.keys().hasAll([
           'id', 'familyId', 'firstName', 'lastName', 'gender', 'fatherId',
@@ -138,6 +139,12 @@ service cloud.firestore {
         request.resource.data.generation is int &&
         request.resource.data.generation >= 0 &&
         isValidString(request.resource.data.deletedAt, 64) &&
+        (!('isDeleted' in request.resource.data) ||
+          request.resource.data.isDeleted is bool) &&
+        (!('deletedBy' in request.resource.data) ||
+          isValidString(request.resource.data.deletedBy, 128)) &&
+        (!('visibility' in request.resource.data) ||
+          request.resource.data.visibility in ['visible', 'hidden']) &&
         request.resource.data.updatedAt == request.time &&
         (!('birthYear' in request.resource.data) ||
           request.resource.data.birthYear is int) &&
@@ -167,7 +174,7 @@ service cloud.firestore {
         'linkedTreeEnabled', 'familyCode', 'marriageType', 'history',
         'privateNotes', 'isTemporaryProfile', 'profileNeedsCompletion',
         'version', 'schemaVersion', 'createdAt', 'updatedAt', 'createdBy',
-        'updatedBy', 'deletedAt'
+        'updatedBy', 'deletedAt', 'isDeleted', 'deletedBy', 'visibility'
       ]) &&
         request.resource.data.keys().hasAll([
           'memberId', 'familyId', 'schemaVersion', 'updatedAt'
@@ -193,6 +200,14 @@ service cloud.firestore {
           isValidString(request.resource.data.whatsapp, 64)) &&
         (!('privateNotes' in request.resource.data) ||
           isValidString(request.resource.data.privateNotes, 10000)) &&
+        (!('deletedAt' in request.resource.data) ||
+          isValidString(request.resource.data.deletedAt, 64)) &&
+        (!('isDeleted' in request.resource.data) ||
+          request.resource.data.isDeleted is bool) &&
+        (!('deletedBy' in request.resource.data) ||
+          isValidString(request.resource.data.deletedBy, 128)) &&
+        (!('visibility' in request.resource.data) ||
+          request.resource.data.visibility in ['visible', 'hidden']) &&
         (!('createdAt' in request.resource.data) ||
           isValidTimestamp(request.resource.data.createdAt));
     }
@@ -236,6 +251,37 @@ service cloud.firestore {
         (isSuperAdmin() || isFamilyEditor(resource.data.familyId));
     }
 
+    function validAppErrorLogCreate() {
+      return request.resource.data.keys().hasOnly([
+        'familyId', 'environment', 'severity', 'feature', 'methodName',
+        'sourceFile', 'sourceLine', 'sourceColumn', 'errorType', 'errorCode',
+        'errorMessage', 'stackTrace', 'operation', 'entityType', 'entityId',
+        'uid', 'role', 'route', 'appVersion', 'platform', 'createdAt',
+        'resolved'
+      ]) &&
+        request.resource.data.keys().hasAll([
+          'familyId', 'environment', 'severity', 'feature', 'methodName',
+          'errorType', 'errorMessage', 'stackTrace', 'operation',
+          'entityType', 'uid', 'role', 'createdAt', 'resolved'
+        ]) &&
+        request.resource.data.familyId is string &&
+        belongsToFamily(request.resource.data.familyId) &&
+        currentRole() in ['editor', 'admin', 'superAdmin'] &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.role == currentRole() &&
+        request.resource.data.environment in ['development', 'staging', 'production'] &&
+        request.resource.data.severity in ['warning', 'error', 'critical'] &&
+        isValidString(request.resource.data.feature, 100) &&
+        isValidString(request.resource.data.methodName, 180) &&
+        isValidString(request.resource.data.errorType, 180) &&
+        isValidString(request.resource.data.errorMessage, 1000) &&
+        isValidString(request.resource.data.stackTrace, 8000) &&
+        isValidString(request.resource.data.operation, 80) &&
+        isValidString(request.resource.data.entityType, 80) &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.resolved == false;
+    }
+
     match /families/{familyId} {
       allow read: if resource.data.isPublic == true ||
         belongsToFamily(familyId) || isSuperAdmin();
@@ -252,27 +298,61 @@ service cloud.firestore {
 
       match /members_public/{memberId} {
         allow read: if true;
-        allow create: if canAdministerFamily(familyId) &&
-          validPublicMember(familyId, memberId);
-        allow update: if canAdministerFamily(familyId) &&
-          validPublicMemberUpdate(familyId, memberId);
-        allow delete: if canAdministerFamily(familyId);
+        allow create: if (isSuperAdmin() || isFamilyEditor(familyId)) &&
+          validPublicMember(familyId, memberId) &&
+          request.resource.data.deletedAt == '' &&
+          (!('isDeleted' in request.resource.data) ||
+            request.resource.data.isDeleted == false) &&
+          (!('deletedBy' in request.resource.data) ||
+            request.resource.data.deletedBy == '') &&
+          (!('visibility' in request.resource.data) ||
+            request.resource.data.visibility == 'visible');
+        allow update: if validPublicMemberUpdate(familyId, memberId) &&
+          (canAdministerFamily(familyId) ||
+            (isFamilyEditor(familyId) &&
+              resource.data.deletedAt == '' &&
+              request.resource.data.deletedAt == '' &&
+              (!('isDeleted' in request.resource.data) ||
+                request.resource.data.isDeleted == false) &&
+              (!('deletedBy' in request.resource.data) ||
+                request.resource.data.deletedBy == '') &&
+              (!('visibility' in request.resource.data) ||
+                request.resource.data.visibility == 'visible')));
+        allow delete: if false;
       }
 
       match /members_private/{memberId} {
         allow read: if isActiveUser() &&
           (isSuperAdmin() || isFamilyAdmin(familyId) ||
             (belongsToFamily(familyId) && isOwner(resource.data.ownerUid)));
-        allow create: if canAdministerFamily(familyId) &&
+        allow create: if (isSuperAdmin() || isFamilyEditor(familyId)) &&
           validPrivateMember(familyId, memberId) &&
+          (!('deletedAt' in request.resource.data) ||
+            request.resource.data.deletedAt == '') &&
+          (!('isDeleted' in request.resource.data) ||
+            request.resource.data.isDeleted == false) &&
+          (!('deletedBy' in request.resource.data) ||
+            request.resource.data.deletedBy == '') &&
+          (!('visibility' in request.resource.data) ||
+            request.resource.data.visibility == 'visible') &&
           (!('ownerUid' in request.resource.data) ||
             request.resource.data.ownerUid == null);
         allow update: if validPrivateMemberUpdate(familyId, memberId) &&
           (canAdministerFamily(familyId) ||
+            (isFamilyEditor(familyId) &&
+              (!('deletedAt' in resource.data) || resource.data.deletedAt == '') &&
+              (!('deletedAt' in request.resource.data) ||
+                request.resource.data.deletedAt == '') &&
+              (!('isDeleted' in request.resource.data) ||
+                request.resource.data.isDeleted == false) &&
+              (!('deletedBy' in request.resource.data) ||
+                request.resource.data.deletedBy == '') &&
+              (!('visibility' in request.resource.data) ||
+                request.resource.data.visibility == 'visible')) ||
             (belongsToFamily(familyId) &&
               isOwner(resource.data.ownerUid) &&
               ownerChangesOnlyPersonalFields()));
-        allow delete: if canAdministerFamily(familyId);
+        allow delete: if false;
       }
     }
 
@@ -380,6 +460,19 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid;
       allow update: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
       allow delete: if isSuperAdmin();
+    }
+
+    match /app_error_logs/{logId} {
+      allow create: if isActiveUser() && validAppErrorLogCreate();
+      allow read: if isSuperAdmin() || isFamilyAdmin(resource.data.familyId);
+      allow update: if (isSuperAdmin() || isFamilyAdmin(resource.data.familyId)) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'resolved', 'resolvedAt', 'resolvedBy'
+        ]) &&
+        request.resource.data.resolved is bool &&
+        request.resource.data.resolvedBy == request.auth.uid &&
+        request.resource.data.resolvedAt == request.time;
+      allow delete: if false;
     }
 
     match /diagnostic_ping/{pingId} {

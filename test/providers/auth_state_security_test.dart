@@ -157,6 +157,7 @@ void main() {
     );
 
     expect(publicState.accessLevel, AccessLevel.public);
+    expect(publicState.canViewPublicTree, isTrue);
     expect(publicState.canViewMemberDetails, isFalse);
     expect(publicState.canEdit, isFalse);
     expect(publicState.canShowEditButton, isFalse);
@@ -169,6 +170,10 @@ void main() {
     expect(viewerState.canShowEditButton, isTrue);
     expect(viewerState.canDelete, isFalse);
     expect(viewerState.canAccessKpi, isFalse);
+    expect(viewerState.canCreateMember, isFalse);
+    expect(viewerState.canUpdateMember, isFalse);
+    expect(viewerState.canDeleteMember, isFalse);
+    expect(viewerState.canViewTechnicalLogs, isFalse);
 
     expect(editorState.accessLevel, AccessLevel.editor);
     expect(editorState.canViewMemberDetails, isTrue);
@@ -176,6 +181,10 @@ void main() {
     expect(editorState.canShowEditButton, isTrue);
     expect(editorState.canDelete, isFalse);
     expect(editorState.canAccessKpi, isFalse);
+    expect(editorState.canCreateMember, isTrue);
+    expect(editorState.canUpdateMember, isTrue);
+    expect(editorState.canDeleteMember, isFalse);
+    expect(editorState.canViewTechnicalLogs, isFalse);
 
     expect(adminState.accessLevel, AccessLevel.admin);
     expect(adminState.canViewMemberDetails, isTrue);
@@ -183,6 +192,10 @@ void main() {
     expect(adminState.canShowEditButton, isTrue);
     expect(adminState.canDelete, isTrue);
     expect(adminState.canAccessKpi, isTrue);
+    expect(adminState.canCreateMember, isTrue);
+    expect(adminState.canUpdateMember, isTrue);
+    expect(adminState.canDeleteMember, isTrue);
+    expect(adminState.canViewTechnicalLogs, isTrue);
   });
 
   test(

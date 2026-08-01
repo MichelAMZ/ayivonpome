@@ -1,5 +1,6 @@
 import 'sync_diagnostic.dart';
 import 'sync_state.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SyncIncident {
   const SyncIncident({
@@ -121,6 +122,47 @@ class SyncIncident {
       },
       severity: severity,
       sourceOperationId: item.id,
+    );
+  }
+
+  factory SyncIncident.fromAppErrorLog(String id, Map<String, dynamic> data) {
+    final createdAt = data['createdAt'];
+    final date = createdAt is Timestamp
+        ? createdAt.toDate().toIso8601String()
+        : createdAt?.toString() ?? '';
+    final resolved = data['resolved'] == true;
+    return SyncIncident(
+      id: id,
+      familyId: data['familyId']?.toString() ?? '',
+      userId: data['uid']?.toString() ?? '',
+      operationType: data['operation']?.toString() ?? '',
+      collectionName: data['entityType']?.toString() ?? '',
+      documentId: data['entityId']?.toString() ?? '',
+      errorType: data['errorType']?.toString() ?? '',
+      errorCode: data['errorCode']?.toString() ?? '',
+      safeMessage: data['errorMessage']?.toString() ?? '',
+      technicalMessage: data['errorMessage']?.toString() ?? '',
+      stackTrace: data['stackTrace']?.toString() ?? '',
+      sourceFile: data['sourceFile']?.toString() ?? '',
+      sourceFunction: data['methodName']?.toString() ?? '',
+      sourceLine: data['sourceLine'] is int ? data['sourceLine'] as int : null,
+      sourceColumn: data['sourceColumn'] is int
+          ? data['sourceColumn'] as int
+          : null,
+      routeName: data['route']?.toString() ?? '',
+      appVersion: data['appVersion']?.toString() ?? '',
+      platform: data['platform']?.toString() ?? '',
+      locationPrecision: data['sourceLine'] is int ? 'exact' : 'unavailable',
+      attemptCount: 1,
+      firstOccurredAt: date,
+      lastOccurredAt: date,
+      status: resolved ? 'resolved' : 'new',
+      severity: data['severity']?.toString() ?? 'error',
+      resolvedAt: data['resolvedAt'] is Timestamp
+          ? (data['resolvedAt'] as Timestamp).toDate().toIso8601String()
+          : '',
+      resolvedBy: data['resolvedBy']?.toString() ?? '',
+      sourceOperationId: 'app_error:$id',
     );
   }
 

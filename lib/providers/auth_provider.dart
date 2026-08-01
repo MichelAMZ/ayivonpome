@@ -71,6 +71,7 @@ class AuthState {
   }
 
   bool get canViewMemberDetails => accessLevel != AccessLevel.public;
+  bool get canViewPublicTree => true;
   bool get canEdit =>
       session != null &&
       canWriteFamily(session!.familyCode) &&
@@ -83,6 +84,10 @@ class AuthState {
   bool get isSuperAdmin => canAccessKpi && firebaseRole == 'superAdmin';
   bool get isAdmin => canAccessKpi;
   bool get canSecurelyDeleteMember => canDelete;
+  bool get canCreateMember => canEdit;
+  bool get canUpdateMember => canEdit;
+  bool get canDeleteMember => canDelete;
+  bool get canViewTechnicalLogs => canAccessKpi;
 
   bool canWriteFamily(String familyId) {
     final normalizedFamilyId = familyId.trim().toLowerCase();
@@ -100,6 +105,12 @@ class AuthState {
 
   bool canDeleteFamily(String familyId) => canAccessAdminKpi(familyId);
 }
+
+/// Autorisation effective unique exposée à l'interface et aux services.
+///
+/// L'alias évite d'introduire un second état d'autorisation susceptible de
+/// diverger de la session Firebase et du document `user_roles/{uid}`.
+typedef EffectiveAuthorization = AuthState;
 
 final authSessionProvider = NotifierProvider<AuthController, AuthState>(
   AuthController.new,
@@ -328,7 +339,12 @@ class AuthController extends Notifier<AuthState> {
         );
         return false;
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      await _captureAuthorizationError(
+        error,
+        stackTrace,
+        feature: 'editor_authentication',
+      );
       await _recordModificationAccessAudit(
         'modification_code_refused',
         description: 'Code de modification incorrect ou compte non autorisé.',
@@ -399,7 +415,12 @@ class AuthController extends Notifier<AuthState> {
         // Le nettoyage est secondaire à l'authentification.
       }
       return state.canAccessKpi;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      await _captureAuthorizationError(
+        error,
+        stackTrace,
+        feature: 'admin_authentication',
+      );
       return false;
     } finally {
       _explicitAuthenticationInProgress = false;
@@ -437,6 +458,22 @@ class AuthController extends Notifier<AuthState> {
     } catch (_) {
       // La journalisation ne doit jamais modifier le résultat d'authentification.
     }
+  }
+
+  Future<void> _captureAuthorizationError(
+    Object error,
+    StackTrace stackTrace, {
+    required String feature,
+  }) async {
+    await ref
+        .read(appErrorLoggerProvider)
+        ?.capture(
+          error: error,
+          stackTrace: stackTrace,
+          feature: feature,
+          operation: 'authenticate',
+          entityType: 'authorization',
+        );
   }
 
   Future<void> logout() async {

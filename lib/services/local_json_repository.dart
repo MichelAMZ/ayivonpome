@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
+
 import '../models/audit_log.dart';
 import '../models/family_link.dart';
 import '../models/family_tree_data.dart';
@@ -35,13 +37,13 @@ class JsonFamilyRepository implements FamilyRepository {
   Future<FamilyTreeData> loadFamilyTree() async {
     final raw = await storage.readRaw();
     if (raw == null || raw.trim().isEmpty) {
-      return const FamilyTreeData();
+      return _loadBundledFallback();
     }
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) {
         AppLogger.warning('Invalid local family cache type ignored');
-        return const FamilyTreeData();
+        return _loadBundledFallback();
       }
       return FamilyTreeData.fromJson(decoded);
     } catch (error, stackTrace) {
@@ -50,8 +52,25 @@ class JsonFamilyRepository implements FamilyRepository {
         error: error,
         stackTrace: stackTrace,
       );
-      return const FamilyTreeData();
+      return _loadBundledFallback();
     }
+  }
+
+  Future<FamilyTreeData> _loadBundledFallback() async {
+    try {
+      final raw = await rootBundle.loadString('assets/data/family_tree.json');
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        return FamilyTreeData.fromJson(decoded);
+      }
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Bundled family fallback unavailable',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+    return const FamilyTreeData();
   }
 
   @override

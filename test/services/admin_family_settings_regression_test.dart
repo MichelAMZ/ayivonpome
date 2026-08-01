@@ -55,10 +55,15 @@ void main() {
     );
 
     expect(method, contains('affectedFamilyLinks'));
-    expect(method, contains('cleanedLeadership'));
+    expect(method, isNot(contains('settingsSnapshot')));
+    expect(method, isNot(contains("'version':")));
     expect(method, contains('_confirmPersonDeletionOnServer'));
     expect(method, contains('GetOptions(source: Source.server)'));
-    expect(method, isNot(contains("'deletedBy': user.uid")));
+    expect(method, contains("'isDeleted': true"));
+    expect(method, contains("'deletedBy': user.uid"));
+    expect(method, contains("'visibility': 'hidden'"));
+    expect(method, contains("'isActive': false"));
+    expect(method, contains("'isVisible': false"));
   });
 
   test('JSON restoration is confirmed remotely before the local save', () {
