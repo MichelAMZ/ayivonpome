@@ -432,22 +432,32 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       'families/$_familyId',
     );
     await _ensureFamilyDocument(user);
+    final currentMembers = await _membersPublic.get(
+      const GetOptions(source: Source.server),
+    );
+    final currentMembersById = {
+      for (final snapshot in currentMembers.docs) snapshot.id: snapshot.data(),
+    };
     final batch = _firestore.batch();
-    batch.set(_firestore.collection('families').doc(_familyId), {
-      'id': _familyId,
-      'name': _familyId,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
 
     for (final person in data.people) {
+      // Les relations parent-enfant sont portées directement par fatherId,
+      // motherId et childrenIds. Leur écriture doit donc rester atomique avec
+      // la création de l'enfant dans ce même batch.
       batch.set(
         _membersPublic.doc(person.id),
-        _mapper.toMemberPublic(person, familyId: _tenantFamilyId),
-        SetOptions(merge: true),
+        _memberPublicWriteData(
+          person,
+          existingData: currentMembersById[person.id],
+        ),
       );
       batch.set(
         _membersPrivate.doc(person.id),
-        _mapper.toMemberPrivate(person, familyId: _tenantFamilyId),
+        _mapper.toMemberPrivate(
+          person,
+          familyId: _tenantFamilyId,
+          actorUid: user.uid,
+        ),
         SetOptions(merge: true),
       );
     }

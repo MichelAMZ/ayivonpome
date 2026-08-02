@@ -418,6 +418,8 @@ class _PersonCardState extends ConsumerState<PersonCard> {
     final birthYear = widget.person.birthDate.length >= 4
         ? widget.person.birthDate.substring(0, 4)
         : '';
+    final extraCompactName = (widget.width ?? 100) <= 92;
+    final fullName = widget.person.fullName.trim();
 
     Widget avatarFallback() => ColoredBox(
       color: _genderLightColor,
@@ -500,33 +502,45 @@ class _PersonCardState extends ConsumerState<PersonCard> {
                   child: Column(
                     children: [
                       Center(child: avatar),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.person.lastName.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFF121411),
-                          fontSize: 12,
-                          height: 1.05,
-                          fontWeight: FontWeight.w800,
+                      const SizedBox(height: 0),
+                      Tooltip(
+                        message: fullName,
+                        child: Column(
+                          children: [
+                            // Le prénom est l'information la plus utile pour
+                            // identifier rapidement une personne dans l'arbre.
+                            Text(
+                              widget.person.firstName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: extraCompactName ? 15 : 16,
+                                height: 1.05,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            // Le nom reste volontairement discret pour établir
+                            // une hiérarchie claire sans agrandir la carte.
+                            Text(
+                              widget.person.lastName.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: const Color(0xFF757575),
+                                fontSize: extraCompactName ? 11.5 : 12.5,
+                                height: 1.05,
+                                fontWeight: FontWeight.w400,
+                                letterSpacing: extraCompactName ? 0.4 : 0.6,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 1),
-                      Text(
-                        widget.person.firstName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFF30342F),
-                          fontSize: 12,
-                          height: 1.05,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

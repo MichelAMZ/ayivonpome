@@ -34,7 +34,8 @@ class InfoNewsService {
       if (end != null && now.isAfter(end)) return false;
       return item.title.trim().isNotEmpty || item.message.trim().isNotEmpty;
     }).toList()..sort((a, b) => b.priority.compareTo(a.priority));
-    return items;
+    if (items.isNotEmpty) return items;
+    return [defaultNews(data.appSettings.accessCodeContactName)];
   }
 
   List<Person> contactTargets(FamilyTreeData data) {

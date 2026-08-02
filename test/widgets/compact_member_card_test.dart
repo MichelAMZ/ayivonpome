@@ -108,6 +108,18 @@ void main() {
     final firstName = tester.widget<Text>(find.text('PrénomExtrêmementLong'));
     expect(surname.overflow, TextOverflow.ellipsis);
     expect(firstName.overflow, TextOverflow.ellipsis);
+    expect(firstName.style?.fontSize, greaterThan(surname.style!.fontSize!));
+    expect(firstName.style?.fontWeight, FontWeight.w700);
+    expect(surname.style?.fontWeight, FontWeight.w400);
+    expect(surname.style?.color, const Color(0xFF757575));
+    expect(
+      find.byTooltip('PrénomExtrêmementLong NomDeFamilleExtrêmementLong'),
+      findsOneWidget,
+    );
+    expect(
+      tester.getTopLeft(find.text('PrénomExtrêmementLong')).dy,
+      lessThan(tester.getTopLeft(find.text('NOMDEFAMILLEEXTRÊMEMENTLONG')).dy),
+    );
 
     await tester.tap(find.byType(PersonCard));
     expect(opened, isTrue);

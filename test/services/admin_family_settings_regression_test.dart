@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:ayivonpome/services/info_news_service.dart';
+import 'package:ayivonpome/models/family_tree_data.dart';
+import 'package:ayivonpome/models/info_news.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -11,6 +13,45 @@ void main() {
     expect(news.id, InfoNewsService.defaultInfoNewsId);
     expect(news.message, contains('Conseil AYIVON'));
     expect(news.isActive, isTrue);
+  });
+
+  test('information bar keeps a fallback when no publication is active', () {
+    const service = InfoNewsService();
+    final data = const FamilyTreeData().copyWith(
+      infoNews: const [
+        InfoNews(
+          id: 'inactive-news',
+          title: 'Information masquée',
+          message: 'Cette information ne doit pas être affichée.',
+          isActive: false,
+        ),
+      ],
+    );
+
+    final news = service.activeNews(data);
+
+    expect(news, hasLength(1));
+    expect(news.single.id, InfoNewsService.defaultInfoNewsId);
+    expect(news.single.isActive, isTrue);
+  });
+
+  test('published information takes priority over the fallback', () {
+    const service = InfoNewsService();
+    final data = const FamilyTreeData().copyWith(
+      infoNews: const [
+        InfoNews(
+          id: 'published-news',
+          title: 'Actualité familiale',
+          message: 'Une information publiée.',
+          isActive: true,
+        ),
+      ],
+    );
+
+    final news = service.activeNews(data);
+
+    expect(news, hasLength(1));
+    expect(news.single.id, 'published-news');
   });
 
   test(
