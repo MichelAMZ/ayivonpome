@@ -156,7 +156,10 @@ service cloud.firestore {
 
     function validPublicMemberUpdate(familyId, memberId) {
       return validPublicMember(familyId, memberId) &&
-        request.resource.data.familyId == resource.data.familyId &&
+        (request.resource.data.familyId == resource.data.familyId ||
+          (familyId == 'ayivon' &&
+            resource.data.familyId == 'family-ayivon' &&
+            request.resource.data.familyId == 'ayivon')) &&
         request.resource.data.id == resource.data.id &&
         (!('createdAt' in resource.data) ||
           request.resource.data.createdAt == resource.data.createdAt);
@@ -222,7 +225,10 @@ service cloud.firestore {
 
     function validPrivateMemberUpdate(familyId, memberId) {
       return validPrivateMember(familyId, memberId) &&
-        request.resource.data.familyId == resource.data.familyId &&
+        (request.resource.data.familyId == resource.data.familyId ||
+          (familyId == 'ayivon' &&
+            resource.data.familyId == 'family-ayivon' &&
+            request.resource.data.familyId == 'ayivon')) &&
         request.resource.data.memberId == resource.data.memberId &&
         ownerUidIsImmutable() &&
         (!('createdAt' in resource.data) ||

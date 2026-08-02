@@ -499,7 +499,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         version: snapshot.exists ? _safeVersion(remoteData?['version']) + 1 : 1,
         deletedAt: '',
       );
-      final data = _mapper.toMemberPublic(prepared, familyId: _tenantFamilyId);
+      final data = _memberPublicWriteData(prepared, existingData: remoteData);
       if (snapshot.exists) {
         diagnostic = await _buildMemberUpdateDiagnostic(
           doc: doc,
@@ -527,7 +527,10 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         data: data,
       );
       final batch = _firestore.batch();
-      batch.set(doc, data, SetOptions(merge: true));
+      // La projection publique remplace le document afin d'éliminer les champs
+      // legacy que la liste blanche Firestore refuse désormais. Le createdAt
+      // historique est conservé par [_memberPublicWriteData].
+      batch.set(doc, data);
       batch.set(
         privateDoc,
         _mapper.toMemberPrivate(
@@ -610,7 +613,7 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
           ? _safeVersion(remoteData?['version']) + 1
           : 1;
       final prepared = person.copyWith(updatedAt: now, version: nextVersion);
-      final data = _mapper.toMemberPublic(prepared, familyId: _tenantFamilyId);
+      final data = _memberPublicWriteData(prepared, existingData: remoteData);
       diagnostic = await _buildMemberUpdateDiagnostic(
         doc: doc,
         data: data,
@@ -626,7 +629,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         data: data,
       );
       final batch = _firestore.batch();
-      batch.set(doc, data, SetOptions(merge: true));
+      // Ne pas fusionner avec l'ancien document : un seul champ obsolète
+      // conservé par merge ferait échouer la validation atomique du batch.
+      batch.set(doc, data);
       batch.set(
         privateDoc,
         _mapper.toMemberPrivate(
@@ -1432,8 +1437,23 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
       diff: _diffMaps(resolvedExistingData, data),
       existingExists: resolvedExistingExists,
       roleActive: roleData.active,
-      rulePath: 'match /members/{memberId}',
+      rulePath: 'match /families/{familyId}/members_public/{memberId}',
+      batchDocumentPaths: [
+        doc.path,
+        _membersPrivate.doc(doc.id).path,
+        'activity_logs/<generatedLogId>',
+      ],
     );
+  }
+
+  Map<String, dynamic> _memberPublicWriteData(
+    Person person, {
+    Map<String, dynamic>? existingData,
+  }) {
+    final data = _mapper.toMemberPublic(person, familyId: _tenantFamilyId);
+    final createdAt = existingData?['createdAt'];
+    if (createdAt != null) data['createdAt'] = createdAt;
+    return data;
   }
 
   Future<_DiagnosticRoleData> _readCurrentRoleForDiagnostic(String? uid) async {
@@ -1586,6 +1606,7 @@ class FirestoreUpdateDiagnostic {
     required this.existingExists,
     required this.roleActive,
     required this.rulePath,
+    required this.batchDocumentPaths,
   });
 
   final String documentPath;
@@ -1602,6 +1623,7 @@ class FirestoreUpdateDiagnostic {
   final bool existingExists;
   final bool roleActive;
   final String rulePath;
+  final List<String> batchDocumentPaths;
 
   String get refusedCondition {
     if (uid.isEmpty) return 'request.auth != null';
@@ -1618,14 +1640,11 @@ class FirestoreUpdateDiagnostic {
       if (sentData['id'] != documentId) {
         return 'request.resource.data.id == memberId';
       }
-      if (_version(sentData['version']) != 1) {
-        return 'request.resource.data.version == 1';
+      if (sentData['schemaVersion'] != 2) {
+        return 'request.resource.data.schemaVersion == 2';
       }
-      if (sentData['createdBy'] != uid) {
-        return 'request.resource.data.createdBy == request.auth.uid';
-      }
-      if (sentData['updatedBy'] != uid) {
-        return 'request.resource.data.updatedBy == request.auth.uid';
+      if (sentData['deletedAt'] != '') {
+        return "request.resource.data.deletedAt == ''";
       }
       return 'Aucune condition de création refusée déduite côté client';
     }
@@ -1644,12 +1663,11 @@ class FirestoreUpdateDiagnostic {
     if (!sameTenantFamilyId) {
       return 'isSameTenantFamilyId(resource.data.familyId, request.resource.data.familyId)';
     }
-    final previousVersion = _version(existingData['version']);
-    final nextVersion = _version(sentData['version']);
-    if (previousVersion == null) {
-      if (nextVersion != 1) return 'hasValidNextVersion() version == 1';
-    } else if (nextVersion != previousVersion + 1) {
-      return 'hasValidNextVersion() version == resource.data.version + 1';
+    if (sentData['id'] != documentId) {
+      return 'request.resource.data.id == memberId';
+    }
+    if (sentData['schemaVersion'] != 2) {
+      return 'request.resource.data.schemaVersion == 2';
     }
     return 'Aucune condition refusée déduite côté client';
   }
@@ -1667,14 +1685,9 @@ class FirestoreUpdateDiagnostic {
       'Donnees existantes : $existingData',
       'Difference : $diff',
       'Regle Firestore concernee : $rulePath',
+      'Batch concerne : ${batchDocumentPaths.join(', ')}',
       'Condition refusee : $refusedCondition',
     ].join('\n');
-  }
-
-  static int? _version(Object? value) {
-    if (value == null) return null;
-    if (value is num) return value.toInt();
-    return int.tryParse('$value');
   }
 }
 
