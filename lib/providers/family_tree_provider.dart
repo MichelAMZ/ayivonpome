@@ -49,7 +49,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   StreamSubscription<FamilyTreeData>? _remoteFamilyTreeSubscription;
   StreamSubscription<List<AuditLog>>? _remoteActivityLogSubscription;
   Future<void> _remoteApplyChain = Future<void>.value();
-  bool _hasObservedNonEmptyRemoteTree = false;
 
   @override
   Future<FamilyTreeData> build() async {
@@ -346,7 +345,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
   }) async {
     final initialData = await future;
     await _remoteFamilyTreeSubscription?.cancel();
-    _hasObservedNonEmptyRemoteTree = false;
     _remoteFamilyTreeSubscription = ref
         .read(remoteDatabaseRepositoryProvider)
         .watchFamilyTree()
@@ -428,20 +426,6 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     FamilyTreeData fallbackData,
   ) async {
     final current = state.value ?? fallbackData;
-    if (remoteData.people.isEmpty &&
-        current.people.isNotEmpty &&
-        !_hasObservedNonEmptyRemoteTree) {
-      _setRemoteSyncStatus(
-        current.pendingSyncQueue.isEmpty ? 'synced' : 'pending',
-      );
-      debugPrint(
-        'FIRESTORE WATCH ignored initial empty tree; keeping local members',
-      );
-      return;
-    }
-    if (remoteData.people.isNotEmpty) {
-      _hasObservedNonEmptyRemoteTree = true;
-    }
     final pendingQueue = current.pendingSyncQueue;
     final syncStatus = pendingQueue.isEmpty ? 'synced' : 'pending';
     var merged = current.copyWith(
@@ -449,7 +433,10 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
       familyLeadership: remoteData.dataVersion == 'firestore-family-settings-v1'
           ? remoteData.familyLeadership
           : current.familyLeadership,
-      people: _mergeRemotePeopleKeepingLocalChanges(current, remoteData),
+      // Firestore is authoritative once a complete snapshot is received.
+      // Keeping a locally pending member that is absent remotely can
+      // resurrect a soft-deleted duplicate on another browser.
+      people: _authoritativeRemotePeople(remoteData),
       marriageRelations: _mergeRemoteMarriagesKeepingLocalChanges(
         current,
         remoteData,
@@ -476,30 +463,10 @@ class FamilyTreeController extends AsyncNotifier<FamilyTreeData> {
     );
   }
 
-  List<Person> _mergeRemotePeopleKeepingLocalChanges(
-    FamilyTreeData current,
-    FamilyTreeData remoteData,
-  ) {
-    final pendingPersonIds = current.pendingSyncQueue
-        .where(
-          (item) => item.entityType == 'person' && _isOpenPendingSyncItem(item),
-        )
-        .map((item) => item.entityId)
-        .where((id) => id.trim().isNotEmpty)
-        .toSet();
-    final remoteById = {
-      for (final person in remoteData.people) person.id: person,
-    };
-    final mergedById = Map<String, Person>.from(remoteById);
-
-    for (final localPerson in current.people) {
-      if (pendingPersonIds.contains(localPerson.id)) {
-        mergedById[localPerson.id] = localPerson;
-      }
-    }
-
-    return mergedById.values.toList(growable: false);
-  }
+  List<Person> _authoritativeRemotePeople(FamilyTreeData remoteData) =>
+      <String, Person>{
+        for (final person in remoteData.people) person.id: person,
+      }.values.toList(growable: false);
 
   List<MarriageRelation> _mergeRemoteMarriagesKeepingLocalChanges(
     FamilyTreeData current,

@@ -451,7 +451,34 @@ class AppInlineError extends StatelessWidget {
 }
 
 Future<void> _copyIncident(BuildContext context, AppIncident incident) async {
-  await Clipboard.setData(ClipboardData(text: incident.technicalSummary()));
+  final diagnostic = incident.technicalSummary();
+  try {
+    await Clipboard.setData(ClipboardData(text: diagnostic));
+  } catch (error, stackTrace) {
+    AppLogger.warning(
+      'Clipboard unavailable; showing selectable incident diagnostic',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Informations techniques'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
+          child: SingleChildScrollView(child: SelectableText(diagnostic)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
   if (!context.mounted) return;
   ScaffoldMessenger.maybeOf(
     context,

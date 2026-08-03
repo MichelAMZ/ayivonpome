@@ -148,7 +148,7 @@ void main() {
   );
 
   test(
-    'an initial empty remote snapshot keeps the bundled local tree',
+    'an initial empty remote snapshot removes stale bundled members',
     () async {
       final storage = _MemoryJsonStorageService();
       final remote = _WatchRemoteClient();
@@ -177,14 +177,13 @@ void main() {
       await _flushRemoteWatch();
 
       final data = container.read(familyTreeProvider).value!;
-      expect(data.people, hasLength(1));
-      expect(data.people.single.id, 'p001');
+      expect(data.people, isEmpty);
       expect(data.syncSettings.syncStatus, 'synced');
     },
   );
 
   test(
-    'an older remote version cannot overwrite a pending local member',
+    'an authoritative remote version replaces a pending local member',
     () async {
       final storage = _MemoryJsonStorageService();
       final remote = _WatchRemoteClient();
@@ -225,7 +224,7 @@ void main() {
 
       expect(
         container.read(familyTreeProvider).value!.people.single.firstName,
-        'Modification locale',
+        'Ancienne valeur distante',
       );
     },
   );
@@ -325,6 +324,34 @@ void main() {
 
     expect(watchSource, contains('_membersPublic'));
     expect(watchSource, isNot(contains('_membersPrivate')));
+  });
+
+  test('remote public tree replaces stale local members after deletion', () {
+    final source = File(
+      'lib/providers/family_tree_provider.dart',
+    ).readAsStringSync();
+    final applySource = source.substring(
+      source.indexOf('Future<void> _applyRemoteFamilyTreeSnapshot('),
+      source.indexOf('List<MarriageRelation> _mergeRemoteMarriages'),
+    );
+
+    expect(applySource, contains('people: _authoritativeRemotePeople'));
+    expect(applySource, isNot(contains('ignored initial empty tree')));
+    expect(applySource, isNot(contains('pendingPersonIds')));
+  });
+
+  test('initial remote load never falls back to legacy members', () {
+    final source = File(
+      'lib/data/firestore/firestore_remote_database_client.dart',
+    ).readAsStringSync();
+    final loadSource = source.substring(
+      source.indexOf('Future<FamilyTreeData> loadFamilyTree()'),
+      source.indexOf('Stream<FamilyTreeData> watchFamilyTree()'),
+    );
+
+    expect(loadSource, contains('_activeMembers(_membersPublic)'));
+    expect(loadSource, isNot(contains('_legacyMembers')));
+    expect(loadSource, contains('legacyPeople: false'));
   });
 }
 

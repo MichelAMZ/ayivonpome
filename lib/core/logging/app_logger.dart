@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import 'browser_environment.dart';
+
 enum BootstrapStep {
   bindingInitialization,
   firebaseInitialization,
@@ -40,9 +42,18 @@ class AppIncident {
         .join(', ');
     final country = platformLocale.countryCode?.trim();
     final firebaseInitialized = Firebase.apps.isNotEmpty;
+    final browser = readBrowserEnvironment();
+    final view = dispatcher.views.firstOrNull;
+    final logicalSize = view == null
+        ? 'Indisponible'
+        : '${(view.physicalSize.width / view.devicePixelRatio).round()} × '
+              '${(view.physicalSize.height / view.devicePixelRatio).round()}';
+    final source = _sourceLocation(safeStackTrace);
+    var firebaseProject = 'Indisponible';
     var authState = 'Indisponible';
     if (firebaseInitialized) {
       try {
+        firebaseProject = Firebase.app().options.projectId;
         final user = FirebaseAuth.instance.currentUser;
         authState = user == null ? 'Non connecté' : 'Connecté';
       } catch (_) {
@@ -55,21 +66,60 @@ class AppIncident {
       'Incident: $id',
       'Date UTC: ${createdAt.toUtc().toIso8601String()}',
       'Version: 1.0.0+1',
+      'Build: release=$kReleaseMode',
       'Catégorie: $category',
+      'Fonctionnalité: ${category == 'widget_rendering' ? 'rendu UI' : category}',
       'Étape: ${step.name}',
+      'Route: ${_safeRoute(browser['url'])}',
+      'Méthode: ${source.$1}',
+      'Fichier: ${source.$2}',
+      'Ligne: ${source.$3}',
       'Type: $errorType',
       'Message: $safeMessage',
       'Plateforme: ${defaultTargetPlatform.name}',
+      'Navigateur: ${browser['browser'] ?? 'Indisponible'}',
+      'UserAgent: ${browser['userAgent'] ?? 'Indisponible'}',
+      'Dimensions écran: $logicalSize',
+      'URL: ${browser['url'] ?? 'Indisponible'}',
       'Locale navigateur: ${platformLocale.toLanguageTag()}',
       'Langues navigateur: ${locales.isEmpty ? 'Indisponible' : locales}',
       'Pays: ${country == null || country.isEmpty ? 'Indéterminé' : country}',
       'Fuseau horaire: ${DateTime.now().timeZoneName}',
       'Firebase: ${firebaseInitialized ? 'Initialisé' : 'Indisponible'}',
+      'Projet Firebase: $firebaseProject',
       'Authentification: $authState',
       'Mode release: $kReleaseMode',
       'Pile:',
       safeStackTrace.isEmpty ? 'Indisponible' : safeStackTrace,
     ].join('\n');
+  }
+
+  static String _safeRoute(String? url) {
+    if (url == null || url.isEmpty || url == 'Indisponible') {
+      return 'Indisponible';
+    }
+    try {
+      final uri = Uri.parse(url);
+      return uri.hasFragment && uri.fragment.isNotEmpty
+          ? '#${uri.fragment}'
+          : uri.path.isEmpty
+          ? '/'
+          : uri.path;
+    } catch (_) {
+      return 'Indisponible';
+    }
+  }
+
+  static (String, String, String) _sourceLocation(String stack) {
+    for (final line in stack.split('\n')) {
+      final match = RegExp(
+        r'([A-Za-z0-9_<>.$]+).*?([^\s()]+\.dart):(\d+)(?::\d+)?',
+      ).firstMatch(line);
+      if (match != null) {
+        return (match.group(1)!, match.group(2)!, match.group(3)!);
+      }
+    }
+    return ('Indisponible', 'Indisponible', 'Indisponible');
   }
 }
 

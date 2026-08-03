@@ -33,9 +33,6 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   final FirestoreDocumentMapper _mapper;
   final AppErrorLogger? _errorLogger;
 
-  CollectionReference<Map<String, dynamic>> get _legacyMembers =>
-      _firestore.collection('members');
-
   DocumentReference<Map<String, dynamic>> get _familyDocument =>
       _firestore.collection('families').doc(_tenantFamilyId);
 
@@ -69,18 +66,15 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
   @override
   Future<FamilyTreeData> loadFamilyTree() async {
     final publicPeople = await _activeMembers(_membersPublic).get();
-    final legacyPeople = publicPeople.docs.isEmpty
-        ? await _activeByFamily(_legacyMembers).get()
-        : null;
     final relationships = await _activeByFamily(_relationships).get();
     final links = await _activeByFamily(_familyLinks).get();
     final settings = await _loadFamilySettings();
 
     return _treeFromSnapshots(
-      publicPeople.docs.isNotEmpty ? publicPeople.docs : legacyPeople!.docs,
+      publicPeople.docs,
       relationships.docs,
       links.docs,
-      legacyPeople: publicPeople.docs.isEmpty,
+      legacyPeople: false,
       familyLeadership: _familyLeadershipFromSettings(settings?.data()),
       hasFamilySettings: settings?.exists ?? false,
     );
@@ -841,8 +835,12 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
     final privateDeletedAt = _stringValue(privateMember.data()?['deletedAt']);
     if (!member.exists ||
         memberDeletedAt.isEmpty ||
+        member.data()?['isDeleted'] != true ||
+        member.data()?['visibility'] != 'hidden' ||
         !privateMember.exists ||
-        privateDeletedAt.isEmpty) {
+        privateDeletedAt.isEmpty ||
+        privateMember.data()?['isDeleted'] != true ||
+        privateMember.data()?['visibility'] != 'hidden') {
       throw FirebaseException(
         plugin: 'cloud_firestore',
         code: 'failed-precondition',
@@ -872,7 +870,9 @@ class FirestoreRemoteDatabaseClient implements RemoteDatabaseClient {
         const GetOptions(source: Source.server),
       );
       if (confirmed.exists &&
-          _stringValue(confirmed.data()?['deletedAt']).isEmpty) {
+          (_stringValue(confirmed.data()?['deletedAt']).isEmpty ||
+              confirmed.data()?['isActive'] != false ||
+              confirmed.data()?['isVisible'] != false)) {
         throw FirebaseException(
           plugin: 'cloud_firestore',
           code: 'failed-precondition',

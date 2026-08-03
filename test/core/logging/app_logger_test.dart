@@ -27,6 +27,14 @@ void main() {
     expect(diagnostic, contains('Firebase:'));
     expect(diagnostic, contains('Authentification:'));
     expect(diagnostic, contains('Langues navigateur:'));
+    expect(diagnostic, contains('Navigateur:'));
+    expect(diagnostic, contains('UserAgent:'));
+    expect(diagnostic, contains('Dimensions écran:'));
+    expect(diagnostic, contains('Route:'));
+    expect(diagnostic, contains('Méthode:'));
+    expect(diagnostic, contains('Fichier:'));
+    expect(diagnostic, contains('Ligne:'));
+    expect(diagnostic, contains('Projet Firebase:'));
     expect(diagnostic, contains('Pile:'));
     expect(diagnostic, isNot(contains('user@example.com')));
   });
